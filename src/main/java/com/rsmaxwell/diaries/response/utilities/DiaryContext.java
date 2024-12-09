@@ -15,6 +15,8 @@ public class DiaryContext {
 	private DiaryRepository diaryRepository;
 	private PageRepository pageRepository;
 	private PersonRepository personRepository;
+	private Integer refreshPeriod;
+	private Integer refreshExpiration;
 	private String secret;
 	private DiariesConfig diaries;
 

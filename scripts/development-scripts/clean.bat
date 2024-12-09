@@ -1,5 +1,4 @@
 @echo off
-
 setlocal
 
 set BASEDIR=%~dp0
@@ -26,4 +25,6 @@ popd
 cd %PROJECT_DIR%
 
 echo on
-%PROJECT_DIR%\gradlew clean
+call %PROJECT_DIR%\gradlew clean
+
+rd /S /Q %SUBPROJECT_DIR%\runtime

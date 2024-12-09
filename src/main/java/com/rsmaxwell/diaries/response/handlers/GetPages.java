@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
@@ -22,7 +23,7 @@ public class GetPages extends RequestHandler {
 
 	static private ObjectMapper mapper = new ObjectMapper();
 
-	public Result handleRequest(Object ctx, Map<String, Object> args) throws Exception {
+	public Result handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 		log.traceEntry();
 
 		try {
@@ -49,10 +50,10 @@ public class GetPages extends RequestHandler {
 			return Result.success(pages);
 
 		} catch (BadRequest e) {
-			return Result.badRequestException(e);
+			return Result.badRequest(e.getMessage());
 		} catch (Exception e) {
 			log.catching(e);
-			return Result.badRequestException(e);
+			return Result.badRequest(e.getMessage());
 		}
 	}
 }

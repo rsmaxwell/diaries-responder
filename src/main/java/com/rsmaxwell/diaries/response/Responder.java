@@ -21,6 +21,7 @@ import com.rsmaxwell.diaries.response.handlers.Calculator;
 import com.rsmaxwell.diaries.response.handlers.GetDiaries;
 import com.rsmaxwell.diaries.response.handlers.GetPages;
 import com.rsmaxwell.diaries.response.handlers.Quit;
+import com.rsmaxwell.diaries.response.handlers.RefreshToken;
 import com.rsmaxwell.diaries.response.handlers.Register;
 import com.rsmaxwell.diaries.response.handlers.Signin;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
@@ -41,7 +42,7 @@ public class Responder {
 	private static final Logger log = LogManager.getLogger(Responder.class);
 
 	static final String clientID_responder = "responder";
-	static final String clientID_subscriber = "listener";
+	static final String clientID_listener = "listener";
 	static final String requestTopic = "request";
 	static final int qos = 0;
 
@@ -53,6 +54,7 @@ public class Responder {
 		messageHandler.putHandler("getDiaries", new GetDiaries());
 		messageHandler.putHandler("register", new Register());
 		messageHandler.putHandler("signin", new Signin());
+		messageHandler.putHandler("refreshToken", new RefreshToken());
 		messageHandler.putHandler("quit", new Quit());
 	}
 
@@ -75,9 +77,13 @@ public class Responder {
 		String filename = commandLine.getOptionValue("config");
 		Config config = Config.read(filename);
 		DbConfig dbConfig = config.getDb();
-		MqttConfig mqtt = config.getMqtt();
-		String server = mqtt.getServer();
-		User user = mqtt.getUser();
+		MqttConfig mqttConfig = config.getMqtt();
+		String server = mqttConfig.getServer();
+		User user = mqttConfig.getUser();
+
+		log.info("Config:");
+		log.info(String.format("    refreshPeriod:     %8s = %d Seconds", config.getRefreshPeriod(), config.getRefreshPeriodSeconds()));
+		log.info(String.format("    refreshExpiration: %8s = %d Seconds", config.getRefreshExpiration(), config.getRefreshExpirationSeconds()));
 
 		// @formatter:off
 		try (EntityManagerFactory entityManagerFactory = GetEntityManager.adminFactory(dbConfig); 
@@ -95,14 +101,16 @@ public class Responder {
 			context.setPersonRepository(personRepository);
 			context.setSecret(config.getSecret());
 			context.setDiaries(config.getDiaries());
+			context.setRefreshPeriod(config.getRefreshPeriodSeconds());
+			context.setRefreshExpiration(config.getRefreshExpirationSeconds());
 
 			MqttClientPersistence persistence = new MqttDefaultFilePersistence();
 			MqttAsyncClient client_responder = new MqttAsyncClient(server, clientID_responder, persistence);
-			MqttAsyncClient client_subscriber = new MqttAsyncClient(server, clientID_subscriber, persistence);
+			MqttAsyncClient client_listener = new MqttAsyncClient(server, clientID_listener, persistence);
 
 			messageHandler.setContext(context);
 			messageHandler.setClient(client_responder);
-			client_subscriber.setCallback(messageHandler);
+			client_listener.setCallback(messageHandler);
 
 			log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_responder));
 			MqttConnectionOptions connOpts_responder = new MqttConnectionOptions();
@@ -111,23 +119,23 @@ public class Responder {
 			connOpts_responder.setCleanStart(true);
 			client_responder.connect(connOpts_responder).waitForCompletion();
 
-			log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_subscriber));
+			log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_listener));
 			MqttConnectionOptions connOpts_subscriber = new MqttConnectionOptions();
 			connOpts_subscriber.setUserName(user.getUsername());
 			connOpts_subscriber.setPassword(user.getPassword().getBytes());
 			connOpts_subscriber.setCleanStart(true);
-			client_subscriber.connect(connOpts_subscriber).waitForCompletion();
+			client_listener.connect(connOpts_subscriber).waitForCompletion();
 
 			log.info(String.format("subscribing to: %s", requestTopic));
 			MqttSubscription subscription = new MqttSubscription(requestTopic);
-			client_subscriber.subscribe(subscription).waitForCompletion();
+			client_listener.subscribe(subscription).waitForCompletion();
 
 			// Wait till quit request received
 			messageHandler.waitForCompletion();
 
 			log.info("disconnect");
 			client_responder.disconnect().waitForCompletion();
-			client_subscriber.disconnect().waitForCompletion();
+			client_listener.disconnect().waitForCompletion();
 
 			log.info("Success");
 

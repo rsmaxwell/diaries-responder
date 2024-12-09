@@ -1,9 +1,11 @@
 package com.rsmaxwell.diaries.response.handlers;
 
+import java.util.List;
 import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.rsmaxwell.mqtt.rpc.common.Result;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
@@ -14,7 +16,7 @@ public class Calculator extends RequestHandler {
 	private static final Logger log = LogManager.getLogger(Calculator.class);
 
 	@Override
-	public Result handleRequest(Object ctx, Map<String, Object> args) throws Exception {
+	public Result handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 		log.traceEntry();
 
 		try {
@@ -46,10 +48,10 @@ public class Calculator extends RequestHandler {
 			return Result.success(value);
 		} catch (ArithmeticException e) {
 			log.debug(String.format("%s: %s", e.getClass().getSimpleName(), e.getMessage()));
-			return Result.badRequestException(e);
+			return Result.badRequest(e.getMessage());
 		} catch (Exception e) {
 			log.catching(e);
-			return Result.badRequestException(e);
+			return Result.badRequest(e.getMessage());
 		}
 	}
 }

@@ -1,11 +1,13 @@
 @echo on
-
 setlocal
-
 
 set BASEDIR=%~dp0
 
-pushd %BASEDIR%\..
+pushd %BASEDIR%
+set DEV_SCRIPT_DIR=%CD%
+popd
+
+pushd %DEV_SCRIPT_DIR%\..
 set SCRIPT_DIR=%CD%
 popd
 

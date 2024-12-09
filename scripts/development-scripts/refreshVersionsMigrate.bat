@@ -1,6 +1,5 @@
 @echo off
-
-setlocal
+ssetlocal
 
 set BASEDIR=%~dp0
 

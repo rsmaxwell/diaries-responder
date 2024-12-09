@@ -1,10 +1,12 @@
 package com.rsmaxwell.diaries.response.handlers;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.mindrot.jbcrypt.BCrypt;
 
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
@@ -28,7 +30,7 @@ public class Register extends RequestHandler {
 	public static final String defaultRegion = "GB";
 
 	@Override
-	public Result handleRequest(Object ctx, Map<String, Object> args) throws Exception {
+	public Result handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 		log.traceEntry();
 
 		DiaryContext context = (DiaryContext) ctx;
