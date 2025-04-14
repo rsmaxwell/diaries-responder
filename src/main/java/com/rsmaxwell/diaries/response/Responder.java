@@ -11,8 +11,10 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence;
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.eclipse.paho.mqttv5.client.persist.MqttDefaultFilePersistence;
+import org.eclipse.paho.mqttv5.common.MqttMessage;
 import org.eclipse.paho.mqttv5.common.MqttSubscription;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
@@ -24,6 +26,8 @@ import com.rsmaxwell.diaries.response.handlers.Quit;
 import com.rsmaxwell.diaries.response.handlers.RefreshToken;
 import com.rsmaxwell.diaries.response.handlers.Register;
 import com.rsmaxwell.diaries.response.handlers.Signin;
+import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.DiaryResponse;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
@@ -40,12 +44,12 @@ import jakarta.persistence.EntityManagerFactory;
 public class Responder {
 
 	private static final Logger log = LogManager.getLogger(Responder.class);
+	private static ObjectMapper mapper = new ObjectMapper();
 
 	static final String clientID_responder = "responder";
 	static final String clientID_listener = "listener";
 	static final String requestTopic = "request";
 	static final int qos = 0;
-
 	static MessageHandler messageHandler = new MessageHandler();
 
 	static {
@@ -64,18 +68,21 @@ public class Responder {
 
 	public static void main(String[] args) throws Exception {
 
-		Option configOption = createOption("c", "config", "Configuration", "Configuration", true);
-
-		// @formatter:off
 		Options options = new Options();
-		options.addOption(configOption);
-		// @formatter:on
+		options.addOption(createOption("c", "config", "Configuration", "Configuration", true));
 
 		CommandLineParser commandLineParser = new DefaultParser();
 		CommandLine commandLine = commandLineParser.parse(options, args);
 
 		String filename = commandLine.getOptionValue("config");
 		Config config = Config.read(filename);
+
+		Responder responder = new Responder();
+		responder.run(config);
+	}
+
+	void run(Config config) {
+
 		DbConfig dbConfig = config.getDb();
 		MqttConfig mqttConfig = config.getMqtt();
 		String server = mqttConfig.getServer();
@@ -126,6 +133,8 @@ public class Responder {
 			connOpts_subscriber.setCleanStart(true);
 			client_listener.connect(connOpts_subscriber).waitForCompletion();
 
+			updateTopicTree(context, diaryRepository, client_responder);
+
 			log.info(String.format("subscribing to: %s", requestTopic));
 			MqttSubscription subscription = new MqttSubscription(requestTopic);
 			client_listener.subscribe(subscription).waitForCompletion();
@@ -143,5 +152,34 @@ public class Responder {
 			log.catching(e);
 			return;
 		}
+	}
+
+	private void updateTopicTree(DiaryContext context, DiaryRepository diaryRepository, MqttAsyncClient client) throws Exception {
+		log.info("updateTopicTree");
+		update_Diaries(context, diaryRepository, client);
+	}
+
+	private void update_Diaries(DiaryContext context, DiaryRepository diaryRepository, MqttAsyncClient client) throws Exception {
+		log.info("update_Diaries");
+		Iterable<Diary> diaries = diaryRepository.findAll();
+		for (Diary diary : diaries) {
+			DiaryResponse diaryResponse = new DiaryResponse(diary, context);
+			String topic = String.format("diary/%d", diary.getId());
+
+			String bodyString = diaryResponse.toJson();
+			log.info(String.format("update_Diaries: bodySting: %s", bodyString));
+
+			byte[] body = diaryResponse.toJsonAsBytes();
+			MqttMessage message = new MqttMessage(body);
+			message.setQos(1); // Ensures at least one delivery
+			message.setRetained(true); // Retain message on broker
+			client.publish(topic, message).waitForCompletion();
+		}
+
+		byte[] jsonAsBytes = mapper.writeValueAsBytes(diaries);
+		MqttMessage message = new MqttMessage(jsonAsBytes);
+		message.setQos(1); // Ensures at least one delivery
+		message.setRetained(true); // Retain message on broker
+		client.publish("diaries", message).waitForCompletion();
 	}
 }

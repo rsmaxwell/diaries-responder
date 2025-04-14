@@ -27,8 +27,9 @@ public class GetDiaries extends RequestHandler {
 
 		log.info("GetDiaries.handleRequest");
 
+		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.check(context, "access", userProperties) == null) {
+		if (Authorization.checkToken(context, "access", accessToken) == null) {
 			log.info("GetDiaries.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}

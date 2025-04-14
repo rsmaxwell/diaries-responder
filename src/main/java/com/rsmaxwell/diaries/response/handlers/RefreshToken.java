@@ -23,8 +23,9 @@ public class RefreshToken extends RequestHandler {
 
 		log.info("RefreshToken.handleRequest");
 
+		String refreshToken = Authorization.getRefreshToken(args);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.check(context, "refresh", userProperties) == null) {
+		if (Authorization.checkToken(context, "refresh", refreshToken) == null) {
 			log.info("GetDiaries.handleRequest: Authorization.check: Failed!");
 			return Result.unauthorised();
 		}

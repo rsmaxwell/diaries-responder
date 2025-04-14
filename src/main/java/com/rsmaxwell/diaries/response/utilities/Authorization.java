@@ -2,10 +2,10 @@ package com.rsmaxwell.diaries.response.utilities;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import javax.crypto.SecretKey;
@@ -65,9 +65,30 @@ public class Authorization {
 		//@formatter:on
 	}
 
-	public static Claims check(DiaryContext context, String subject, List<UserProperty> userProperties) {
+	public static String getRefreshToken(Map<String, Object> args) {
 
-		log.info("Authorization.check");
+		log.info("Authorization.getRefreshToken");
+
+		Object value = args.get("refreshToken");
+		if (value == null) {
+			log.info("Authorization.getRefreshToken: refreshToken not found");
+			return null;
+		}
+
+		String refreshToken = null;
+		if (value instanceof String) {
+			refreshToken = (String) value;
+		} else {
+			log.info("Authorization.getRefreshToken: refreshToken is an unexpected type: " + value.getClass().getName());
+			return null;
+		}
+
+		return refreshToken;
+	}
+
+	public static String getAccessToken(List<UserProperty> userProperties) {
+
+		log.info("Authorization.getAccessToken");
 
 		String accessToken = null;
 		for (UserProperty property : userProperties) {
@@ -77,28 +98,40 @@ public class Authorization {
 			}
 		}
 		if (accessToken == null) {
-			log.info("Authorization.check: accessToken not found'");
+			log.info("Authorization.getAccessToken: accessToken not found'");
 			return null;
 		}
 
-		log.info("Authorization.check: before 'parseToken'");
+		return accessToken;
+	}
+
+	public static Claims checkToken(DiaryContext context, String subject, String token) {
+
+		log.info("Authorization.checkToken");
+
+		if (token == null) {
+			log.info("Authorization.checkToken: accessToken not found'");
+			return null;
+		}
+
+		log.info("Authorization.checkToken: before 'parseToken'");
 		Claims claims = null;
 		try {
 			String secret = context.getSecret();
-			claims = parseToken(secret, accessToken);
+			claims = parseToken(secret, token);
 		} catch (ExpiredJwtException e) {
-			log.info("Authorization.check: exception thrown'");
-			log.catching(e);
+			log.info("Authorization.checkToken: JWT has expired'");
+			// log.catching(e);
 			return null;
 		}
 
 		String actual = claims.getSubject();
 		if (!subject.equals(actual)) {
-			log.info(String.format("Authorization.check: unexpected subject: expected: %s, actual: %s", subject, actual));
+			log.info(String.format("Authorization.checkToken: unexpected subject: expected: %s, actual: %s", subject, actual));
 			return null;
 		}
 
-		log.info("Authorization.check: returning claims");
+		log.info("Authorization.checkToken: returning claims");
 		return claims;
 	}
 
@@ -114,10 +147,7 @@ public class Authorization {
 		DiaryContext context = new DiaryContext();
 		context.setSecret(secret);
 
-		List<UserProperty> userProperties = new ArrayList<UserProperty>();
-		userProperties.add(new UserProperty("accessToken", accessToken));
-
-		Claims claims = check(context, subject, userProperties);
+		Claims claims = checkToken(context, subject, accessToken);
 
 		if (claims == null) {
 			System.out.println("Unauthorized");

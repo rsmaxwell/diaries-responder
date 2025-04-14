@@ -30,8 +30,8 @@ public class Pair<L, R> {
 	public boolean equals(Object o) {
 		if (!(o instanceof Pair))
 			return false;
-		Pair pairo = (Pair) o;
-		return this.left.equals(pairo.getLeft()) && this.right.equals(pairo.getRight());
+		Pair<?, ?> p = (Pair<?, ?>) o;
+		return this.left.equals(p.getLeft()) && this.right.equals(p.getRight());
 	}
 
 }
