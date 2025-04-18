@@ -341,17 +341,17 @@ public class RepositoryTest {
 		Diary x2 = diaryRepository.save(new Diary("swarmbreath"));
 		assertEquals(3, diaryRepository.count());
 
-		Page y0 = pageRepository.save(new Page(x0, "structure"));
-		Page y1 = pageRepository.save(new Page(x0, "deficit"));
-		Page y2 = pageRepository.save(new Page(x0, "asset"));
+		Page y0 = pageRepository.save(new Page(x0, "structure", "jpg", 123, 456));
+		Page y1 = pageRepository.save(new Page(x0, "deficit", "jpg", 123, 456));
+		Page y2 = pageRepository.save(new Page(x0, "asset", "jpg", 123, 456));
 
-		Page y3 = pageRepository.save(new Page(x1, "intermediate"));
-		Page y4 = pageRepository.save(new Page(x1, "calendar"));
-		Page y5 = pageRepository.save(new Page(x1, "body"));
+		Page y3 = pageRepository.save(new Page(x1, "intermediate", "jpg", 123, 456));
+		Page y4 = pageRepository.save(new Page(x1, "calendar", "jpg", 123, 456));
+		Page y5 = pageRepository.save(new Page(x1, "body", "jpg", 123, 456));
 
-		Page y6 = pageRepository.save(new Page(x2, "basin"));
-		Page y7 = pageRepository.save(new Page(x2, "deal"));
-		Page y8 = pageRepository.save(new Page(x2, "promotion"));
+		Page y6 = pageRepository.save(new Page(x2, "basin", "jpg", 123, 456));
+		Page y7 = pageRepository.save(new Page(x2, "deal", "jpg", 123, 456));
+		Page y8 = pageRepository.save(new Page(x2, "promotion", "jpg", 123, 456));
 		assertEquals(9, pageRepository.count());
 
 		Iterable<PageDTO> pages = pageRepository.findAllByDiary(x1);

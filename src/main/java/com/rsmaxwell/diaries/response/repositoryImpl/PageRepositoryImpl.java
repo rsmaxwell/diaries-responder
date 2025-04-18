@@ -42,6 +42,9 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		List<String> list = new ArrayList<String>();
 		list.add("diary_id");
 		list.add("name");
+		list.add("extension");
+		list.add("width");
+		list.add("height");
 		return list;
 	}
 
@@ -49,6 +52,9 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		List<String> list = new ArrayList<String>();
 		list.add("id");
 		list.add("name");
+		list.add("extension");
+		list.add("width");
+		list.add("height");
 		return list;
 	}
 
@@ -56,13 +62,19 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getDiary().getId());
 		list.add(entity.getName());
+		list.add(entity.getExtension());
+		list.add(entity.getWidth());
+		list.add(entity.getHeight());
 		return list;
 	}
 
 	public PageDTO newDTO(Object[] result) {
-		Long id = ((Number) result[0]).longValue();
-		String name = (String) result[1];
-		return new PageDTO(id, name);
+		Long id = getLongFromSqlResult(result, 0, null);
+		String name = getStringFromSqlResult(result, 1, null);
+		String extension = getStringFromSqlResult(result, 2, null);
+		Integer width = getIntegerFromSqlResult(result, 3, null);
+		Integer height = getIntegerFromSqlResult(result, 4, null);
+		return new PageDTO(id, name, extension, width, height);
 	}
 
 	public Iterable<PageDTO> findAllByDiary(Diary diary) {

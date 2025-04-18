@@ -1,5 +1,14 @@
 package com.rsmaxwell.diaries.response;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -17,8 +26,10 @@ import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
+import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.handlers.Calculator;
 import com.rsmaxwell.diaries.response.handlers.GetDiaries;
 import com.rsmaxwell.diaries.response.handlers.GetPages;
@@ -28,6 +39,7 @@ import com.rsmaxwell.diaries.response.handlers.Register;
 import com.rsmaxwell.diaries.response.handlers.Signin;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.DiaryResponse;
+import com.rsmaxwell.diaries.response.model.PageResponse;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
@@ -37,6 +49,9 @@ import com.rsmaxwell.diaries.response.repositoryImpl.PersonRepositoryImpl;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.diaries.response.utilities.GetEntityManager;
 import com.rsmaxwell.mqtt.rpc.response.MessageHandler;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -77,13 +92,54 @@ public class Responder {
 		String filename = commandLine.getOptionValue("config");
 		Config config = Config.read(filename);
 
+		startFileServer(config);
+
 		Responder responder = new Responder();
 		responder.run(config);
+	}
+
+	// This will serve files like {baseurl}/{diary-name}/{page-name}.jpg
+	// e.g. http://localhost:8081/images/diary-1837/img2556.jpg
+	static void startFileServer(Config config) throws IOException {
+
+		DiariesConfig diariesConfig = config.getDiaries();
+
+		Path directory = Path.of(diariesConfig.getOriginal());
+		HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
+
+		server.createContext("/images", new HttpHandler() {
+			@Override
+			public void handle(HttpExchange exchange) throws IOException {
+				String path = exchange.getRequestURI().getPath().replace("/images/", "");
+				File file = new File(directory.toFile(), path);
+
+				if (!file.exists() || !file.isFile()) {
+					exchange.sendResponseHeaders(404, -1);
+					return;
+				}
+
+				String mime = Files.probeContentType(file.toPath());
+				if (mime != null) {
+					exchange.getResponseHeaders().add("Content-Type", mime);
+				}
+
+				exchange.sendResponseHeaders(200, file.length());
+
+				try (OutputStream os = exchange.getResponseBody(); InputStream is = new FileInputStream(file)) {
+					is.transferTo(os);
+				}
+			}
+		});
+
+		server.start();
+		log.info("Static image server running at http://localhost:8081/images/");
+		log.info(String.format("      from %s", diariesConfig.getOriginal()));
 	}
 
 	void run(Config config) {
 
 		DbConfig dbConfig = config.getDb();
+		DiariesConfig diariesConfig = config.getDiaries();
 		MqttConfig mqttConfig = config.getMqtt();
 		String server = mqttConfig.getServer();
 		User user = mqttConfig.getUser();
@@ -133,7 +189,7 @@ public class Responder {
 			connOpts_subscriber.setCleanStart(true);
 			client_listener.connect(connOpts_subscriber).waitForCompletion();
 
-			updateTopicTree(context, diaryRepository, client_responder);
+			updateTopicTree(context, diariesConfig, diaryRepository, pageRepository, client_responder);
 
 			log.info(String.format("subscribing to: %s", requestTopic));
 			MqttSubscription subscription = new MqttSubscription(requestTopic);
@@ -154,32 +210,50 @@ public class Responder {
 		}
 	}
 
-	private void updateTopicTree(DiaryContext context, DiaryRepository diaryRepository, MqttAsyncClient client) throws Exception {
+	private void updateTopicTree(DiaryContext context, DiariesConfig diariesConfig, DiaryRepository diaryRepository, PageRepository pageRepository, MqttAsyncClient client)
+			throws Exception {
 		log.info("updateTopicTree");
-		update_Diaries(context, diaryRepository, client);
+		updateDiaries(context, diaryRepository, pageRepository, client);
 	}
 
-	private void update_Diaries(DiaryContext context, DiaryRepository diaryRepository, MqttAsyncClient client) throws Exception {
-		log.info("update_Diaries");
+	private void updateDiaries(DiaryContext context, DiaryRepository diaryRepository, PageRepository pageRepository, MqttAsyncClient client) throws Exception {
+		log.info("updateDiaries");
 		Iterable<Diary> diaries = diaryRepository.findAll();
 		for (Diary diary : diaries) {
+			String diaryTopic = String.format("diary/%d", diary.getId());
 			DiaryResponse diaryResponse = new DiaryResponse(diary, context);
-			String topic = String.format("diary/%d", diary.getId());
+			updateDiary(diaryTopic, diaryResponse, client);
 
-			String bodyString = diaryResponse.toJson();
-			log.info(String.format("update_Diaries: bodySting: %s", bodyString));
-
-			byte[] body = diaryResponse.toJsonAsBytes();
-			MqttMessage message = new MqttMessage(body);
-			message.setQos(1); // Ensures at least one delivery
-			message.setRetained(true); // Retain message on broker
-			client.publish(topic, message).waitForCompletion();
+			Iterable<PageDTO> pages = pageRepository.findAll();
+			for (PageDTO page : pages) {
+				String pageTopic = String.format("diary/%s/%d", diary.getId(), page.getId());
+				PageResponse pageResponse = new PageResponse(page);
+				updatePage(pageTopic, pageResponse, client);
+			}
 		}
 
-		byte[] jsonAsBytes = mapper.writeValueAsBytes(diaries);
-		MqttMessage message = new MqttMessage(jsonAsBytes);
+		String diariesTopic = "diaries";
+		log.info(String.format("update_Diaries: topic: %s, body: %s", diariesTopic, mapper.writeValueAsString(diaries)));
+		byte[] body = mapper.writeValueAsBytes(diaries);
+		MqttMessage message = new MqttMessage(body);
 		message.setQos(1); // Ensures at least one delivery
 		message.setRetained(true); // Retain message on broker
-		client.publish("diaries", message).waitForCompletion();
+		client.publish(diariesTopic, message).waitForCompletion();
+	}
+
+	private void updateDiary(String topic, DiaryResponse diaryResponse, MqttAsyncClient client) throws Exception {
+		log.info(String.format("updateDiary: topic: %s, body: %s", topic, diaryResponse.toJson()));
+		MqttMessage message = new MqttMessage(diaryResponse.toJsonAsBytes());
+		message.setQos(1); // Ensures at least one delivery
+		message.setRetained(true); // Retain message on broker
+		client.publish(topic, message).waitForCompletion();
+	}
+
+	private void updatePage(String topic, PageResponse pageResponse, MqttAsyncClient client) throws Exception {
+		log.info(String.format("updatePage: topic: %s, body: %s", topic, pageResponse.toJson()));
+		MqttMessage message = new MqttMessage(pageResponse.toJsonAsBytes());
+		message.setQos(1); // Ensures at least one delivery
+		message.setRetained(true); // Retain message on broker
+		client.publish(topic, message).waitForCompletion();
 	}
 }

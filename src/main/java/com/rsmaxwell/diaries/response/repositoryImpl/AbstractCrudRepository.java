@@ -222,10 +222,10 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	public <S extends T> S save(S entity) throws Exception {
 
 		String separator = "";
-		StringBuffer fieldsBuffer = new StringBuffer();
+		StringBuffer assignments = new StringBuffer();
 		for (String field : getFields()) {
-			fieldsBuffer.append(separator);
-			fieldsBuffer.append(field);
+			assignments.append(separator);
+			assignments.append(field);
 			separator = ", ";
 		}
 
@@ -237,12 +237,38 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			separator = ", ";
 		}
 
-		String sql = String.format("insert into %s ( %s ) values ( %s ) returning %s", getTable(), fieldsBuffer, valuesBuffer, getPrimaryKeyField());
+		String sql = String.format("insert into %s ( %s ) values ( %s ) returning %s", getTable(), assignments, valuesBuffer, getPrimaryKeyField());
 		Query query = entityManager.createNativeQuery(sql);
 		Object value = query.getSingleResult();
 		log.info(String.format("save --> %s: %s", getPrimaryKeyField(), value.toString()));
 
 		setPrimaryKeyValue(entity, value);
+
+		return entity;
+	}
+
+	public <S extends T> S update(S entity) throws Exception {
+		String separator = "";
+		StringBuilder assignments = new StringBuilder();
+		List<String> fields = getFields();
+		List<Object> values = getValues(entity);
+
+		for (int i = 0; i < fields.size(); i++) {
+			String field = fields.get(i);
+			Object value = values.get(i);
+			if (field.equals(getPrimaryKeyField())) {
+				continue; // don't update the primary key
+			}
+			assignments.append(separator);
+			assignments.append(field).append(" = ").append(quote(value));
+			separator = ", ";
+		}
+
+		String sql = String.format("update %s set %s where %s = %s", getTable(), assignments, getPrimaryKeyField(), getPrimaryKeyValueAsString(entity));
+
+		Query query = entityManager.createNativeQuery(sql);
+		int count = query.executeUpdate();
+		log.info(String.format("update --> count: %d", count));
 
 		return entity;
 	}
@@ -284,5 +310,35 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			return sb.toString();
 		}
 		throw new Exception(String.format("Unexpected type: %s", value.getClass().getSimpleName()));
+	}
+
+	protected String getStringFromSqlResult(Object[] result, int index, String defaultValue) {
+		if (index >= result.length) {
+			return defaultValue;
+		}
+
+		return (String) result[index];
+	}
+
+	protected Integer getIntegerFromSqlResult(Object[] result, int index, Integer defaultValue) {
+		if (index >= result.length) {
+			return defaultValue;
+		}
+		Number value = (Number) result[index];
+		if (value == null) {
+			return defaultValue;
+		}
+		return value.intValue();
+	}
+
+	protected Long getLongFromSqlResult(Object[] result, int index, Long defaultValue) {
+		if (index >= result.length) {
+			return defaultValue;
+		}
+		Number value = (Number) result[index];
+		if (value == null) {
+			return defaultValue;
+		}
+		return value.longValue();
 	}
 }

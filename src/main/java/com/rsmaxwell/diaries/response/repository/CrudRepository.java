@@ -28,5 +28,7 @@ public interface CrudRepository<T, DTO, ID> {
 
 	<S extends T> S save(S entity) throws Exception;
 
+	<S extends T> S update(S entity) throws Exception;
+
 	<S extends T> Iterable<S> saveAll(Iterable<S> entities) throws Exception;
 }

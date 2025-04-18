@@ -95,14 +95,15 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 	}
 
 	public PersonDTO newDTO(Object[] result) {
-		Long id = ((Number) result[0]).longValue();
-		String username = (String) result[1];
-		String firstName = (String) result[2];
-		String lastName = (String) result[3];
-		String knownas = (String) result[4];
-		String email = (String) result[5];
-		String phone = phoneNumberFromDTO((Integer) result[6], (Long) result[7]);
-
+		Long id = getLongFromSqlResult(result, 0, null);
+		String username = getStringFromSqlResult(result, 1, null);
+		String firstName = getStringFromSqlResult(result, 2, null);
+		String lastName = getStringFromSqlResult(result, 3, null);
+		String knownas = getStringFromSqlResult(result, 4, null);
+		String email = getStringFromSqlResult(result, 5, null);
+		Integer countryCode = getIntegerFromSqlResult(result, 6, 0);
+		Long nationalNumber = getLongFromSqlResult(result, 7, 0L);
+		String phone = phoneNumberFromDTO(countryCode, nationalNumber);
 		return new PersonDTO(id, username, firstName, lastName, knownas, email, phone);
 	}
 

@@ -14,12 +14,17 @@ import lombok.SneakyThrows;
 public class PageResponse {
 
 	private Long id;
-
 	private String name;
+	private String extension;
+	private Integer width;
+	private Integer height;
 
 	public PageResponse(PageDTO page) {
 		this.id = page.getId();
 		this.name = page.getName();
+		this.extension = page.getExtension();
+		this.width = page.getWidth();
+		this.height = page.getHeight();
 	}
 
 	@SneakyThrows

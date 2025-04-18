@@ -3,11 +3,17 @@ package com.rsmaxwell.diaries.response;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -30,6 +36,7 @@ import com.rsmaxwell.diaries.response.repository.RoleRepository;
 import com.rsmaxwell.diaries.response.repositoryImpl.DiaryRepositoryImpl;
 import com.rsmaxwell.diaries.response.repositoryImpl.PageRepositoryImpl;
 import com.rsmaxwell.diaries.response.repositoryImpl.RoleRepositoryImpl;
+import com.rsmaxwell.diaries.response.template.ImageInfo;
 import com.rsmaxwell.diaries.response.utilities.GetEntityManager;
 import com.rsmaxwell.diaries.response.utilities.MyFileUtilities;
 
@@ -152,16 +159,16 @@ public class SyncroniseDatabase {
 				diaryRepository.save(new Diary(name));
 			}
 
-			synchronisePages(diariesConfig, diarydir);
+			synchronisePages(diarydir);
 		}
 	}
 
-	public void synchronisePages(DiariesConfig diariesConfig, File diaryDir) throws Exception {
+	public void synchronisePages(File diaryDir) throws Exception {
 
 		log.info("Refresh the pages");
 
 		String original = diariesConfig.getOriginal();
-		String diaryName = MyFileUtilities.removeExtension(diaryDir.getName());
+		String diaryName = MyFileUtilities.getFileName(diaryDir.getName());
 
 		Optional<Diary> optionalDiary = diaryRepository.findByName(diaryName);
 		if (optionalDiary.isEmpty()) {
@@ -202,17 +209,59 @@ public class SyncroniseDatabase {
 			}
 		});
 
-		// Make sure there is a database Page for each original image file
+		// Make sure there is a Page entry in the database for each original image file
+		//
+		// http://localhost:8081/images/diary-1837/img2556.jpg
+		// String baseUrl = "http://localhost:8081/image";
 		for (File imageFile : imageFiles) {
 
-			String pageName = MyFileUtilities.removeExtension(imageFile.getName());
-			Optional<PageDTO> optionalPage = pageRepository.findByDiaryAndName(diary, pageName);
+			String fileName = imageFile.getName();
+			String pageName = MyFileUtilities.getFileName(fileName);
+			String pageExtension = MyFileUtilities.getFileExtension(fileName);
 
+			ImageInfo info = getImageInfo(imageFile);
+			Page fsPage = new Page(diary, pageName, pageExtension, info.getWidth(), info.getHeight());
+
+			Optional<PageDTO> optionalPage = pageRepository.findByDiaryAndName(diary, pageName);
 			if (optionalPage.isEmpty()) {
-				log.info(String.format("creating database Page '%s/%s' to match the filesystem directory", diaryName, pageName));
-				pageRepository.save(new Page(diary, pageName));
+				log.info(String.format("Creating new DbPage '%s/%s' to match the filesystem directory", diaryName, pageName));
+				pageRepository.save(fsPage);
+			} else {
+				PageDTO dbPageDTO = optionalPage.get();
+				Page dbPage = new Page(diary, dbPageDTO);
+
+				if (fsPage.equals(dbPage)) {
+					log.info(String.format("DbPage matches the filesystemPage. Nothing to do: '%s/%s'", diaryName, pageName));
+				} else {
+					log.info(String.format("DbPage does not match the filesystemPage. Updating the dbPage: '%s/%s'", diaryName, pageName));
+					dbPage.updateFrom(fsPage);
+					pageRepository.update(dbPage);
+				}
 			}
 		}
+	}
+
+	private ImageInfo getImageInfo(File imageFile) throws Exception {
+
+		ImageInfo info = new ImageInfo();
+
+		try (ImageInputStream input = ImageIO.createImageInputStream(imageFile)) {
+			Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+			if (!readers.hasNext()) {
+				throw new Exception(String.format("No ImageReader found for the file: %s", imageFile.getAbsoluteFile()));
+			}
+
+			ImageReader reader = readers.next();
+			reader.setInput(input);
+			info.setHeight(reader.getHeight(0));
+			info.setWidth(reader.getWidth(0));
+			reader.dispose();
+
+		} catch (IOException e) {
+			System.err.println("Failed to read image dimensions: " + e.getMessage());
+		}
+
+		return info;
 	}
 
 	public void synchroniseRoles() throws Exception {

@@ -56,8 +56,8 @@ public class RoleRepositoryImpl extends AbstractCrudRepository<Role, Role, Long>
 	}
 
 	public Role newDTO(Object[] result) {
-		Long id = ((Number) result[0]).longValue();
-		String name = (String) result[1];
+		Long id = getLongFromSqlResult(result, 0, null);
+		String name = getStringFromSqlResult(result, 1, null);
 		return new Role(id, name);
 	}
 
