@@ -1,5 +1,6 @@
 package com.rsmaxwell.diaries.response.repositoryImpl;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -316,29 +317,66 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		if (index >= result.length) {
 			return defaultValue;
 		}
-
-		return (String) result[index];
+		Object obj = result[index];
+		if (obj == null) {
+			return defaultValue;
+		}
+		if (obj instanceof String) {
+			return (String) obj;
+		}
+		return defaultValue;
 	}
 
 	protected Integer getIntegerFromSqlResult(Object[] result, int index, Integer defaultValue) {
 		if (index >= result.length) {
 			return defaultValue;
 		}
-		Number value = (Number) result[index];
-		if (value == null) {
+		Object obj = result[index];
+		if (obj == null) {
 			return defaultValue;
 		}
-		return value.intValue();
+		if (obj instanceof Number) {
+			return ((Number) obj).intValue();
+		}
+		return defaultValue;
 	}
 
 	protected Long getLongFromSqlResult(Object[] result, int index, Long defaultValue) {
 		if (index >= result.length) {
 			return defaultValue;
 		}
-		Number value = (Number) result[index];
-		if (value == null) {
+		Object obj = result[index];
+		if (obj == null) {
 			return defaultValue;
 		}
-		return value.longValue();
+		if (obj instanceof Number) {
+			return ((Number) obj).longValue();
+		}
+		return defaultValue;
+	}
+
+	protected BigDecimal getBigDecimalFromSqlResult(Object[] result, int index, BigDecimal defaultValue) {
+		if (index >= result.length) {
+			return defaultValue;
+		}
+		Object obj = result[index];
+		if (obj == null) {
+			return defaultValue;
+		}
+		if (obj instanceof BigDecimal) {
+			return (BigDecimal) obj;
+		}
+		if (obj instanceof Number) {
+			return BigDecimal.valueOf(((Number) obj).doubleValue());
+		}
+		// Optionally handle string values from raw SQL
+		if (obj instanceof String) {
+			try {
+				return new BigDecimal((String) obj);
+			} catch (NumberFormatException e) {
+				return defaultValue;
+			}
+		}
+		return defaultValue;
 	}
 }

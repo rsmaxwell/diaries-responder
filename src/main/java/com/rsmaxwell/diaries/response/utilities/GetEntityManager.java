@@ -12,6 +12,7 @@ import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.Jdbc;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.model.Person;
 import com.rsmaxwell.diaries.response.model.Role;
@@ -110,6 +111,7 @@ public class GetEntityManager {
 			info.addClasses(Page.class.getName());
 			info.addClasses(Person.class.getName());
 			info.addClasses(Role.class.getName());
+			info.addClasses(Fragment.class.getName());
 
 			entityManagerFactory = Bootstrap.getEntityManagerFactoryBuilder(info, props).build();
 
