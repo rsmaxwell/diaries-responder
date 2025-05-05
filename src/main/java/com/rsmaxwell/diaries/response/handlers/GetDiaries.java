@@ -9,11 +9,11 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
-import com.rsmaxwell.mqtt.rpc.common.Result;
+import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
 import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
@@ -23,7 +23,8 @@ public class GetDiaries extends RequestHandler {
 
 	static private ObjectMapper mapper = new ObjectMapper();
 
-	public Result handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
+	@Override
+	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
 		log.info("GetDiaries.handleRequest");
 
@@ -37,9 +38,9 @@ public class GetDiaries extends RequestHandler {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 
-		List<Diary> diaries = new ArrayList<Diary>();
-		Iterable<Diary> all = diaryRepository.findAll();
-		for (Diary diary : all) {
+		List<DiaryDTO> diaries = new ArrayList<DiaryDTO>();
+		Iterable<DiaryDTO> all = diaryRepository.findAll();
+		for (DiaryDTO diary : all) {
 			diaries.add(diary);
 		}
 
@@ -47,6 +48,6 @@ public class GetDiaries extends RequestHandler {
 		log.info(json);
 
 		log.info("GetDiaries.handleRequest: returning Success");
-		return Result.success(diaries);
+		return Response.success(diaries);
 	}
 }

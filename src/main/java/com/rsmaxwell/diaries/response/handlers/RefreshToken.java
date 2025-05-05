@@ -11,7 +11,6 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
-import com.rsmaxwell.mqtt.rpc.common.Result;
 import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
 
 public class RefreshToken extends RequestHandler {
@@ -19,7 +18,7 @@ public class RefreshToken extends RequestHandler {
 	private static final Logger log = LogManager.getLogger(RefreshToken.class);
 
 	@Override
-	public Result handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
+	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
 		log.info("RefreshToken.handleRequest");
 
@@ -27,14 +26,15 @@ public class RefreshToken extends RequestHandler {
 		DiaryContext context = (DiaryContext) ctx;
 		if (Authorization.checkToken(context, "refresh", refreshToken) == null) {
 			log.info("GetDiaries.handleRequest: Authorization.check: Failed!");
-			return Result.unauthorised();
+			return Response.unauthorized();
 		}
 		log.info("RefreshToken.handleRequest: Authorization.check: OK!");
 
 		String secret = context.getSecret();
 		int expiration = context.getRefreshExpiration();
+
 		Response response = Response.success();
-		response.put("accessToken", Authorization.getToken(secret, "access", expiration, ChronoUnit.SECONDS));
-		return new Result(response, false);
+		response.setPayload(Authorization.getToken(secret, "access", expiration, ChronoUnit.SECONDS));
+		return response;
 	}
 }

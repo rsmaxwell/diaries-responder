@@ -7,11 +7,13 @@ import lombok.Data;
 @AllArgsConstructor
 public class PersonDTO {
 
-	private long id;
+	private Long id;
 	private String username;
+	private String passwordHash;
 	private String firstName;
 	private String lastName;
 	private String knownas;
 	private String email;
-	private String phone;
+	private Integer countryCode;
+	private Long nationalNumber;
 }

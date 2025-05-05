@@ -16,7 +16,7 @@ import com.rsmaxwell.diaries.response.model.Person;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.diaries.response.utilities.Field;
-import com.rsmaxwell.mqtt.rpc.common.Result;
+import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
 import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 
@@ -30,7 +30,7 @@ public class Register extends RequestHandler {
 	public static final String defaultRegion = "GB";
 
 	@Override
-	public Result handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
+	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 		log.traceEntry();
 
 		DiaryContext context = (DiaryContext) ctx;
@@ -50,14 +50,14 @@ public class Register extends RequestHandler {
 
 			log.info(String.format("Person Registered: %s", person));
 
-			return Result.success(person.getId());
+			return Response.success(person.getId());
 
 		} catch (Exception e) {
 			log.catching(e);
 			if (tx != null) {
 				tx.rollback();
 			}
-			return Result.badRequest(e.getMessage());
+			return Response.badRequest(e.getMessage());
 		}
 	}
 

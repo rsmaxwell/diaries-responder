@@ -8,6 +8,4 @@ import com.rsmaxwell.diaries.response.model.Person;
 public interface PersonRepository extends CrudRepository<Person, PersonDTO, Long> {
 
 	Optional<PersonDTO> findByUsername(String username);
-
-	Optional<Person> findFullByUsername(String username);
 }

@@ -20,8 +20,10 @@ import org.junit.jupiter.api.Test;
 
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
+import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.dto.PersonDTO;
+import com.rsmaxwell.diaries.response.dto.RoleDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.model.Person;
@@ -246,12 +248,12 @@ public class RepositoryTest {
 
 		int count1 = 0;
 		List<Long> ids = new ArrayList<Long>();
-		Iterable<Diary> all = repository.findAll();
-		for (Diary p : all) {
-			Optional<Diary> y = repository.findById(p.getId());
+		Iterable<DiaryDTO> all = repository.findAll();
+		for (DiaryDTO p : all) {
+			Optional<DiaryDTO> y = repository.findById(p.getId());
 
 			assertNotNull(y.isPresent());
-			Diary p2 = y.get();
+			DiaryDTO p2 = y.get();
 
 			assertEquals(p.getId(), p2.getId());
 			assertTrue(p.equals(p2));
@@ -264,12 +266,12 @@ public class RepositoryTest {
 		assertEquals(count1, repository.count());
 
 		int count2 = 0;
-		Iterable<Diary> more = repository.findById(ids);
-		for (Diary p : more) {
-			Optional<Diary> y = repository.findById(p.getId());
+		Iterable<DiaryDTO> more = repository.findById(ids);
+		for (DiaryDTO p : more) {
+			Optional<DiaryDTO> y = repository.findById(p.getId());
 
 			assertNotNull(y.isPresent());
-			Diary p2 = y.get();
+			DiaryDTO p2 = y.get();
 
 			assertEquals(p.getId(), p2.getId());
 			assertTrue(p.equals(p2));
@@ -354,17 +356,17 @@ public class RepositoryTest {
 		Page y8 = pageRepository.save(new Page(x2, "promotion", "jpg", 123, 456));
 		assertEquals(9, pageRepository.count());
 
-		Iterable<PageDTO> pages = pageRepository.findAllByDiary(x1);
+		Iterable<PageDTO> pages = pageRepository.findAllByDiary(x1.getId());
 		List<PageDTO> list = new ArrayList<PageDTO>();
 		for (PageDTO page : pages) {
 			list.add(page);
 		}
 		assertEquals(3, list.size());
 
-		Optional<PageDTO> optionalPage1 = pageRepository.findByDiaryAndName(x1, "calendar");
+		Optional<PageDTO> optionalPage1 = pageRepository.findByDiaryAndName(x1.getId(), "calendar");
 		assertTrue(optionalPage1.isPresent());
 
-		Optional<PageDTO> optionalPage2 = pageRepository.findByDiaryAndName(x1, "junk");
+		Optional<PageDTO> optionalPage2 = pageRepository.findByDiaryAndName(x1.getId(), "junk");
 		assertTrue(optionalPage2.isEmpty());
 
 		pageRepository.deleteAll();
@@ -406,12 +408,12 @@ public class RepositoryTest {
 
 		int count1 = 0;
 		List<Long> ids = new ArrayList<Long>();
-		Iterable<Role> all = repository.findAll();
-		for (Role p : all) {
-			Optional<Role> y = repository.findById(p.getId());
+		Iterable<RoleDTO> all = repository.findAll();
+		for (RoleDTO p : all) {
+			Optional<RoleDTO> y = repository.findById(p.getId());
 
 			assertNotNull(y.isPresent());
-			Role p2 = y.get();
+			RoleDTO p2 = y.get();
 
 			assertEquals(p.getId(), p2.getId());
 			assertTrue(p.equals(p2));
@@ -424,12 +426,12 @@ public class RepositoryTest {
 		assertEquals(count1, repository.count());
 
 		int count2 = 0;
-		Iterable<Role> more = repository.findById(ids);
-		for (Role p : more) {
-			Optional<Role> y = repository.findById(p.getId());
+		Iterable<RoleDTO> more = repository.findById(ids);
+		for (RoleDTO p : more) {
+			Optional<RoleDTO> y = repository.findById(p.getId());
 
 			assertNotNull(y.isPresent());
-			Role p2 = y.get();
+			RoleDTO p2 = y.get();
 
 			assertEquals(p.getId(), p2.getId());
 			assertTrue(p.equals(p2));

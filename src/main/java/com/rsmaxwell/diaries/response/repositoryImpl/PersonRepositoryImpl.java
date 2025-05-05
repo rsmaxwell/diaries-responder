@@ -9,6 +9,7 @@ import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
 import com.rsmaxwell.diaries.response.dto.PersonDTO;
 import com.rsmaxwell.diaries.response.model.Person;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
+import com.rsmaxwell.diaries.response.utilities.WhereBuilder;
 
 import jakarta.persistence.EntityManager;
 
@@ -21,26 +22,37 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		super(entityManager);
 	}
 
+	@Override
 	public String getTable() {
 		return "person";
 	}
 
-	public <S extends Person> Object getPrimaryKeyValueAsString(S entity) {
-		return entity.getId();
+	@Override
+	public <S extends Person> String getKeyValue(S entity) {
+		return entity.getId().toString();
 	}
 
-	public String convertPrimaryKeyValueToString(Long id) {
-		return id.toString();
+	@Override
+	public <S extends PersonDTO> String getDTOKeyValue(S dto) {
+		return dto.getId().toString();
 	}
 
-	public <S extends Person> void setPrimaryKeyValue(S entity, Object value) {
+	@Override
+	public <S extends Person> void setKeyValue(S entity, Object value) {
 		entity.setId((Long) value);
 	}
 
-	public String getPrimaryKeyField() {
+	@Override
+	public <S extends PersonDTO> void setDTOKeyValue(S dto, Object value) {
+		dto.setId((Long) value);
+	}
+
+	@Override
+	public String getKeyField() {
 		return "id";
 	}
 
+	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
 		list.add("username");
@@ -54,22 +66,9 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		return list;
 	}
 
+	@Override
 	public List<String> getDTOFields() {
 		List<String> list = new ArrayList<String>();
-		list.add("id");
-		list.add("username");
-		list.add("firstName");
-		list.add("lastName");
-		list.add("knownas");
-		list.add("email");
-		list.add("countryCode");
-		list.add("nationalNumber");
-		return list;
-	}
-
-	public List<String> getAllFields() {
-		List<String> list = new ArrayList<String>();
-		list.add("id");
 		list.add("username");
 		list.add("passwordHash");
 		list.add("firstName");
@@ -81,6 +80,7 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		return list;
 	}
 
+	@Override
 	public <S extends Person> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getUsername());
@@ -94,20 +94,37 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		return list;
 	}
 
+	@Override
+	public <S extends PersonDTO> List<Object> getDTOValues(S dto) {
+		List<Object> list = new ArrayList<Object>();
+		list.add(dto.getUsername());
+		list.add(dto.getPasswordHash());
+		list.add(dto.getFirstName());
+		list.add(dto.getLastName());
+		list.add(dto.getKnownas());
+		list.add(dto.getEmail());
+		list.add(dto.getCountryCode());
+		list.add(dto.getNationalNumber());
+		return list;
+	}
+
+	@Override
 	public PersonDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
 		String username = getStringFromSqlResult(result, 1, null);
-		String firstName = getStringFromSqlResult(result, 2, null);
-		String lastName = getStringFromSqlResult(result, 3, null);
-		String knownas = getStringFromSqlResult(result, 4, null);
-		String email = getStringFromSqlResult(result, 5, null);
-		Integer countryCode = getIntegerFromSqlResult(result, 6, 0);
-		Long nationalNumber = getLongFromSqlResult(result, 7, 0L);
-		String phone = phoneNumberFromDTO(countryCode, nationalNumber);
-		return new PersonDTO(id, username, firstName, lastName, knownas, email, phone);
+		String passwordHash = getStringFromSqlResult(result, 2, null);
+		String firstName = getStringFromSqlResult(result, 3, null);
+		String lastName = getStringFromSqlResult(result, 4, null);
+		String knownas = getStringFromSqlResult(result, 5, null);
+		String email = getStringFromSqlResult(result, 6, null);
+		Integer countryCode = getIntegerFromSqlResult(result, 7, 0);
+		Long nationalNumber = getLongFromSqlResult(result, 8, 0L);
+
+		// String phone = phoneNumberFromDTO(countryCode, nationalNumber);
+		return new PersonDTO(id, username, passwordHash, firstName, lastName, knownas, email, countryCode, nationalNumber);
 	}
 
-	private String phoneNumberFromDTO(Integer countryCode, Long nationalNumber) {
+	public String phoneNumberFromDTO(Integer countryCode, Long nationalNumber) {
 		if ((countryCode == null) || (nationalNumber == null)) {
 			return null;
 		}
@@ -117,7 +134,7 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		return phoneNumberUtil.format(number, PhoneNumberUtil.PhoneNumberFormat.NATIONAL);
 	}
 
-	public Person newPerson(Object[] result) {
+	public PersonDTO newPersonDTO(Object[] result) {
 		Long id = ((Number) result[0]).longValue();
 		String username = (String) result[1];
 		String passwordHash = (String) result[2];
@@ -125,85 +142,38 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		String lastName = (String) result[4];
 		String knownas = (String) result[5];
 		String email = (String) result[6];
-
 		int countryCode = ((Number) result[7]).intValue();
 		long nationalNumber = ((Number) result[8]).longValue();
 
-		return new Person(id, username, passwordHash, firstName, lastName, knownas, email, countryCode, nationalNumber);
+		return new PersonDTO(id, username, passwordHash, firstName, lastName, knownas, email, countryCode, nationalNumber);
 	}
 
 	@Override
 	public Optional<PersonDTO> findByUsername(String username) {
 
-		StringBuffer where = new StringBuffer();
-		where.append("username");
-		where.append(" = ");
-		where.append("'" + username + "'");
+		// @formatter:off
+		String where = new WhereBuilder()
+				.add("username", username)
+				.build();
+		// @formatter:on
 
 		Iterable<PersonDTO> people = find(where.toString());
 
 		List<PersonDTO> list = new ArrayList<PersonDTO>();
-		for (PersonDTO person : people) {
-			list.add(person);
+		for (PersonDTO dto : people) {
+			list.add(dto);
 		}
 
 		return singleItem(list);
 	}
 
-	@Override
-	public Optional<Person> findFullByUsername(String username) {
-
-		StringBuffer where = new StringBuffer();
-		where.append("username");
-		where.append(" = ");
-		where.append("'" + username + "'");
-
-		Iterable<Person> people = findFull(where.toString());
-
-		List<Person> list = new ArrayList<Person>();
-		for (Person person : people) {
-			list.add(person);
-		}
-
-		return singleFullItem(list);
-	}
-
-	public Iterable<Person> findFull(String where) {
-
-		List<Person> list = new ArrayList<Person>();
-
-		StringBuffer sql = new StringBuffer();
-		sql.append("select ");
-
-		String seperator = "";
-		for (String field : getAllFields()) {
-			sql.append(seperator);
-			sql.append(field);
-			seperator = ", ";
-		}
-
-		sql.append(" from ");
-		sql.append(getTable());
-		sql.append(" where ");
-		sql.append(where);
-
-		List<Object[]> results = getResultList(sql.toString());
-
-		for (Object[] result : results) {
-			Person x = newPerson(result);
-			list.add(x);
-		}
-
-		return list;
-	}
-
-	public Optional<Person> singleFullItem(List<Person> list) {
+	public Optional<PersonDTO> singleFullItem(List<PersonDTO> list) {
 
 		if (list.size() <= 0) {
 			return Optional.empty();
 		}
 
-		Person item = list.get(0);
+		PersonDTO item = list.get(0);
 		return Optional.of(item);
 	}
 }

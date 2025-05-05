@@ -1,7 +1,5 @@
 package com.rsmaxwell.diaries.response.dto;
 
-import java.math.BigDecimal;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -11,14 +9,8 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class FragmentDTO {
+public class RoleDTO {
 
 	private Long id;
-	private Long pageId;
-	private Double x;
-	private Double y;
-	private Double width;
-	private Double height;
-	private BigDecimal sequence;
-	private String text;
+	private String name;
 }

@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.rsmaxwell.diaries.response.dto.PageDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.WhereBuilder;
@@ -18,26 +17,37 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		super(entityManager);
 	}
 
+	@Override
 	public String getTable() {
 		return "page";
 	}
 
-	public <S extends Page> String getPrimaryKeyValueAsString(S entity) {
+	@Override
+	public <S extends Page> String getKeyValue(S entity) {
 		return entity.getId().toString();
 	}
 
-	public String convertPrimaryKeyValueToString(Long id) {
-		return id.toString();
+	@Override
+	public <S extends PageDTO> String getDTOKeyValue(S dto) {
+		return dto.getId().toString();
 	}
 
-	public <S extends Page> void setPrimaryKeyValue(S entity, Object value) {
+	@Override
+	public <S extends Page> void setKeyValue(S entity, Object value) {
 		entity.setId((Long) value);
 	}
 
-	public String getPrimaryKeyField() {
+	@Override
+	public <S extends PageDTO> void setDTOKeyValue(S dto, Object value) {
+		dto.setId((Long) value);
+	}
+
+	@Override
+	public String getKeyField() {
 		return "id";
 	}
 
+	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
 		list.add("diary_id");
@@ -48,9 +58,10 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		return list;
 	}
 
+	@Override
 	public List<String> getDTOFields() {
 		List<String> list = new ArrayList<String>();
-		list.add("id");
+		list.add("diary_id");
 		list.add("name");
 		list.add("extension");
 		list.add("width");
@@ -58,6 +69,7 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		return list;
 	}
 
+	@Override
 	public <S extends Page> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getDiary().getId());
@@ -68,27 +80,30 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		return list;
 	}
 
+	@Override
+	public <S extends PageDTO> List<Object> getDTOValues(S dto) {
+		List<Object> list = new ArrayList<Object>();
+		list.add(dto.getDiaryId());
+		list.add(dto.getName());
+		list.add(dto.getExtension());
+		list.add(dto.getWidth());
+		list.add(dto.getHeight());
+		return list;
+	}
+
+	@Override
 	public PageDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
-		String name = getStringFromSqlResult(result, 1, null);
-		String extension = getStringFromSqlResult(result, 2, null);
-		Integer width = getIntegerFromSqlResult(result, 3, null);
-		Integer height = getIntegerFromSqlResult(result, 4, null);
-		return new PageDTO(id, name, extension, width, height);
+		Long diaryId = getLongFromSqlResult(result, 1, null);
+		String name = getStringFromSqlResult(result, 2, null);
+		String extension = getStringFromSqlResult(result, 3, null);
+		Integer width = getIntegerFromSqlResult(result, 4, null);
+		Integer height = getIntegerFromSqlResult(result, 5, null);
+		return new PageDTO(id, diaryId, name, extension, width, height);
 	}
 
-	public Iterable<PageDTO> findAllByDiary(Diary diary) {
-
-		// @formatter:off
-		String where = new WhereBuilder()
-				.add("diary_id", diary.getId())
-				.build();
-		// @formatter:on
-
-		return find(where);
-	}
-
-	public Iterable<PageDTO> findAllByDiaryId(Long diaryId) {
+	@Override
+	public Iterable<PageDTO> findAllByDiary(Long diaryId) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
@@ -99,11 +114,12 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		return find(where);
 	}
 
-	public Optional<PageDTO> findByDiaryAndName(Diary diary, String name) {
+	@Override
+	public Optional<PageDTO> findByDiaryAndName(Long diaryId, String name) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
-				.add("diary_id", diary.getId())
+				.add("diary_id", diaryId)
 				.add("name", name)
 				.build();
 		// @formatter:on

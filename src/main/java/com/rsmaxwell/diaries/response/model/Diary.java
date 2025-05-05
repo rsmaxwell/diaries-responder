@@ -54,7 +54,7 @@ public class Diary {
 		PageRepository pageRepository = context.getPageRepository();
 		List<PageResponse> pages = new ArrayList<PageResponse>();
 
-		Iterable<PageDTO> all = pageRepository.findAllByDiaryId(this.id);
+		Iterable<PageDTO> all = pageRepository.findAllByDiary(this.id);
 		for (PageDTO page : all) {
 			PageResponse pageResponse = new PageResponse(page);
 			pages.add(pageResponse);

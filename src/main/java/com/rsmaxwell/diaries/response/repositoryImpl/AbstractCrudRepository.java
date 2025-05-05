@@ -25,13 +25,15 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 	abstract public String getTable();
 
-	abstract public String getPrimaryKeyField();
+	abstract public String getKeyField();
 
-	abstract public <S extends T> Object getPrimaryKeyValueAsString(S entity);
+	abstract public <S extends T> String getKeyValue(S entity);
 
-	abstract public String convertPrimaryKeyValueToString(ID id);
+	abstract public <S extends DTO> String getDTOKeyValue(S dto);
 
-	abstract public <S extends T> void setPrimaryKeyValue(S entity, Object value);
+	abstract public <S extends T> void setKeyValue(S entity, Object value);
+
+	abstract public <S extends DTO> void setDTOKeyValue(S dto, Object value);
 
 	abstract public List<String> getFields();
 
@@ -39,12 +41,15 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 	abstract public <S extends T> List<Object> getValues(S entity);
 
+	abstract public <S extends DTO> List<Object> getDTOValues(S dto);
+
 	abstract public DTO newDTO(Object[] result);
 
 	public EntityManager getEntityManager() {
 		return entityManager;
 	}
 
+	@Override
 	public long count() {
 		String sql = String.format("select count(*) from %s", getTable());
 		Query query = entityManager.createNativeQuery(sql);
@@ -52,13 +57,15 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return ((Number) object).longValue();
 	}
 
+	@Override
 	public void delete(T entity) {
-		String sql = String.format("delete from %s where %s = %s", getTable(), getPrimaryKeyField(), getPrimaryKeyValueAsString(entity));
+		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), getKeyValue(entity));
 		Query query = entityManager.createNativeQuery(sql);
 		int count = query.executeUpdate();
 		log.info(String.format("deleteAll --> count: %d", count));
 	}
 
+	@Override
 	public void deleteAll() {
 		String sql = String.format("delete from %s", getTable());
 		Query query = entityManager.createNativeQuery(sql);
@@ -66,20 +73,23 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		log.info(String.format("deleteAll --> count: %d", count));
 	}
 
+	@Override
 	public void deleteAll(Iterable<? extends T> entities) {
 		for (T entity : entities) {
 			delete(entity);
 		}
 	}
 
+	@Override
 	public void deleteAllById(Iterable<? extends ID> ids) {
 		for (ID id : ids) {
 			deleteById(id);
 		}
 	}
 
+	@Override
 	public void deleteById(ID id) {
-		String sql = String.format("delete from %s where %s = %s", getTable(), getPrimaryKeyField(), convertPrimaryKeyValueToString(id));
+		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), quote(id));
 		log.info(String.format("sql: %s", sql));
 
 		Query query = entityManager.createNativeQuery(sql);
@@ -87,19 +97,23 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		log.info(String.format("deleteById --> count: %d", count));
 	}
 
+	@Override
 	public boolean existsById(ID id) {
-		String sql = String.format("select exists(select 1 from %s where %s = %s)", getTable(), getPrimaryKeyField(), convertPrimaryKeyValueToString(id));
+		String sql = String.format("select exists(select 1 from %s where %s = %s)", getTable(), getKeyField(), quote(id));
 		log.debug(String.format("sql: %s", sql));
 
 		Query query = entityManager.createNativeQuery(sql);
 		return (Boolean) query.getSingleResult();
 	}
 
+	@Override
 	@SuppressWarnings("unchecked")
 	public Iterable<DTO> findAll() {
 
 		StringBuffer sql = new StringBuffer();
 		sql.append("select ");
+		sql.append(getKeyField());
+		sql.append(",  ");
 
 		String seperator = "";
 		for (String field : getDTOFields()) {
@@ -123,6 +137,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return list;
 	}
 
+	@Override
 	@SuppressWarnings("unchecked")
 	public Iterable<DTO> findById(Iterable<ID> ids) {
 
@@ -131,6 +146,8 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 			StringBuffer sql = new StringBuffer();
 			sql.append("select ");
+			sql.append(getKeyField());
+			sql.append(", ");
 
 			String seperator = "";
 			for (String field : getDTOFields()) {
@@ -142,9 +159,9 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			sql.append(" from ");
 			sql.append(getTable());
 			sql.append(" where ");
-			sql.append(getPrimaryKeyField());
+			sql.append(getKeyField());
 			sql.append(" = ");
-			sql.append(convertPrimaryKeyValueToString(id));
+			sql.append(quote(id));
 
 			Query query = entityManager.createNativeQuery(sql.toString());
 			List<Object[]> resultList = query.getResultList();
@@ -158,6 +175,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return list;
 	}
 
+	@Override
 	@SuppressWarnings("unchecked")
 	public Optional<DTO> findById(ID id) {
 
@@ -165,6 +183,8 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 		StringBuffer sql = new StringBuffer();
 		sql.append("select ");
+		sql.append(getKeyField());
+		sql.append(", ");
 
 		String seperator = "";
 		for (String field : getDTOFields()) {
@@ -176,27 +196,30 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(" from ");
 		sql.append(getTable());
 		sql.append(" where ");
-		sql.append(getPrimaryKeyField());
+		sql.append(getKeyField());
 		sql.append(" = ");
-		sql.append(convertPrimaryKeyValueToString(id));
+		sql.append(quote(id));
 
 		Query query = entityManager.createNativeQuery(sql.toString());
 		List<Object[]> resultList = query.getResultList();
 
 		for (Object[] result : resultList) {
-			DTO x = newDTO(result);
-			list.add(x);
+			DTO dto = newDTO(result);
+			list.add(dto);
 		}
 
 		return singleItem(list);
 	}
 
+	@Override
 	public Iterable<DTO> find(String where) {
 
 		List<DTO> list = new ArrayList<DTO>();
 
 		StringBuffer sql = new StringBuffer();
 		sql.append("select ");
+		sql.append(getKeyField());
+		sql.append(", ");
 
 		String seperator = "";
 		for (String field : getDTOFields()) {
@@ -213,13 +236,14 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		List<Object[]> results = getResultList(sql.toString());
 
 		for (Object[] result : results) {
-			DTO x = newDTO(result);
-			list.add(x);
+			DTO dto = newDTO(result);
+			list.add(dto);
 		}
 
 		return list;
 	}
 
+	@Override
 	public <S extends T> S save(S entity) throws Exception {
 
 		String separator = "";
@@ -238,16 +262,46 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			separator = ", ";
 		}
 
-		String sql = String.format("insert into %s ( %s ) values ( %s ) returning %s", getTable(), assignments, valuesBuffer, getPrimaryKeyField());
+		String sql = String.format("insert into %s ( %s ) values ( %s ) returning %s", getTable(), assignments, valuesBuffer, getKeyField());
 		Query query = entityManager.createNativeQuery(sql);
 		Object value = query.getSingleResult();
-		log.info(String.format("save --> %s: %s", getPrimaryKeyField(), value.toString()));
+		log.info(String.format("save --> %s: %s", getKeyField(), value.toString()));
 
-		setPrimaryKeyValue(entity, value);
+		setKeyValue(entity, value);
 
 		return entity;
 	}
 
+	@Override
+	public <S extends DTO> S saveDTO(S entity) throws Exception {
+
+		String separator = "";
+		StringBuffer assignments = new StringBuffer();
+		for (String field : getDTOFields()) {
+			assignments.append(separator);
+			assignments.append(field);
+			separator = ", ";
+		}
+
+		separator = "";
+		StringBuffer valuesBuffer = new StringBuffer();
+		for (Object value : getDTOValues(entity)) {
+			valuesBuffer.append(separator);
+			valuesBuffer.append(quote(value));
+			separator = ", ";
+		}
+
+		String sql = String.format("insert into %s ( %s ) values ( %s ) returning %s", getTable(), assignments, valuesBuffer, getKeyField());
+		Query query = entityManager.createNativeQuery(sql);
+		Object value = query.getSingleResult();
+		log.info(String.format("save --> %s: %s", getKeyField(), value.toString()));
+
+		setDTOKeyValue(entity, value);
+
+		return entity;
+	}
+
+	@Override
 	public <S extends T> S update(S entity) throws Exception {
 		String separator = "";
 		StringBuilder assignments = new StringBuilder();
@@ -257,7 +311,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		for (int i = 0; i < fields.size(); i++) {
 			String field = fields.get(i);
 			Object value = values.get(i);
-			if (field.equals(getPrimaryKeyField())) {
+			if (field.equals(getKeyField())) {
 				continue; // don't update the primary key
 			}
 			assignments.append(separator);
@@ -265,7 +319,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			separator = ", ";
 		}
 
-		String sql = String.format("update %s set %s where %s = %s", getTable(), assignments, getPrimaryKeyField(), getPrimaryKeyValueAsString(entity));
+		String sql = String.format("update %s set %s where %s = %s", getTable(), assignments, getKeyField(), getKeyValue(entity));
 
 		Query query = entityManager.createNativeQuery(sql);
 		int count = query.executeUpdate();
@@ -274,6 +328,34 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return entity;
 	}
 
+	@Override
+	public <S extends DTO> S updateDTO(S dto) throws Exception {
+		String separator = "";
+		StringBuilder assignments = new StringBuilder();
+		List<String> fields = getDTOFields();
+		List<Object> values = getDTOValues(dto);
+
+		for (int i = 0; i < fields.size(); i++) {
+			String field = fields.get(i);
+			Object value = values.get(i);
+			if (field.equals(getKeyField())) {
+				continue; // don't update the primary key
+			}
+			assignments.append(separator);
+			assignments.append(field).append(" = ").append(quote(value));
+			separator = ", ";
+		}
+
+		String sql = String.format("update %s set %s where %s = %s", getTable(), assignments, getKeyField(), getDTOKeyValue(dto));
+
+		Query query = entityManager.createNativeQuery(sql);
+		int count = query.executeUpdate();
+		log.info(String.format("update --> count: %d", count));
+
+		return dto;
+	}
+
+	@Override
 	public <S extends T> Iterable<S> saveAll(Iterable<S> entities) throws Exception {
 		List<S> list = new ArrayList<S>();
 		for (S entity : entities) {
@@ -298,19 +380,17 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return Optional.of(item);
 	}
 
-	public String quote(Object value) throws Exception {
-		if (value instanceof String) {
-			StringBuffer sb = new StringBuffer();
-			sb.append("'");
-			sb.append(value);
-			sb.append("'");
-			return sb.toString();
-		} else if (value instanceof Number) {
-			StringBuffer sb = new StringBuffer();
-			sb.append(value);
-			return sb.toString();
+	public String quote(Object value) {
+
+		if (value instanceof Number) {
+			return value.toString();
 		}
-		throw new Exception(String.format("Unexpected type: %s", value.getClass().getSimpleName()));
+
+		StringBuffer sb = new StringBuffer();
+		sb.append("'");
+		sb.append(value);
+		sb.append("'");
+		return sb.toString();
 	}
 
 	protected String getStringFromSqlResult(Object[] result, int index, String defaultValue) {
@@ -355,6 +435,20 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return defaultValue;
 	}
 
+	protected Double getDoubleFromSqlResult(Object[] result, int index, Double defaultValue) {
+		if (index >= result.length) {
+			return defaultValue;
+		}
+		Object obj = result[index];
+		if (obj == null) {
+			return defaultValue;
+		}
+		if (obj instanceof Number) {
+			return ((Number) obj).doubleValue();
+		}
+		return defaultValue;
+	}
+
 	protected BigDecimal getBigDecimalFromSqlResult(Object[] result, int index, BigDecimal defaultValue) {
 		if (index >= result.length) {
 			return defaultValue;
@@ -363,12 +457,24 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		if (obj == null) {
 			return defaultValue;
 		}
-		if (obj instanceof BigDecimal) {
-			return (BigDecimal) obj;
-		}
+
 		if (obj instanceof Number) {
-			return BigDecimal.valueOf(((Number) obj).doubleValue());
+			Number number = (Number) obj;
+			BigDecimal decimal;
+
+			if (number instanceof BigDecimal) {
+				decimal = (BigDecimal) number;
+			} else if (number instanceof Long || number instanceof Integer) {
+				decimal = BigDecimal.valueOf(number.longValue());
+			} else if (number instanceof Double || number instanceof Float) {
+				decimal = BigDecimal.valueOf(number.doubleValue());
+			} else {
+				decimal = new BigDecimal(number.toString());
+			}
+
+			return decimal;
 		}
+
 		// Optionally handle string values from raw SQL
 		if (obj instanceof String) {
 			try {

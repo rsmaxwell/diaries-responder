@@ -26,10 +26,10 @@ import org.apache.logging.log4j.Logger;
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
+import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
+import com.rsmaxwell.diaries.response.dto.RoleDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
-import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.model.Role;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.RoleRepository;
@@ -133,8 +133,8 @@ public class SyncroniseDatabase {
 		});
 
 		// Make sure every database Diary matches an original diary on the file system
-		Iterable<Diary> diaries = diaryRepository.findAll();
-		for (Diary diary : diaries) {
+		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
+		for (DiaryDTO diary : diaries) {
 			String name = diary.getName();
 			Path path = Paths.get(original, name);
 
@@ -152,7 +152,7 @@ public class SyncroniseDatabase {
 		// Also synchronise the database pages with Pages on the file system
 		for (File diarydir : diaryDirs) {
 			String name = diarydir.getName();
-			Optional<Diary> optional = diaryRepository.findByName(diarydir.getName());
+			Optional<DiaryDTO> optional = diaryRepository.findByName(diarydir.getName());
 
 			if (optional.isEmpty()) {
 				log.info(String.format("creating database Diary '%s' to correspond with the filesystem directory", name));
@@ -170,14 +170,14 @@ public class SyncroniseDatabase {
 		String original = diariesConfig.getOriginal();
 		String diaryName = MyFileUtilities.getFileName(diaryDir.getName());
 
-		Optional<Diary> optionalDiary = diaryRepository.findByName(diaryName);
+		Optional<DiaryDTO> optionalDiary = diaryRepository.findByName(diaryName);
 		if (optionalDiary.isEmpty()) {
 			throw new Exception(String.format("Diary '%s' not found in database"));
 		}
-		Diary diary = optionalDiary.get();
+		DiaryDTO diaryDTO = optionalDiary.get();
 
 		// Make sure every database Page matches an original image file
-		Iterable<PageDTO> pages = pageRepository.findAllByDiary(diary);
+		Iterable<PageDTO> pages = pageRepository.findAllByDiary(diaryDTO.getId());
 		for (PageDTO page : pages) {
 			String pageName = page.getName();
 			File imageFile = Paths.get(original, diaryName, String.format("%s.jpg", pageName)).toFile();
@@ -220,22 +220,21 @@ public class SyncroniseDatabase {
 			String pageExtension = MyFileUtilities.getFileExtension(fileName);
 
 			ImageInfo info = getImageInfo(imageFile);
-			Page fsPage = new Page(diary, pageName, pageExtension, info.getWidth(), info.getHeight());
+			PageDTO fsPage = new PageDTO(0L, diaryDTO.getId(), pageName, pageExtension, info.getWidth(), info.getHeight());
 
-			Optional<PageDTO> optionalPage = pageRepository.findByDiaryAndName(diary, pageName);
+			Optional<PageDTO> optionalPage = pageRepository.findByDiaryAndName(diaryDTO.getId(), pageName);
 			if (optionalPage.isEmpty()) {
 				log.info(String.format("Creating new DbPage '%s/%s' to match the filesystem directory", diaryName, pageName));
-				pageRepository.save(fsPage);
+				pageRepository.saveDTO(fsPage);
 			} else {
-				PageDTO dbPageDTO = optionalPage.get();
-				Page dbPage = new Page(diary, dbPageDTO);
+				PageDTO dbPage = optionalPage.get();
 
 				if (fsPage.equals(dbPage)) {
 					log.info(String.format("DbPage matches the filesystemPage. Nothing to do: '%s/%s'", diaryName, pageName));
 				} else {
 					log.info(String.format("DbPage does not match the filesystemPage. Updating the dbPage: '%s/%s'", diaryName, pageName));
 					dbPage.updateFrom(fsPage);
-					pageRepository.update(dbPage);
+					pageRepository.updateDTO(dbPage);
 				}
 			}
 		}
@@ -274,7 +273,7 @@ public class SyncroniseDatabase {
 		list.add("viewer");
 
 		for (String name : list) {
-			Optional<Role> optional = roleRepository.findByName(name);
+			Optional<RoleDTO> optional = roleRepository.findByName(name);
 
 			if (optional.isPresent()) {
 				log.info(String.format("Role '%s' already has a database record", name));
@@ -284,8 +283,8 @@ public class SyncroniseDatabase {
 			}
 		}
 
-		Iterable<Role> roles = roleRepository.findAll();
-		for (Role role : roles) {
+		Iterable<RoleDTO> roles = roleRepository.findAll();
+		for (RoleDTO role : roles) {
 			String name = role.getName();
 
 			if (list.contains(name)) {

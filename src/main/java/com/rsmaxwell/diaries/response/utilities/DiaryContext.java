@@ -2,6 +2,7 @@ package com.rsmaxwell.diaries.response.utilities;
 
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
+import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
 
@@ -15,6 +16,7 @@ public class DiaryContext {
 	private DiaryRepository diaryRepository;
 	private PageRepository pageRepository;
 	private PersonRepository personRepository;
+	private FragmentRepository fragmentRepository;
 	private Integer refreshPeriod;
 	private Integer refreshExpiration;
 	private String secret;

@@ -29,7 +29,10 @@ import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.response.dto.DiaryDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
+import com.rsmaxwell.diaries.response.handlers.AddFragment;
 import com.rsmaxwell.diaries.response.handlers.Calculator;
 import com.rsmaxwell.diaries.response.handlers.GetDiaries;
 import com.rsmaxwell.diaries.response.handlers.GetPages;
@@ -37,13 +40,15 @@ import com.rsmaxwell.diaries.response.handlers.Quit;
 import com.rsmaxwell.diaries.response.handlers.RefreshToken;
 import com.rsmaxwell.diaries.response.handlers.Register;
 import com.rsmaxwell.diaries.response.handlers.Signin;
-import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.DiaryResponse;
+import com.rsmaxwell.diaries.response.model.FragmentResponse;
 import com.rsmaxwell.diaries.response.model.PageResponse;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
+import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
 import com.rsmaxwell.diaries.response.repositoryImpl.DiaryRepositoryImpl;
+import com.rsmaxwell.diaries.response.repositoryImpl.FragmentRepositoryImpl;
 import com.rsmaxwell.diaries.response.repositoryImpl.PageRepositoryImpl;
 import com.rsmaxwell.diaries.response.repositoryImpl.PersonRepositoryImpl;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -74,6 +79,7 @@ public class Responder {
 		messageHandler.putHandler("register", new Register());
 		messageHandler.putHandler("signin", new Signin());
 		messageHandler.putHandler("refreshToken", new RefreshToken());
+		messageHandler.putHandler("addfragment", new AddFragment());
 		messageHandler.putHandler("quit", new Quit());
 	}
 
@@ -156,12 +162,14 @@ public class Responder {
 			DiaryRepository diaryRepository = new DiaryRepositoryImpl(entityManager);
 			PageRepository pageRepository = new PageRepositoryImpl(entityManager);
 			PersonRepository personRepository = new PersonRepositoryImpl(entityManager);
+			FragmentRepository fragmentRepository = new FragmentRepositoryImpl(entityManager);
 
 			DiaryContext context = new DiaryContext();
 			context.setEntityManager(entityManager);
 			context.setDiaryRepository(diaryRepository);
 			context.setPageRepository(pageRepository);
 			context.setPersonRepository(personRepository);
+			context.setFragmentRepository(fragmentRepository);
 			context.setSecret(config.getSecret());
 			context.setDiaries(config.getDiaries());
 			context.setRefreshPeriod(config.getRefreshPeriodSeconds());
@@ -180,6 +188,7 @@ public class Responder {
 			connOpts_responder.setUserName(user.getUsername());
 			connOpts_responder.setPassword(user.getPassword().getBytes());
 			connOpts_responder.setCleanStart(true);
+			connOpts_responder.setAutomaticReconnect(true);
 			client_responder.connect(connOpts_responder).waitForCompletion();
 
 			log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_listener));
@@ -187,9 +196,10 @@ public class Responder {
 			connOpts_subscriber.setUserName(user.getUsername());
 			connOpts_subscriber.setPassword(user.getPassword().getBytes());
 			connOpts_subscriber.setCleanStart(true);
+			connOpts_subscriber.setAutomaticReconnect(true);
 			client_listener.connect(connOpts_subscriber).waitForCompletion();
 
-			updateTopicTree(context, diariesConfig, diaryRepository, pageRepository, client_responder);
+			updateTopicTree(context, diariesConfig, diaryRepository, pageRepository, fragmentRepository, client_responder);
 
 			log.info(String.format("subscribing to: %s", requestTopic));
 			MqttSubscription subscription = new MqttSubscription(requestTopic);
@@ -210,16 +220,17 @@ public class Responder {
 		}
 	}
 
-	private void updateTopicTree(DiaryContext context, DiariesConfig diariesConfig, DiaryRepository diaryRepository, PageRepository pageRepository, MqttAsyncClient client)
-			throws Exception {
+	private void updateTopicTree(DiaryContext context, DiariesConfig diariesConfig, DiaryRepository diaryRepository, PageRepository pageRepository,
+			FragmentRepository fragmentRepository, MqttAsyncClient client) throws Exception {
 		log.info("updateTopicTree");
-		updateDiaries(context, diaryRepository, pageRepository, client);
+		updateDiaries(context, diaryRepository, pageRepository, fragmentRepository, client);
 	}
 
-	private void updateDiaries(DiaryContext context, DiaryRepository diaryRepository, PageRepository pageRepository, MqttAsyncClient client) throws Exception {
+	private void updateDiaries(DiaryContext context, DiaryRepository diaryRepository, PageRepository pageRepository, FragmentRepository fragmentRepository, MqttAsyncClient client)
+			throws Exception {
 		log.info("updateDiaries");
-		Iterable<Diary> diaries = diaryRepository.findAll();
-		for (Diary diary : diaries) {
+		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
+		for (DiaryDTO diary : diaries) {
 			String diaryTopic = String.format("diary/%d", diary.getId());
 			DiaryResponse diaryResponse = new DiaryResponse(diary, context);
 			updateDiary(diaryTopic, diaryResponse, client);
@@ -228,7 +239,7 @@ public class Responder {
 			for (PageDTO page : pages) {
 				String pageTopic = String.format("diary/%s/%d", diary.getId(), page.getId());
 				PageResponse pageResponse = new PageResponse(page);
-				updatePage(pageTopic, pageResponse, client);
+				updatePage(pageTopic, diary, page, pageResponse, fragmentRepository, client);
 			}
 		}
 
@@ -249,9 +260,24 @@ public class Responder {
 		client.publish(topic, message).waitForCompletion();
 	}
 
-	private void updatePage(String topic, PageResponse pageResponse, MqttAsyncClient client) throws Exception {
+	private void updatePage(String topic, DiaryDTO diary, PageDTO page, PageResponse pageResponse, FragmentRepository fragmentRepository, MqttAsyncClient client) throws Exception {
 		log.info(String.format("updatePage: topic: %s, body: %s", topic, pageResponse.toJson()));
 		MqttMessage message = new MqttMessage(pageResponse.toJsonAsBytes());
+		message.setQos(1); // Ensures at least one delivery
+		message.setRetained(true); // Retain message on broker
+		client.publish(topic, message).waitForCompletion();
+
+		Iterable<FragmentDTO> fragments = fragmentRepository.findAllByPage(page.getId());
+		for (FragmentDTO fragment : fragments) {
+			String fragmentTopic = String.format("diary/%s/%d/%d", diary.getId(), page.getId(), fragment.getId());
+			FragmentResponse fragmentResponse = new FragmentResponse(fragment);
+			updateFragment(fragmentTopic, fragmentResponse, client);
+		}
+	}
+
+	private void updateFragment(String topic, FragmentResponse fragmentResponse, MqttAsyncClient client) throws Exception {
+		log.info(String.format("updateFragment: topic: %s, body: %s", topic, fragmentResponse.toJson()));
+		MqttMessage message = new MqttMessage(fragmentResponse.toJsonAsBytes());
 		message.setQos(1); // Ensures at least one delivery
 		message.setRetained(true); // Retain message on broker
 		client.publish(topic, message).waitForCompletion();

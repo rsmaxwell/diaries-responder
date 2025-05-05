@@ -3,6 +3,7 @@ package com.rsmaxwell.diaries.response.model;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 
 import lombok.AllArgsConstructor;
@@ -15,11 +16,11 @@ import lombok.SneakyThrows;
 @NoArgsConstructor
 public class DiaryResponse {
 
-	private Diary diary;
+	private DiaryDTO diary;
 
 	private List<PageResponse> pages;
 
-	public DiaryResponse(Diary diary, DiaryContext context) {
+	public DiaryResponse(DiaryDTO diary, DiaryContext context) {
 		this.diary = diary;
 		this.pages = diary.getPages(context);
 	}

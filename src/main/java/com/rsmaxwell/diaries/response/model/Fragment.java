@@ -35,16 +35,16 @@ public class Fragment {
 	private Page page;
 
 	@NonNull
-	private Integer x;
+	private Double x;
 
 	@NonNull
-	private Integer y;
+	private Double y;
 
 	@NonNull
-	private Integer width;
+	private Double width;
 
 	@NonNull
-	private Integer height;
+	private Double height;
 
 	@NonNull
 	@Column(precision = 10, scale = 4)
@@ -55,7 +55,7 @@ public class Fragment {
 	private String text;
 
 	// ✅ New constructor
-	public Fragment(Page page, Integer x, Integer y, Integer width, Integer height, String text) {
+	public Fragment(Page page, Double x, Double y, Double width, Double height, String text) {
 		this.page = page;
 		this.x = x;
 		this.y = y;

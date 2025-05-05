@@ -26,23 +26,6 @@ import lombok.RequiredArgsConstructor;
 @NoArgsConstructor
 public class Page {
 
-	public Page(Diary diary, PageDTO dbPageDTO) {
-		this.diary = diary;
-		this.id = dbPageDTO.getId();
-		this.name = dbPageDTO.getName();
-		this.extension = dbPageDTO.getExtension();
-		this.width = dbPageDTO.getWidth();
-		this.height = dbPageDTO.getHeight();
-	}
-
-	public void updateFrom(Page other) {
-		this.diary = other.diary;
-		this.name = other.name;
-		this.extension = other.extension;
-		this.width = other.width;
-		this.height = other.height;
-	}
-
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -63,4 +46,21 @@ public class Page {
 
 	@NonNull
 	private Integer height;
+
+	public Page(Diary diary, PageDTO dbPageDTO) {
+		this.diary = diary;
+		this.id = dbPageDTO.getId();
+		this.name = dbPageDTO.getName();
+		this.extension = dbPageDTO.getExtension();
+		this.width = dbPageDTO.getWidth();
+		this.height = dbPageDTO.getHeight();
+	}
+
+	public void updateFrom(Page other) {
+		this.diary = other.diary;
+		this.name = other.name;
+		this.extension = other.extension;
+		this.width = other.width;
+		this.height = other.height;
+	}
 }
