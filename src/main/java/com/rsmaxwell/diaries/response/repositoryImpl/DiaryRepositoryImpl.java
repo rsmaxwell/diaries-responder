@@ -1,5 +1,6 @@
 package com.rsmaxwell.diaries.response.repositoryImpl;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +52,7 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
 		list.add("name");
+		list.add("sequence");
 		return list;
 	}
 
@@ -58,6 +60,7 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	public List<String> getDTOFields() {
 		List<String> list = new ArrayList<String>();
 		list.add("name");
+		list.add("sequence");
 		return list;
 	}
 
@@ -65,6 +68,7 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	public <S extends Diary> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getName());
+		list.add(entity.getSequence());
 		return list;
 	}
 
@@ -72,6 +76,7 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	public <S extends DiaryDTO> List<Object> getDTOValues(S dto) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(dto.getName());
+		list.add(dto.getSequence());
 		return list;
 	}
 
@@ -79,7 +84,8 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	public DiaryDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
 		String name = getStringFromSqlResult(result, 1, null);
-		return new DiaryDTO(id, name);
+		BigDecimal sequence = getBigDecimalFromSqlResult(result, 2, null);
+		return new DiaryDTO(id, name, sequence);
 	}
 
 	@Override
@@ -97,5 +103,10 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 		}
 
 		return singleItem(list);
+	}
+
+	@Override
+	protected String orderBy() {
+		return "ORDER BY sequence NULLS LAST, id";
 	}
 }

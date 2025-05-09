@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -156,7 +157,9 @@ public class SyncroniseDatabase {
 
 			if (optional.isEmpty()) {
 				log.info(String.format("creating database Diary '%s' to correspond with the filesystem directory", name));
-				diaryRepository.save(new Diary(name));
+
+				BigDecimal sequence = new BigDecimal(1);
+				diaryRepository.save(new Diary(name, sequence));
 			}
 
 			synchronisePages(diarydir);
@@ -218,9 +221,10 @@ public class SyncroniseDatabase {
 			String fileName = imageFile.getName();
 			String pageName = MyFileUtilities.getFileName(fileName);
 			String pageExtension = MyFileUtilities.getFileExtension(fileName);
+			BigDecimal sequence = new BigDecimal(1);
 
 			ImageInfo info = getImageInfo(imageFile);
-			PageDTO fsPage = new PageDTO(0L, diaryDTO.getId(), pageName, pageExtension, info.getWidth(), info.getHeight());
+			PageDTO fsPage = new PageDTO(0L, diaryDTO.getId(), pageName, sequence, pageExtension, info.getWidth(), info.getHeight());
 
 			Optional<PageDTO> optionalPage = pageRepository.findByDiaryAndName(diaryDTO.getId(), pageName);
 			if (optionalPage.isEmpty()) {

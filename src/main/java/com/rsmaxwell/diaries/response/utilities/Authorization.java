@@ -49,12 +49,9 @@ public class Authorization {
 	}
 
 	public static Claims parseToken(String secret, String token) throws ExpiredJwtException {
-		log.info(String.format("Authorization.parseToken: secret: %s, token: %s", secret, token));
 
 		byte[] secretBytes = Base64.getDecoder().decode(secret);
 		SecretKey key = Keys.hmacShaKeyFor(secretBytes);
-
-		log.info("Authorization.parseToken: before Jwts.parser");
 
 		//@formatter:off
 		return Jwts.parser()
@@ -114,7 +111,6 @@ public class Authorization {
 			return null;
 		}
 
-		log.info("Authorization.checkToken: before 'parseToken'");
 		Claims claims = null;
 		try {
 			String secret = context.getSecret();
@@ -131,7 +127,6 @@ public class Authorization {
 			return null;
 		}
 
-		log.info("Authorization.checkToken: returning claims");
 		return claims;
 	}
 

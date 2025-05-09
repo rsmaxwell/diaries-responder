@@ -1,5 +1,6 @@
 package com.rsmaxwell.diaries.response.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,9 +23,10 @@ public class DiaryDTO {
 
 	private Long id;
 	private String name;
+	private BigDecimal sequence;
 
 	public Diary toDiary() {
-		return new Diary(id, name);
+		return new Diary(id, name, sequence);
 	}
 
 	@JsonIgnore

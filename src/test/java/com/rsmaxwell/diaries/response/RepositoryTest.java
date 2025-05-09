@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -343,17 +344,19 @@ public class RepositoryTest {
 		Diary x2 = diaryRepository.save(new Diary("swarmbreath"));
 		assertEquals(3, diaryRepository.count());
 
-		Page y0 = pageRepository.save(new Page(x0, "structure", "jpg", 123, 456));
-		Page y1 = pageRepository.save(new Page(x0, "deficit", "jpg", 123, 456));
-		Page y2 = pageRepository.save(new Page(x0, "asset", "jpg", 123, 456));
+		BigDecimal sequence = new BigDecimal(1);
 
-		Page y3 = pageRepository.save(new Page(x1, "intermediate", "jpg", 123, 456));
-		Page y4 = pageRepository.save(new Page(x1, "calendar", "jpg", 123, 456));
-		Page y5 = pageRepository.save(new Page(x1, "body", "jpg", 123, 456));
+		Page y0 = pageRepository.save(new Page(x0, "structure", sequence, "jpg", 123, 456));
+		Page y1 = pageRepository.save(new Page(x0, "deficit", sequence, "jpg", 123, 456));
+		Page y2 = pageRepository.save(new Page(x0, "asset", sequence, "jpg", 123, 456));
 
-		Page y6 = pageRepository.save(new Page(x2, "basin", "jpg", 123, 456));
-		Page y7 = pageRepository.save(new Page(x2, "deal", "jpg", 123, 456));
-		Page y8 = pageRepository.save(new Page(x2, "promotion", "jpg", 123, 456));
+		Page y3 = pageRepository.save(new Page(x1, "intermediate", sequence, "jpg", 123, 456));
+		Page y4 = pageRepository.save(new Page(x1, "calendar", sequence, "jpg", 123, 456));
+		Page y5 = pageRepository.save(new Page(x1, "body", sequence, "jpg", 123, 456));
+
+		Page y6 = pageRepository.save(new Page(x2, "basin", sequence, "jpg", 123, 456));
+		Page y7 = pageRepository.save(new Page(x2, "deal", sequence, "jpg", 123, 456));
+		Page y8 = pageRepository.save(new Page(x2, "promotion", sequence, "jpg", 123, 456));
 		assertEquals(9, pageRepository.count());
 
 		Iterable<PageDTO> pages = pageRepository.findAllByDiary(x1.getId());

@@ -40,7 +40,8 @@ for /R %SUBPROJECT_DIR%\runtime %%a in (*.jar) do (
 )
 set CLASSPATH=%CLASSPATH%"
 
-set LOGGER_LEVEL=DEBUG
+set HIBERNATE_LOGLEVEL=OFF
+set LOGLEVEL=DEBUG
 
 java -classpath %CLASSPATH% com.rsmaxwell.diaries.response.Responder ^
  --config %USERPROFILE%\.diaries\responder.json

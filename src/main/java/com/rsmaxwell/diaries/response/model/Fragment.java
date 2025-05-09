@@ -2,6 +2,8 @@ package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
 
+import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -55,13 +57,28 @@ public class Fragment {
 	private String text;
 
 	// ✅ New constructor
-	public Fragment(Page page, Double x, Double y, Double width, Double height, String text) {
+	public Fragment(Page page, Double x, Double y, Double width, Double height, String text, BigDecimal sequence) {
 		this.page = page;
 		this.x = x;
 		this.y = y;
 		this.width = width;
 		this.height = height;
 		this.text = text;
-		this.sequence = BigDecimal.ZERO;
+		this.sequence = sequence;
+	}
+
+	public Fragment(Page page, FragmentDTO dto) {
+		this.id = dto.getId();
+		this.page = page;
+		this.x = dto.getY();
+		this.y = dto.getY();
+		this.width = dto.getWidth();
+		this.height = dto.getHeight();
+		this.text = dto.getText();
+		this.sequence = dto.getSequence();
+	}
+
+	public FragmentDTO toDTO() {
+		return new FragmentDTO(this.id, this.page.getId(), this.x, this.y, this.width, this.height, this.sequence, this.text);
 	}
 }

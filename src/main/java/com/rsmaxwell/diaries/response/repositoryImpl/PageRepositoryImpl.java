@@ -1,5 +1,6 @@
 package com.rsmaxwell.diaries.response.repositoryImpl;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,7 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		List<String> list = new ArrayList<String>();
 		list.add("diary_id");
 		list.add("name");
+		list.add("sequence");
 		list.add("extension");
 		list.add("width");
 		list.add("height");
@@ -63,6 +65,7 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		List<String> list = new ArrayList<String>();
 		list.add("diary_id");
 		list.add("name");
+		list.add("sequence");
 		list.add("extension");
 		list.add("width");
 		list.add("height");
@@ -74,6 +77,7 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getDiary().getId());
 		list.add(entity.getName());
+		list.add(entity.getSequence());
 		list.add(entity.getExtension());
 		list.add(entity.getWidth());
 		list.add(entity.getHeight());
@@ -85,6 +89,7 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		List<Object> list = new ArrayList<Object>();
 		list.add(dto.getDiaryId());
 		list.add(dto.getName());
+		list.add(dto.getSequence());
 		list.add(dto.getExtension());
 		list.add(dto.getWidth());
 		list.add(dto.getHeight());
@@ -96,10 +101,11 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		Long id = getLongFromSqlResult(result, 0, null);
 		Long diaryId = getLongFromSqlResult(result, 1, null);
 		String name = getStringFromSqlResult(result, 2, null);
-		String extension = getStringFromSqlResult(result, 3, null);
-		Integer width = getIntegerFromSqlResult(result, 4, null);
-		Integer height = getIntegerFromSqlResult(result, 5, null);
-		return new PageDTO(id, diaryId, name, extension, width, height);
+		BigDecimal sequence = getBigDecimalFromSqlResult(result, 3, null);
+		String extension = getStringFromSqlResult(result, 4, null);
+		Integer width = getIntegerFromSqlResult(result, 5, null);
+		Integer height = getIntegerFromSqlResult(result, 6, null);
+		return new PageDTO(id, diaryId, name, sequence, extension, width, height);
 	}
 
 	@Override
@@ -130,5 +136,10 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		}
 
 		return singleItem(list);
+	}
+
+	@Override
+	protected String orderBy() {
+		return "ORDER BY sequence NULLS LAST, id";
 	}
 }

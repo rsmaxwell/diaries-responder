@@ -1,14 +1,17 @@
 package com.rsmaxwell.diaries.response.model;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -36,6 +39,10 @@ public class Diary {
 	@NonNull
 	private String name;
 
+	@NonNull
+	@Column(precision = 10, scale = 4)
+	private BigDecimal sequence;
+
 	// Lombok-generated method to convert object to JSON
 	@SneakyThrows
 	public String toJson() {
@@ -55,11 +62,26 @@ public class Diary {
 		List<PageResponse> pages = new ArrayList<PageResponse>();
 
 		Iterable<PageDTO> all = pageRepository.findAllByDiary(this.id);
-		for (PageDTO page : all) {
-			PageResponse pageResponse = new PageResponse(page);
+		for (PageDTO dto : all) {
+			PageResponse pageResponse = new PageResponse(dto);
 			pages.add(pageResponse);
 		}
 
 		return pages;
+	}
+
+	public Diary(String name) {
+		this.id = 0L;
+		this.name = name;
+		this.sequence = new BigDecimal(1);
+	}
+
+	public Diary(DiaryDTO diaryDTO) {
+		this.id = diaryDTO.getId();
+		this.name = diaryDTO.getName();
+	}
+
+	public DiaryDTO toDTO() {
+		return new DiaryDTO(id, name, sequence);
 	}
 }

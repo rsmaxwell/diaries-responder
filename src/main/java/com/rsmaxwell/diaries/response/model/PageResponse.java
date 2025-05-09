@@ -1,5 +1,7 @@
 package com.rsmaxwell.diaries.response.model;
 
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 
@@ -16,12 +18,14 @@ public class PageResponse {
 	private Long id;
 	private String name;
 	private String extension;
+	private BigDecimal sequence;
 	private Integer width;
 	private Integer height;
 
 	public PageResponse(PageDTO page) {
 		this.id = page.getId();
 		this.name = page.getName();
+		this.sequence = page.getSequence();
 		this.extension = page.getExtension();
 		this.width = page.getWidth();
 		this.height = page.getHeight();

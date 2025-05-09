@@ -106,6 +106,10 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return (Boolean) query.getSingleResult();
 	}
 
+	protected String orderBy() {
+		return "";
+	}
+
 	@Override
 	@SuppressWarnings("unchecked")
 	public Iterable<DTO> findAll() {
@@ -124,6 +128,12 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 		sql.append(" from ");
 		sql.append(getTable());
+
+		String orderClause = orderBy().trim();
+		if (!orderClause.isEmpty()) {
+			sql.append(" ");
+			sql.append(orderClause);
+		}
 
 		Query query = entityManager.createNativeQuery(sql.toString());
 		List<Object[]> resultList = query.getResultList();
@@ -162,6 +172,12 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			sql.append(getKeyField());
 			sql.append(" = ");
 			sql.append(quote(id));
+
+			String orderClause = orderBy().trim();
+			if (!orderClause.isEmpty()) {
+				sql.append(" ");
+				sql.append(orderClause);
+			}
 
 			Query query = entityManager.createNativeQuery(sql.toString());
 			List<Object[]> resultList = query.getResultList();
@@ -232,6 +248,12 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(getTable());
 		sql.append(" where ");
 		sql.append(where);
+
+		String orderClause = orderBy().trim();
+		if (!orderClause.isEmpty()) {
+			sql.append(" ");
+			sql.append(orderClause);
+		}
 
 		List<Object[]> results = getResultList(sql.toString());
 

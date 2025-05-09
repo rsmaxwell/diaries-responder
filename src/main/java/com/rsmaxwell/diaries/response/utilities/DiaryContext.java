@@ -1,5 +1,7 @@
 package com.rsmaxwell.diaries.response.utilities;
 
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
+
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
@@ -21,5 +23,6 @@ public class DiaryContext {
 	private Integer refreshExpiration;
 	private String secret;
 	private DiariesConfig diaries;
+	private MqttAsyncClient clientResponder;
 
 }

@@ -1,7 +1,10 @@
 package com.rsmaxwell.diaries.response.model;
 
+import java.math.BigDecimal;
+
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -39,6 +42,10 @@ public class Page {
 	private String name;
 
 	@NonNull
+	@Column(precision = 10, scale = 4)
+	private BigDecimal sequence;
+
+	@NonNull
 	private String extension;
 
 	@NonNull
@@ -47,20 +54,36 @@ public class Page {
 	@NonNull
 	private Integer height;
 
-	public Page(Diary diary, PageDTO dbPageDTO) {
+	public Page(Diary diary, PageDTO dto) {
 		this.diary = diary;
-		this.id = dbPageDTO.getId();
-		this.name = dbPageDTO.getName();
-		this.extension = dbPageDTO.getExtension();
-		this.width = dbPageDTO.getWidth();
-		this.height = dbPageDTO.getHeight();
+		this.id = dto.getId();
+		this.name = dto.getName();
+		this.sequence = dto.getSequence();
+		this.extension = dto.getExtension();
+		this.width = dto.getWidth();
+		this.height = dto.getHeight();
 	}
 
 	public void updateFrom(Page other) {
 		this.diary = other.diary;
 		this.name = other.name;
+		this.sequence = other.sequence;
 		this.extension = other.extension;
 		this.width = other.width;
 		this.height = other.height;
+	}
+
+	public PageDTO toDTO() {
+		// @formatter:off
+		return new PageDTO(
+				this.id,
+				this.diary.getId(),
+				this.name,
+				this.sequence,
+				this.extension,
+				this.width,
+				this.height				
+				);
+		// @formatter:on
 	}
 }

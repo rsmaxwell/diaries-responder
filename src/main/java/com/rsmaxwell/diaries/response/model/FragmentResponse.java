@@ -31,6 +31,8 @@ public class FragmentResponse {
 		this.y = fragment.getY();
 		this.width = fragment.getWidth();
 		this.height = fragment.getHeight();
+		this.sequence = fragment.getSequence();
+		this.text = fragment.getText();
 	}
 
 	@SneakyThrows

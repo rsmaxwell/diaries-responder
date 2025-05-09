@@ -123,4 +123,9 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 
 		return find(where);
 	}
+
+	@Override
+	protected String orderBy() {
+		return "ORDER BY sequence NULLS LAST, id";
+	}
 }

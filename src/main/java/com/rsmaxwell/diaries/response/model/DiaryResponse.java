@@ -20,8 +20,8 @@ public class DiaryResponse {
 
 	private List<PageResponse> pages;
 
-	public DiaryResponse(DiaryDTO diary, DiaryContext context) {
-		this.diary = diary;
+	public DiaryResponse(Diary diary, DiaryContext context) {
+		this.diary = diary.toDTO();
 		this.pages = diary.getPages(context);
 	}
 
