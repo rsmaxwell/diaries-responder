@@ -2,7 +2,7 @@ package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
 
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,12 +19,12 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 @Entity
-@Table(name = "fragment")
+@Table(name = "marquee")
 @Data
 @AllArgsConstructor
 @RequiredArgsConstructor
 @NoArgsConstructor
-public class Fragment {
+public class Marquee {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,25 +33,36 @@ public class Fragment {
 
 	@NonNull
 	@ManyToOne
-	@JoinColumn(name = "marquee_id")
-	private Marquee marquee;
+	@JoinColumn(name = "page_id")
+	private Page page;
 
 	@NonNull
-	@Column(length = 4096)
-	private String text;
+	private Double x;
+
+	@NonNull
+	private Double y;
+
+	@NonNull
+	private Double width;
+
+	@NonNull
+	private Double height;
 
 	@NonNull
 	@Column(precision = 10, scale = 4)
 	private BigDecimal sequence;
 
-	public Fragment(Marquee marquee, FragmentDTO dto) {
+	public Marquee(Page page, MarqueeDTO dto) {
 		this.id = dto.getId();
-		this.marquee = marquee;
-		this.text = dto.getText();
+		this.page = page;
+		this.x = dto.getY();
+		this.y = dto.getY();
+		this.width = dto.getWidth();
+		this.height = dto.getHeight();
 		this.sequence = dto.getSequence();
 	}
 
-	public FragmentDTO toDTO() {
-		return new FragmentDTO(this.id, this.marquee.getId(), this.text, this.sequence);
+	public MarqueeDTO toDTO() {
+		return new MarqueeDTO(this.id, this.page.getId(), this.x, this.y, this.width, this.height, this.sequence);
 	}
 }

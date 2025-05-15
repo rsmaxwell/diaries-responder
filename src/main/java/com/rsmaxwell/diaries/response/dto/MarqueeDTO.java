@@ -10,11 +10,14 @@ import lombok.SneakyThrows;
 
 @Data
 @AllArgsConstructor
-public class FragmentDTO {
+public class MarqueeDTO {
 
 	private Long id;
-	private Long marqueeId;
-	private String text;
+	private Long pageId;
+	private Double x;
+	private Double y;
+	private Double width;
+	private Double height;
 	private BigDecimal sequence;
 
 	@SneakyThrows

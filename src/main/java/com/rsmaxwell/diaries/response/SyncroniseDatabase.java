@@ -24,6 +24,7 @@ import org.apache.commons.cli.Options;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
@@ -48,6 +49,7 @@ import jakarta.persistence.EntityTransaction;
 public class SyncroniseDatabase {
 
 	private static final Logger log = LogManager.getLogger(SyncroniseDatabase.class);
+	static private ObjectMapper mapper = new ObjectMapper();
 
 	private DiariesConfig diariesConfig;
 	private DiaryRepository diaryRepository;
@@ -148,8 +150,7 @@ public class SyncroniseDatabase {
 			}
 		}
 
-		// Make sure there is a database Diary for each original diary on the file
-		// system
+		// Make sure there is a database Diary for each original diary on the filesystem
 		// Also synchronise the database pages with Pages on the file system
 		for (File diarydir : diaryDirs) {
 			String name = diarydir.getName();
@@ -233,10 +234,14 @@ public class SyncroniseDatabase {
 			} else {
 				PageDTO dbPage = optionalPage.get();
 
-				if (fsPage.equals(dbPage)) {
+				if (fsPage.equalsExcludingId(dbPage)) {
 					log.info(String.format("DbPage matches the filesystemPage. Nothing to do: '%s/%s'", diaryName, pageName));
 				} else {
 					log.info(String.format("DbPage does not match the filesystemPage. Updating the dbPage: '%s/%s'", diaryName, pageName));
+
+					log.info(String.format("fsPage: %s", mapper.writeValueAsString(fsPage)));
+					log.info(String.format("dbPage: %s", mapper.writeValueAsString(dbPage)));
+
 					dbPage.updateFrom(fsPage);
 					pageRepository.updateDTO(dbPage);
 				}

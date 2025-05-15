@@ -1,3 +1,4 @@
+
 package com.rsmaxwell.diaries.response.dto;
 
 import java.math.BigDecimal;
@@ -41,5 +42,30 @@ public class PageDTO {
 	@SneakyThrows
 	public byte[] toJsonAsBytes() {
 		return new ObjectMapper().writeValueAsBytes(this);
+	}
+
+	public boolean equalsExcludingId(PageDTO other) {
+		if (other == null) {
+			return false;
+		}
+
+		// @formatter:off
+			if (!equalsNullable(this.diaryId, other.diaryId)) { return false; }
+			if (!equalsNullable(this.name, other.name)) { return false; }
+			if (!compareToNullable(this.sequence, other.sequence)) { return false; }
+			if (!equalsNullable(this.extension, other.extension)) { return false; }
+			if (!equalsNullable(this.width, other.width)) { return false; }
+			if (!equalsNullable(this.height, other.height)) { return false; }
+			// @formatter:on
+
+		return true;
+	}
+
+	private boolean equalsNullable(Object a, Object b) {
+		return a == null ? b == null : a.equals(b);
+	}
+
+	private boolean compareToNullable(BigDecimal a, BigDecimal b) {
+		return a == null ? b == null : (a.compareTo(b) == 0);
 	}
 }

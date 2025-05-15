@@ -50,50 +50,34 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
-		list.add("page_id");
-		list.add("x");
-		list.add("y");
-		list.add("width");
-		list.add("height");
-		list.add("sequence");
+		list.add("marquee_id");
 		list.add("text");
+		list.add("sequence");
 		return list;
 	}
 
 	@Override
 	public List<String> getDTOFields() {
 		List<String> list = new ArrayList<String>();
-		list.add("page_id");
-		list.add("x");
-		list.add("y");
-		list.add("width");
-		list.add("height");
-		list.add("sequence");
+		list.add("marquee_id");
 		list.add("text");
+		list.add("sequence");
 		return list;
 	}
 
 	@Override
 	public <S extends Fragment> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
-		list.add(entity.getPage().getId());
-		list.add(entity.getX());
-		list.add(entity.getY());
-		list.add(entity.getWidth());
-		list.add(entity.getHeight());
-		list.add(entity.getSequence());
+		list.add(entity.getMarquee().getId());
 		list.add(entity.getText());
+		list.add(entity.getSequence());
 		return list;
 	}
 
 	@Override
 	public <S extends FragmentDTO> List<Object> getDTOValues(S dto) {
 		List<Object> list = new ArrayList<Object>();
-		list.add(dto.getPageId());
-		list.add(dto.getX());
-		list.add(dto.getY());
-		list.add(dto.getWidth());
-		list.add(dto.getHeight());
+		list.add(dto.getMarqueeId());
 		list.add(dto.getSequence());
 		list.add(dto.getText());
 		return list;
@@ -102,22 +86,18 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public FragmentDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
-		Long pageId = getLongFromSqlResult(result, 1, null);
-		Double x = getDoubleFromSqlResult(result, 2, null);
-		Double y = getDoubleFromSqlResult(result, 3, null);
-		Double width = getDoubleFromSqlResult(result, 4, null);
-		Double height = getDoubleFromSqlResult(result, 5, null);
-		BigDecimal sequence = getBigDecimalFromSqlResult(result, 6, null);
-		String text = getStringFromSqlResult(result, 7, null);
-		return new FragmentDTO(id, pageId, x, y, width, height, sequence, text);
+		Long marqueeId = getLongFromSqlResult(result, 1, null);
+		String text = getStringFromSqlResult(result, 2, null);
+		BigDecimal sequence = getBigDecimalFromSqlResult(result, 3, null);
+		return new FragmentDTO(id, marqueeId, text, sequence);
 	}
 
 	@Override
-	public Iterable<FragmentDTO> findAllByPage(Long pageId) {
+	public Iterable<FragmentDTO> findAllByPage(Long marqueeId) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
-				.add("page_id", pageId)
+				.add("marquee_id", marqueeId)
 				.build();
 		// @formatter:on
 

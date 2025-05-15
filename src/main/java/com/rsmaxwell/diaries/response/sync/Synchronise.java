@@ -24,13 +24,13 @@ import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
-import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 
@@ -225,7 +225,7 @@ public class Synchronise {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		for (DiaryDTO diaryDTO : diaryRepository.findAll()) {
 			Long diaryId = diaryDTO.getId();
@@ -249,33 +249,33 @@ public class Synchronise {
 
 				// Sort the fragments by (1) sequence (if not null) and (2) Fallback: id (as a tie-breaker)
 				// @formatter:off
-				List<FragmentDTO> fragmentList = StreamSupport
-						.stream(fragmentRepository.findAllByPage(pageId).spliterator(), false)
+				List<MarqueeDTO> marqueeList = StreamSupport
+						.stream(marqueeRepository.findAllByPage(pageId).spliterator(), false)
 						.sorted(Comparator
-								.comparing(FragmentDTO::getSequence, Comparator.nullsLast(BigDecimal::compareTo))
-								.thenComparing(FragmentDTO::getId)).collect(Collectors.toList());
+								.comparing(MarqueeDTO::getSequence, Comparator.nullsLast(BigDecimal::compareTo))
+								.thenComparing(MarqueeDTO::getId)).collect(Collectors.toList());
 				// @formatter:on
 
-				List<Fragment> updatedFragments = new ArrayList<>();
+				List<Marquee> updatedMarquees = new ArrayList<>();
 
 				BigDecimal sequence = new BigDecimal("1.0000");
 				BigDecimal increment = new BigDecimal("1.0000");
 
 				tx.begin();
 				try {
-					for (FragmentDTO dto : fragmentList) {
+					for (MarqueeDTO dto : marqueeList) {
 						BigDecimal currentSeq = dto.getSequence();
 
 						if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
 							// log.info(String.format("page id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
 						} else {
 							String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-							log.info(String.format("Updating fragment: %d/%d/%d: sequence %s -> %s", diaryId, pageId, dto.getId(), currentSeqStr, sequence.toPlainString()));
+							log.info(String.format("Updating marquee: %d/%d/%d: sequence %s -> %s", diaryId, pageId, dto.getId(), currentSeqStr, sequence.toPlainString()));
 
-							Fragment fragment = new Fragment(page, dto);
-							fragment.setSequence(sequence);
-							fragmentRepository.update(fragment);
-							updatedFragments.add(fragment);
+							Marquee marquee = new Marquee(page, dto);
+							marquee.setSequence(sequence);
+							marqueeRepository.update(marquee);
+							updatedMarquees.add(marquee);
 						}
 
 						sequence = sequence.add(increment);
@@ -288,9 +288,9 @@ public class Synchronise {
 				}
 
 				// Publish the updated fragments
-				for (Fragment fragment : updatedFragments) {
-					String topic = String.format("diary/%d/%d/%d", diaryId, pageId, fragment.getId());
-					String json = fragment.toDTO().toJson();
+				for (Marquee marquee : updatedMarquees) {
+					String topic = String.format("diary/%d/%d/%d", diaryId, pageId, marquee.getId());
+					String json = marquee.toDTO().toJson();
 					publish(client, topic, json);
 				}
 			}
@@ -318,7 +318,7 @@ public class Synchronise {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		String topic;
 		String string;
@@ -337,8 +337,8 @@ public class Synchronise {
 				string = page.toJson();
 				map.put(topic, string);
 
-				Iterable<FragmentDTO> fragments = fragmentRepository.findAllByPage(page.getId());
-				for (FragmentDTO fragment : fragments) {
+				Iterable<MarqueeDTO> marquees = marqueeRepository.findAllByPage(page.getId());
+				for (MarqueeDTO fragment : marquees) {
 					topic = String.format("diary/%s/%d/%d", diary.getId(), page.getId(), fragment.getId());
 
 					string = fragment.toJson();

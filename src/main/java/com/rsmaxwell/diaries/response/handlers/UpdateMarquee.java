@@ -1,5 +1,6 @@
 package com.rsmaxwell.diaries.response.handlers;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -11,13 +12,13 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
-import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -30,43 +31,49 @@ import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 
-public class DeleteFragment extends RequestHandler {
+public class UpdateMarquee extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(DeleteFragment.class);
+	private static final Logger log = LogManager.getLogger(UpdateMarquee.class);
 	static private ObjectMapper mapper = new ObjectMapper();
 
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("DeleteFragment.handleRequest");
+		log.info("UpdateMarquee.handleRequest");
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("UpdateFragment.handleRequest: Authorization.check: Failed!");
+			log.info("UpdateMarquee.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}
-		log.info("DeleteFragment.handleRequest: Authorization.check: OK!");
+		log.info("AddFragment.handleRequest: Authorization.check: OK!");
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		Diary diary;
 		Page page;
-		Fragment fragment;
+		Marquee marquee;
 		try {
 			Long id = Utilities.getLong(args, "id");
+			Double x = Utilities.getDouble(args, "x");
+			Double y = Utilities.getDouble(args, "y");
+			Double width = Utilities.getDouble(args, "width");
+			Double height = Utilities.getDouble(args, "height");
 
-			Optional<FragmentDTO> optionalFragmentDTO = fragmentRepository.findById(id);
-			if (optionalFragmentDTO.isEmpty()) {
-				return Response.internalError("Fragment not found: id: " + id);
+			BigDecimal sequence = new BigDecimal(123);
+
+			Optional<MarqueeDTO> optionalMarqueeDTO = marqueeRepository.findById(id);
+			if (optionalMarqueeDTO.isEmpty()) {
+				return Response.internalError("Marquee not found: id: " + id);
 			}
-			FragmentDTO fragmentDTO = optionalFragmentDTO.get();
+			MarqueeDTO marqueeDTO = optionalMarqueeDTO.get();
 
-			Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
+			Optional<PageDTO> optionalPageDTO = pageRepository.findById(marqueeDTO.getPageId());
 			if (optionalPageDTO.isEmpty()) {
-				return Response.internalError("Page not found: id: " + fragmentDTO.getPageId());
+				return Response.internalError("Page not found: id: " + marqueeDTO.getPageId());
 			}
 			PageDTO pageDTO = optionalPageDTO.get();
 
@@ -75,39 +82,40 @@ public class DeleteFragment extends RequestHandler {
 				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
 			}
 			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-
 			diary = new Diary(diaryDTO);
 			page = new Page(diary, pageDTO);
-			fragment = new Fragment(page, fragmentDTO);
+			marquee = new Marquee(id, page, x, y, width, height, sequence);
 
 		} catch (Exception e) {
-			log.info("DeleteFragment.handleRequest: args: " + mapper.writeValueAsString(args));
+			log.info("UpdateMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First delete the fragment from the database
+		// First update the marquee in the database
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
 		tx.begin();
 		try {
-			fragmentRepository.delete(fragment);
+			marqueeRepository.update(marquee);
 			tx.commit();
 		} catch (Exception e) {
+			tx.rollback();
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now delete the fragment from the topic tree
-		String topic = "diary/" + diary.getId() + "/" + page.getId() + "/" + fragment.getId();
-		byte[] payload = new byte[0];
+		// Now update the marquee in the topic tree
+		MarqueeDTO dto = marquee.toDTO();
+		String topic = "diary/" + diary.getId() + "/" + page.getId() + "/" + marquee.getId();
+		byte[] payload = mapper.writeValueAsBytes(dto);
 
 		MqttAsyncClient client = context.getClientResponder();
 		int qos = 1;
 		boolean retained = true;
 
-		log.info("DeleteFragment.handleRequest: Publishing topic: {}, fragment: {}", topic, payload);
+		log.info("UpdateMarquee.handleRequest: Publishing topic: {}, marquee: {}", topic, mapper.writeValueAsString(dto));
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
-		return Response.success("ok");
+		return Response.success(marquee.getId());
 	}
 }
