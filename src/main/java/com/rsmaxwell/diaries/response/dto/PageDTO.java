@@ -2,12 +2,13 @@ package com.rsmaxwell.diaries.response.dto;
 
 import java.math.BigDecimal;
 
-import com.rsmaxwell.diaries.response.model.Page;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.SneakyThrows;
 
 @EqualsAndHashCode(exclude = { "id" })
 @Data
@@ -32,7 +33,13 @@ public class PageDTO {
 		this.height = other.height;
 	}
 
-	public Page toPage() {
-		return null;
+	@SneakyThrows
+	public String toJson() {
+		return new ObjectMapper().writeValueAsString(this);
+	}
+
+	@SneakyThrows
+	public byte[] toJsonAsBytes() {
+		return new ObjectMapper().writeValueAsBytes(this);
 	}
 }

@@ -1,6 +1,5 @@
 package com.rsmaxwell.diaries.response.handlers;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,23 +27,26 @@ import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
 import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
-public class AddFragment extends RequestHandler {
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityTransaction;
 
-	private static final Logger log = LogManager.getLogger(AddFragment.class);
+public class DeleteFragment extends RequestHandler {
+
+	private static final Logger log = LogManager.getLogger(DeleteFragment.class);
 	static private ObjectMapper mapper = new ObjectMapper();
 
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("AddFragment.handleRequest");
+		log.info("DeleteFragment.handleRequest");
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("AddFragment.handleRequest: Authorization.check: Failed!");
+			log.info("UpdateFragment.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}
-		log.info("AddFragment.handleRequest: Authorization.check: OK!");
+		log.info("DeleteFragment.handleRequest: Authorization.check: OK!");
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
@@ -54,67 +56,58 @@ public class AddFragment extends RequestHandler {
 		Page page;
 		Fragment fragment;
 		try {
-			Long pageId = Utilities.getLong(args, "pageId");
-			Double x = Utilities.getDouble(args, "x");
-			Double y = Utilities.getDouble(args, "y");
-			Double width = Utilities.getDouble(args, "width");
-			Double height = Utilities.getDouble(args, "height");
+			Long id = Utilities.getLong(args, "id");
 
-			BigDecimal sequence = new BigDecimal(123);
-			String text = "";
-
-			if (width < 4.0) {
-				width = 4.0;
+			Optional<FragmentDTO> optionalFragmentDTO = fragmentRepository.findById(id);
+			if (optionalFragmentDTO.isEmpty()) {
+				return Response.internalError("Fragment not found: id: " + id);
 			}
-			if (height < 4.0) {
-				height = 4.0;
-			}
+			FragmentDTO fragmentDTO = optionalFragmentDTO.get();
 
-			log.info("AddFragment.handleRequest: pageId: " + pageId);
-			Optional<PageDTO> optionalPageDTO = pageRepository.findById(pageId);
+			Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
 			if (optionalPageDTO.isEmpty()) {
-				return Response.internalError("Page not found: id: " + pageId);
+				return Response.internalError("Page not found: id: " + fragmentDTO.getPageId());
 			}
 			PageDTO pageDTO = optionalPageDTO.get();
-			log.info("AddFragment.handleRequest: pageDTO: " + mapper.writeValueAsString(pageDTO));
 
 			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
 			if (optionalDiaryDTO.isEmpty()) {
 				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
 			}
 			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-			log.info("AddFragment.handleRequest: diaryDTO: " + mapper.writeValueAsString(diaryDTO));
 
 			diary = new Diary(diaryDTO);
 			page = new Page(diary, pageDTO);
-			fragment = new Fragment(page, x, y, width, height, sequence, text);
-			log.info("AddFragment.handleRequest: fragment: " + mapper.writeValueAsString(fragment));
+			fragment = new Fragment(page, fragmentDTO);
 
 		} catch (Exception e) {
-			log.info("AddFragment.handleRequest: args: " + mapper.writeValueAsString(args));
+			log.info("DeleteFragment.handleRequest: args: " + mapper.writeValueAsString(args));
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First add the new Fragment to the database
+		// First delete the fragment from the database
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
+
+		tx.begin();
 		try {
-			fragmentRepository.save(fragment); // this also updates the 'fragment.id'
+			fragmentRepository.delete(fragment);
+			tx.commit();
 		} catch (Exception e) {
-			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the new Fragment to the topic tree
-		FragmentDTO dto = fragment.toDTO();
+		// Now delete the fragment from the topic tree
 		String topic = "diary/" + diary.getId() + "/" + page.getId() + "/" + fragment.getId();
-		byte[] payload = mapper.writeValueAsBytes(dto);
+		byte[] payload = new byte[0];
 
 		MqttAsyncClient client = context.getClientResponder();
 		int qos = 1;
 		boolean retained = true;
 
-		log.info("AddFragment.handleRequest: Publishing topic: {}, fragment: {}", topic, mapper.writeValueAsString(dto));
+		log.info("DeleteFragment.handleRequest: Publishing topic: {}, fragment: {}", topic, payload);
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
-		return Response.success(fragment.getId());
+		return Response.success("ok");
 	}
 }

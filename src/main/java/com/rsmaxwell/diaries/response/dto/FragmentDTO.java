@@ -2,8 +2,11 @@ package com.rsmaxwell.diaries.response.dto;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.SneakyThrows;
 
 @Data
 @AllArgsConstructor
@@ -17,4 +20,14 @@ public class FragmentDTO {
 	private Double height;
 	private BigDecimal sequence;
 	private String text;
+
+	@SneakyThrows
+	public String toJson() {
+		return new ObjectMapper().writeValueAsString(this);
+	}
+
+	@SneakyThrows
+	public byte[] toJsonAsBytes() {
+		return new ObjectMapper().writeValueAsBytes(this);
+	}
 }

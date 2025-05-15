@@ -27,11 +27,8 @@ import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
-import com.rsmaxwell.diaries.response.model.DiaryResponse;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.FragmentResponse;
 import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.model.PageResponse;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
@@ -70,11 +67,13 @@ public class Synchronise {
 		removeOrphanEntries(client_sync, topicTreeMap, databaseMap);
 
 		// Wait for broker to actually drop retained messages
-		Thread.sleep(1000);
+		Thread.sleep(500);
 		topicTreeMap = loadFromTopicTree(client_sync, sync);
 		normaliseDiarySequence(client_sync, context);
 		normalisePageSequence(client_sync, context);
 		normaliseFragmentSequence(client_sync, context);
+
+		validateMapKeys(topicTreeMap, databaseMap);
 
 		client_sync.disconnect().waitForCompletion();
 	}
@@ -110,7 +109,7 @@ public class Synchronise {
 					// log.info(String.format("diary id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
 				} else {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-					log.info(String.format("Updating diary id:%d: name:%s: sequence %s → %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
+					log.info(String.format("Updating diary id:%d: name:%s: sequence %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
 
 					Diary diary = new Diary(dto);
 					diary.setSequence(sequence);
@@ -129,9 +128,8 @@ public class Synchronise {
 
 		// Publish the updated diaries
 		for (Diary diary : updatedDiaries) {
-			DiaryResponse diaryResponse = new DiaryResponse(diary, context);
 			String topic = String.format("diary/%d", diary.getId());
-			String json = diaryResponse.toJson();
+			String json = diary.toDTO().toJson();
 			publish(client, topic, json);
 		}
 
@@ -193,7 +191,7 @@ public class Synchronise {
 						// log.info(String.format("page id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
 					} else {
 						String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-						log.info(String.format("Updating diary id:%d: name:%s: sequence %s → %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
+						log.info(String.format("Updating diary id:%d: name:%s: sequence %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
 
 						Page page = new Page(diary, dto);
 						page.setSequence(sequence);
@@ -212,9 +210,8 @@ public class Synchronise {
 
 			// Publish the updated pages
 			for (Page page : updatedPages) {
-				PageResponse pageResponse = new PageResponse(page.toDTO());
 				String topic = String.format("diary/%d/%d", diaryId, page.getId());
-				String json = pageResponse.toJson();
+				String json = page.toDTO().toJson();
 				publish(client, topic, json);
 			}
 		}
@@ -273,7 +270,7 @@ public class Synchronise {
 							// log.info(String.format("page id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
 						} else {
 							String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-							log.info(String.format("Updating fragment: %d/%d/%d: sequence %s → %s", diaryId, pageId, dto.getId(), currentSeqStr, sequence.toPlainString()));
+							log.info(String.format("Updating fragment: %d/%d/%d: sequence %s -> %s", diaryId, pageId, dto.getId(), currentSeqStr, sequence.toPlainString()));
 
 							Fragment fragment = new Fragment(page, dto);
 							fragment.setSequence(sequence);
@@ -292,9 +289,8 @@ public class Synchronise {
 
 				// Publish the updated fragments
 				for (Fragment fragment : updatedFragments) {
-					FragmentResponse fragmentResponse = new FragmentResponse(fragment.toDTO());
 					String topic = String.format("diary/%d/%d/%d", diaryId, pageId, fragment.getId());
-					String json = fragmentResponse.toJson();
+					String json = fragment.toDTO().toJson();
 					publish(client, topic, json);
 				}
 			}
@@ -305,7 +301,6 @@ public class Synchronise {
 
 		// @formatter:off
 		MqttSubscription[] subscriptions = {
-			    new MqttSubscription("diaries", 1),
 			    new MqttSubscription("diary/#", 1)
 		};
 		// @formatter:on		
@@ -329,25 +324,24 @@ public class Synchronise {
 		String string;
 
 		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
-		for (DiaryDTO dto : diaries) {
-			Diary diary = new Diary(dto);
+		for (DiaryDTO diary : diaries) {
 			topic = String.format("diary/%d", diary.getId());
-			DiaryResponse diaryResponse = new DiaryResponse(diary, context);
-			string = diaryResponse.toJson();
+
+			string = diary.toJson();
 			map.put(topic, string);
 
 			Iterable<PageDTO> pages = pageRepository.findAllByDiary(diary.getId());
 			for (PageDTO page : pages) {
 				topic = String.format("diary/%s/%d", diary.getId(), page.getId());
-				PageResponse pageResponse = new PageResponse(page);
-				string = pageResponse.toJson();
+
+				string = page.toJson();
 				map.put(topic, string);
 
 				Iterable<FragmentDTO> fragments = fragmentRepository.findAllByPage(page.getId());
 				for (FragmentDTO fragment : fragments) {
 					topic = String.format("diary/%s/%d/%d", diary.getId(), page.getId(), fragment.getId());
-					FragmentResponse fragmentResponse = new FragmentResponse(fragment);
-					string = fragmentResponse.toJson();
+
+					string = fragment.toJson();
 					map.put(topic, string);
 				}
 			}
@@ -413,19 +407,8 @@ public class Synchronise {
 		log.info(String.format("publish: topic: %s, value: %s, retained: %b", topic, value, message.isRetained()));
 	}
 
-	private void checkMaps(Map<String, String> topicTreeMap, Map<String, String> databaseMap) {
-		int sizeTopicTreeMap = topicTreeMap.size();
-		int sizeDatabaseMap = topicTreeMap.size();
-
-		if (sizeTopicTreeMap == sizeDatabaseMap) {
-			log.info("Topic tree and database are in sync: {} entries", sizeTopicTreeMap);
-		} else {
-			log.info("Warning, the Topic tree and database are not in sync: sizeTopicTreeMap: {} databaseMap: {}", sizeTopicTreeMap, sizeDatabaseMap);
-		}
-	}
-
 	private void validateMapKeys(Map<String, String> topicTreeMap, Map<String, String> databaseMap) {
-		log.info("=== VALIDATING TOPIC KEYS ===");
+		log.info("Synchronise.validateMapKeys");
 
 		Set<String> topicKeys = topicTreeMap.keySet();
 		Set<String> dbKeys = databaseMap.keySet();
@@ -439,19 +422,17 @@ public class Synchronise {
 		dbOnly.removeAll(topicKeys);
 
 		if (topicOnly.isEmpty() && dbOnly.isEmpty()) {
-			log.info("✅ Topic tree and database keys match exactly.");
+			log.info("  -> Topic tree and database keys match exactly.");
 		} else {
 			if (!topicOnly.isEmpty()) {
-				log.warn("⚠️ Keys present in topic tree but missing in database:");
-				topicOnly.forEach(key -> log.warn("   → Orphan in topic tree: " + key));
+				log.warn("  -> Keys present in topic tree but missing in database:");
+				topicOnly.forEach(key -> log.warn("   -> Orphan in topic tree: " + key));
 			}
 
 			if (!dbOnly.isEmpty()) {
-				log.warn("⚠️ Keys present in database but missing in topic tree:");
-				dbOnly.forEach(key -> log.warn("   → Missing topic: " + key));
+				log.warn("  -> Keys present in database but missing in topic tree:");
+				dbOnly.forEach(key -> log.warn("   -> Missing topic: " + key));
 			}
 		}
-
-		log.info("=== KEY VALIDATION COMPLETE ===");
 	}
 }

@@ -29,12 +29,14 @@ import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.handlers.AddFragment;
 import com.rsmaxwell.diaries.response.handlers.Calculator;
+import com.rsmaxwell.diaries.response.handlers.DeleteFragment;
 import com.rsmaxwell.diaries.response.handlers.GetDiaries;
 import com.rsmaxwell.diaries.response.handlers.GetPages;
 import com.rsmaxwell.diaries.response.handlers.Quit;
 import com.rsmaxwell.diaries.response.handlers.RefreshToken;
 import com.rsmaxwell.diaries.response.handlers.Register;
 import com.rsmaxwell.diaries.response.handlers.Signin;
+import com.rsmaxwell.diaries.response.handlers.UpdateFragment;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
@@ -72,6 +74,8 @@ public class Responder {
 		messageHandler.putHandler("signin", new Signin());
 		messageHandler.putHandler("refreshToken", new RefreshToken());
 		messageHandler.putHandler("addfragment", new AddFragment());
+		messageHandler.putHandler("updatefragment", new UpdateFragment());
+		messageHandler.putHandler("deletefragment", new DeleteFragment());
 		messageHandler.putHandler("quit", new Quit());
 	}
 

@@ -56,15 +56,14 @@ public class Diary {
 	}
 
 	@JsonIgnore
-	public List<PageResponse> getPages(DiaryContext context) {
+	public List<PageDTO> getPages(DiaryContext context) {
 
 		PageRepository pageRepository = context.getPageRepository();
-		List<PageResponse> pages = new ArrayList<PageResponse>();
+		List<PageDTO> pages = new ArrayList<PageDTO>();
 
 		Iterable<PageDTO> all = pageRepository.findAllByDiary(this.id);
-		for (PageDTO dto : all) {
-			PageResponse pageResponse = new PageResponse(dto);
-			pages.add(pageResponse);
+		for (PageDTO page : all) {
+			pages.add(page);
 		}
 
 		return pages;
