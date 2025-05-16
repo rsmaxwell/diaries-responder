@@ -108,6 +108,6 @@ public class DeleteMarquee extends RequestHandler {
 		log.info("DeleteMarquee.handleRequest: Publishing topic: {}, fragment: {}", topic, payload);
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
-		return Response.success("ok");
+		return Response.success(marquee.getId());
 	}
 }
