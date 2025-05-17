@@ -94,7 +94,7 @@ public class AddMarquee extends RequestHandler {
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First add the new Fragment to the database
+		// First add the new Marquee to the database
 		try {
 			marqueeRepository.save(marquee); // this also updates the 'fragment.id'
 		} catch (Exception e) {
@@ -102,7 +102,7 @@ public class AddMarquee extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the new Fragment to the topic tree
+		// Now publish the new Marquee to the topic tree
 		MarqueeDTO dto = marquee.toDTO();
 		String topic = "diary/" + diary.getId() + "/" + page.getId() + "/" + marquee.getId();
 		byte[] payload = mapper.writeValueAsBytes(dto);
@@ -111,7 +111,7 @@ public class AddMarquee extends RequestHandler {
 		int qos = 1;
 		boolean retained = true;
 
-		log.info("AddMarquee.handleRequest: Publishing topic: {}, fragment: {}", topic, mapper.writeValueAsString(dto));
+		log.info("AddMarquee.handleRequest: Publishing topic: {}, Marquee: {}", topic, mapper.writeValueAsString(dto));
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
 		return Response.success(marquee.getId());
