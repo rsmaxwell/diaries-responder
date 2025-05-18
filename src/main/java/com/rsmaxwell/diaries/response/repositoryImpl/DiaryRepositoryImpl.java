@@ -89,6 +89,23 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	}
 
 	@Override
+	public Optional<DiaryDTO> findById(Long id) {
+
+		// @formatter:off
+		String where = new WhereBuilder()
+				.add("id", id)
+				.build();
+		// @formatter:on
+
+		List<DiaryDTO> list = new ArrayList<DiaryDTO>();
+		for (DiaryDTO dto : find(where)) {
+			list.add(dto);
+		}
+
+		return singleItem(list);
+	}
+
+	@Override
 	public Optional<DiaryDTO> findByName(String name) {
 
 		// @formatter:off

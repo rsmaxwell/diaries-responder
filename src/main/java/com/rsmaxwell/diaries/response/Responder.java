@@ -30,12 +30,11 @@ import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.handlers.AddMarquee;
 import com.rsmaxwell.diaries.response.handlers.Calculator;
 import com.rsmaxwell.diaries.response.handlers.DeleteMarquee;
-import com.rsmaxwell.diaries.response.handlers.GetDiaries;
-import com.rsmaxwell.diaries.response.handlers.GetPages;
 import com.rsmaxwell.diaries.response.handlers.Quit;
 import com.rsmaxwell.diaries.response.handlers.RefreshToken;
 import com.rsmaxwell.diaries.response.handlers.Register;
 import com.rsmaxwell.diaries.response.handlers.Signin;
+import com.rsmaxwell.diaries.response.handlers.UpdateDiary;
 import com.rsmaxwell.diaries.response.handlers.UpdateMarquee;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
@@ -70,8 +69,7 @@ public class Responder {
 
 	static {
 		messageHandler.putHandler("calculator", new Calculator());
-		messageHandler.putHandler("getPages", new GetPages());
-		messageHandler.putHandler("getDiaries", new GetDiaries());
+		messageHandler.putHandler("updateDiary", new UpdateDiary());
 		messageHandler.putHandler("register", new Register());
 		messageHandler.putHandler("signin", new Signin());
 		messageHandler.putHandler("refreshToken", new RefreshToken());

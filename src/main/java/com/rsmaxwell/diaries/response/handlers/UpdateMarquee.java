@@ -47,7 +47,7 @@ public class UpdateMarquee extends RequestHandler {
 			log.info("UpdateMarquee.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}
-		log.info("AddFragment.handleRequest: Authorization.check: OK!");
+		log.info("UpdateMarquee.handleRequest: Authorization.check: OK!");
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();

@@ -78,6 +78,7 @@ public class Diary {
 	public Diary(DiaryDTO diaryDTO) {
 		this.id = diaryDTO.getId();
 		this.name = diaryDTO.getName();
+		this.sequence = diaryDTO.getSequence();
 	}
 
 	public DiaryDTO toDTO() {
