@@ -44,7 +44,7 @@ public class AddMarquee extends RequestHandler {
 			log.info("AddMarquee.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}
-		log.info("AddMarquee.handleRequest: Authorization.check: OK!");
+		log.info("Authorization.check: OK!");
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
@@ -60,7 +60,7 @@ public class AddMarquee extends RequestHandler {
 			Double width = Utilities.getDouble(args, "width");
 			Double height = Utilities.getDouble(args, "height");
 
-			BigDecimal sequence = new BigDecimal(123);
+			BigDecimal sequence = new BigDecimal(123.0000).setScale(4);
 
 			if (width < 4.0) {
 				width = 4.0;
@@ -69,25 +69,22 @@ public class AddMarquee extends RequestHandler {
 				height = 4.0;
 			}
 
-			log.info("AddMarquee.handleRequest: pageId: " + pageId);
 			Optional<PageDTO> optionalPageDTO = pageRepository.findById(pageId);
 			if (optionalPageDTO.isEmpty()) {
 				return Response.internalError("Page not found: id: " + pageId);
 			}
 			PageDTO pageDTO = optionalPageDTO.get();
-			log.info("AddMarquee.handleRequest: pageDTO: " + mapper.writeValueAsString(pageDTO));
 
 			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
 			if (optionalDiaryDTO.isEmpty()) {
 				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
 			}
 			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-			log.info("AddMarquee.handleRequest: diaryDTO: " + mapper.writeValueAsString(diaryDTO));
 
 			diary = new Diary(diaryDTO);
 			page = new Page(diary, pageDTO);
 			marquee = new Marquee(page, x, y, width, height, sequence);
-			log.info("AddMarquee.handleRequest: fragment: " + mapper.writeValueAsString(marquee));
+			log.info("marquee:          " + mapper.writeValueAsString(marquee));
 
 		} catch (Exception e) {
 			log.info("AddMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
@@ -96,7 +93,7 @@ public class AddMarquee extends RequestHandler {
 
 		// First add the new Marquee to the database
 		try {
-			marqueeRepository.save(marquee); // this also updates the 'fragment.id'
+			marqueeRepository.save(marquee); // this also updates the 'marquee.id'
 		} catch (Exception e) {
 			log.info("AddMarquee.handleRequest: Exception: " + e.getMessage());
 			return Response.internalError(e.getMessage());
@@ -106,12 +103,15 @@ public class AddMarquee extends RequestHandler {
 		MarqueeDTO dto = marquee.toDTO();
 		String topic = "diary/" + diary.getId() + "/" + page.getId() + "/" + marquee.getId();
 		byte[] payload = mapper.writeValueAsBytes(dto);
+		String payloadStr = new String(payload);
 
 		MqttAsyncClient client = context.getClientResponder();
 		int qos = 1;
 		boolean retained = true;
 
-		log.info("AddMarquee.handleRequest: Publishing topic: {}, Marquee: {}", topic, mapper.writeValueAsString(dto));
+		log.info("Publishing topic: " + topic);
+		log.info("         marquee: " + payloadStr);
+
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
 		return Response.success(marquee.getId());

@@ -71,7 +71,7 @@ public class Synchronise {
 		topicTreeMap = loadFromTopicTree(client_sync, sync);
 		normaliseDiarySequence(client_sync, context);
 		normalisePageSequence(client_sync, context);
-		normaliseFragmentSequence(client_sync, context);
+		normaliseMarqueeSequence(client_sync, context);
 
 		validateMapKeys(topicTreeMap, databaseMap);
 
@@ -212,13 +212,14 @@ public class Synchronise {
 			for (Page page : updatedPages) {
 				String topic = String.format("diary/%d/%d", diaryId, page.getId());
 				String json = page.toDTO().toJson();
+				log.info(String.format("normalisePageSequence: updating topic: %s, value: %s", topic, json));
 				publish(client, topic, json);
 			}
 		}
 	}
 
-	private void normaliseFragmentSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
-		log.info("normaliseFragmentSequence");
+	private void normaliseMarqueeSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
+		log.info("normaliseMarqueeSequence");
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
@@ -270,7 +271,8 @@ public class Synchronise {
 							// log.info(String.format("page id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
 						} else {
 							String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-							log.info(String.format("Updating marquee: %d/%d/%d: sequence %s -> %s", diaryId, pageId, dto.getId(), currentSeqStr, sequence.toPlainString()));
+							log.info(String.format("       marquee: %s", dto.toJson()));
+							log.info(String.format("       %d/%d/%d: sequence %s -> %s", diaryId, pageId, dto.getId(), currentSeqStr, sequence.toPlainString()));
 
 							Marquee marquee = new Marquee(page, dto);
 							marquee.setSequence(sequence);
@@ -287,7 +289,7 @@ public class Synchronise {
 					throw ex;
 				}
 
-				// Publish the updated fragments
+				// Publish the updated marquees
 				for (Marquee marquee : updatedMarquees) {
 					String topic = String.format("diary/%d/%d/%d", diaryId, pageId, marquee.getId());
 					String json = marquee.toDTO().toJson();
@@ -361,8 +363,9 @@ public class Synchronise {
 			String string2 = topicTreeMap.get(topic);
 
 			if (!Objects.equals(string1, string2)) {
-				// log.info(String.format("Diff detected on topic: %s\n DB: %s\n Tree: %s",
-				// topic, string1, string2));
+				log.info(String.format("Difference detected on topic: %s", topic));
+				log.info(String.format("          DB:   %s", string1));
+				log.info(String.format("          Tree: %s", string2));
 				count++;
 				publish(client, topic, string1);
 			}
@@ -404,11 +407,11 @@ public class Synchronise {
 
 		message.setRetained(true); // <-- This is critical for deletes to work
 		client.publish(topic, message).waitForCompletion();
-		log.info(String.format("publish: topic: %s, value: %s, retained: %b", topic, value, message.isRetained()));
+		log.info(String.format("publish: topic: %s", topic));
+		log.info(String.format("         value: %s", value));
 	}
 
 	private void validateMapKeys(Map<String, String> topicTreeMap, Map<String, String> databaseMap) {
-		log.info("Synchronise.validateMapKeys");
 
 		Set<String> topicKeys = topicTreeMap.keySet();
 		Set<String> dbKeys = databaseMap.keySet();
@@ -422,15 +425,15 @@ public class Synchronise {
 		dbOnly.removeAll(topicKeys);
 
 		if (topicOnly.isEmpty() && dbOnly.isEmpty()) {
-			log.info("  -> Topic tree and database keys match exactly.");
+			log.info("synchronise: ok");
 		} else {
 			if (!topicOnly.isEmpty()) {
-				log.warn("  -> Keys present in topic tree but missing in database:");
+				log.warn("synchronise: Keys present in topic tree but missing in database:");
 				topicOnly.forEach(key -> log.warn("   -> Orphan in topic tree: " + key));
 			}
 
 			if (!dbOnly.isEmpty()) {
-				log.warn("  -> Keys present in database but missing in topic tree:");
+				log.warn("synchronise: Keys present in database but missing in topic tree:");
 				dbOnly.forEach(key -> log.warn("   -> Missing topic: " + key));
 			}
 		}

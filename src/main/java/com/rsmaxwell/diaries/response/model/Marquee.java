@@ -55,7 +55,7 @@ public class Marquee {
 	public Marquee(Page page, MarqueeDTO dto) {
 		this.id = dto.getId();
 		this.page = page;
-		this.x = dto.getY();
+		this.x = dto.getX();
 		this.y = dto.getY();
 		this.width = dto.getWidth();
 		this.height = dto.getHeight();
