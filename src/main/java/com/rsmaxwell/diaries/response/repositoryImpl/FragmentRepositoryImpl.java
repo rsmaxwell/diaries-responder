@@ -50,35 +50,47 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
+		list.add("year");
+		list.add("month");
+		list.add("day");
+		list.add("sequence");
 		list.add("marquee_id");
 		list.add("text");
-		list.add("sequence");
 		return list;
 	}
 
 	@Override
 	public List<String> getDTOFields() {
 		List<String> list = new ArrayList<String>();
+		list.add("year");
+		list.add("month");
+		list.add("day");
+		list.add("sequence");
 		list.add("marquee_id");
 		list.add("text");
-		list.add("sequence");
 		return list;
 	}
 
 	@Override
 	public <S extends Fragment> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
+		list.add(entity.getYear());
+		list.add(entity.getMonth());
+		list.add(entity.getDay());
+		list.add(entity.getSequence());
 		list.add(entity.getMarquee().getId());
 		list.add(entity.getText());
-		list.add(entity.getSequence());
 		return list;
 	}
 
 	@Override
 	public <S extends FragmentDTO> List<Object> getDTOValues(S dto) {
 		List<Object> list = new ArrayList<Object>();
-		list.add(dto.getMarqueeId());
+		list.add(dto.getYear());
+		list.add(dto.getMonth());
+		list.add(dto.getDay());
 		list.add(dto.getSequence());
+		list.add(dto.getMarqueeId());
 		list.add(dto.getText());
 		return list;
 	}
@@ -86,10 +98,27 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public FragmentDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
-		Long marqueeId = getLongFromSqlResult(result, 1, null);
-		String text = getStringFromSqlResult(result, 2, null);
-		BigDecimal sequence = getBigDecimalFromSqlResult(result, 3, null);
-		return new FragmentDTO(id, marqueeId, text, sequence);
+		Integer year = getIntegerFromSqlResult(result, 1, null);
+		Integer month = getIntegerFromSqlResult(result, 2, null);
+		Integer day = getIntegerFromSqlResult(result, 3, null);
+		Long marqueeId = getLongFromSqlResult(result, 4, null);
+		String text = getStringFromSqlResult(result, 5, null);
+		BigDecimal sequence = getBigDecimalFromSqlResult(result, 6, null);
+		return new FragmentDTO(id, year, month, day, sequence, marqueeId, text);
+	}
+
+	@Override
+	public Iterable<FragmentDTO> findAllByDate(Integer year, Integer month, Integer day) {
+
+		// @formatter:off
+		String where = new WhereBuilder()
+				.add("year", year)
+				.add("month", month)
+				.add("day", day)
+				.build();
+		// @formatter:on
+
+		return find(where);
 	}
 
 	@Override
@@ -106,6 +135,6 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 
 	@Override
 	protected String orderBy() {
-		return "ORDER BY sequence NULLS LAST, id";
+		return "ORDER BY year, month, day, sequence, id";
 	}
 }

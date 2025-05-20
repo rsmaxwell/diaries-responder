@@ -32,6 +32,19 @@ public class Fragment {
 	private Long id;
 
 	@NonNull
+	private Integer year;
+
+	@NonNull
+	private Integer month;
+
+	@NonNull
+	private Integer day;
+
+	@NonNull
+	@Column(precision = 10, scale = 4)
+	private BigDecimal sequence;
+
+	@NonNull
 	@ManyToOne
 	@JoinColumn(name = "marquee_id")
 	private Marquee marquee;
@@ -39,10 +52,6 @@ public class Fragment {
 	@NonNull
 	@Column(length = 4096)
 	private String text;
-
-	@NonNull
-	@Column(precision = 10, scale = 4)
-	private BigDecimal sequence;
 
 	public Fragment(Marquee marquee, FragmentDTO dto) {
 		this.id = dto.getId();
@@ -52,6 +61,6 @@ public class Fragment {
 	}
 
 	public FragmentDTO toDTO() {
-		return new FragmentDTO(this.id, this.marquee.getId(), this.text, this.sequence);
+		return new FragmentDTO(this.id, this.year, this.month, this.day, this.sequence, this.marquee.getId(), this.text);
 	}
 }

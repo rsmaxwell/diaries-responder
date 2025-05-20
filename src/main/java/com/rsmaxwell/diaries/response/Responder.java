@@ -27,6 +27,7 @@ import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.response.handlers.AddFragment;
 import com.rsmaxwell.diaries.response.handlers.AddMarquee;
 import com.rsmaxwell.diaries.response.handlers.Calculator;
 import com.rsmaxwell.diaries.response.handlers.DeleteMarquee;
@@ -77,6 +78,7 @@ public class Responder {
 		messageHandler.putHandler("addMarquee", new AddMarquee());
 		messageHandler.putHandler("updateMarquee", new UpdateMarquee());
 		messageHandler.putHandler("deleteMarquee", new DeleteMarquee());
+		messageHandler.putHandler("addFragment", new AddFragment());
 		messageHandler.putHandler("calculator", new Calculator());
 		messageHandler.putHandler("quit", new Quit());
 	}

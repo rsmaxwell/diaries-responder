@@ -17,7 +17,7 @@ public class WhereBuilder {
 		return this;
 	}
 
-	public WhereBuilder add(String field, Long value) {
+	public WhereBuilder add(String field, Number value) {
 		StringBuffer sb = new StringBuffer();
 		sb.append(field);
 		sb.append(" = ");

@@ -24,12 +24,15 @@ import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDTO;
 import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
+import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -72,6 +75,7 @@ public class Synchronise {
 		normaliseDiarySequence(client_sync, context);
 		normalisePageSequence(client_sync, context);
 		normaliseMarqueeSequence(client_sync, context);
+		// normaliseFragmentSequence(client_sync, context);
 
 		validateMapKeys(topicTreeMap, databaseMap);
 
@@ -132,21 +136,6 @@ public class Synchronise {
 			String json = diary.toDTO().toJson();
 			publish(client, topic, json);
 		}
-
-		// Publish updated list of all diaries
-		// @formatter:off
-		if (!updatedDiaries.isEmpty()) {
-		    List<DiaryDTO> allDiaries = StreamSupport
-		        .stream(diaryRepository.findAll().spliterator(), false)
-		        .sorted(Comparator
-		                .comparing(DiaryDTO::getSequence, Comparator.nullsLast(BigDecimal::compareTo))
-		                .thenComparing(DiaryDTO::getId))
-		        .collect(Collectors.toList());
-
-		    String allDiariesJson = mapper.writeValueAsString(allDiaries);
-		    publish(client, "diaries", allDiariesJson);
-		}
-		// @formatter:on
 	}
 
 	private void normalisePageSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
@@ -295,6 +284,106 @@ public class Synchronise {
 					String json = marquee.toDTO().toJson();
 					publish(client, topic, json);
 				}
+			}
+		}
+	}
+
+	private void XnormaliseFragmentSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
+		log.info("normaliseFragmentSequence");
+
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
+
+		DiaryRepository diaryRepository = context.getDiaryRepository();
+		PageRepository pageRepository = context.getPageRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
+
+		BigDecimal initial = new BigDecimal("1.0000");
+		BigDecimal increment = new BigDecimal("1.0000");
+		BigDecimal sequence = initial;
+		Integer lastYear = 0;
+		Integer lastMonth = 0;
+		Integer lastDay = 0;
+
+		for (FragmentDTO fragmentDTO : fragmentRepository.findAll()) {
+
+			Long fragmentId = fragmentDTO.getId();
+			Optional<FragmentDTO> optionalFragmentDTO = fragmentRepository.findById(fragmentId);
+			if (optionalFragmentDTO.isEmpty()) {
+				throw new Exception(String.format("Could not find fragmentId: %d", fragmentId));
+			} else {
+				fragmentDTO = optionalFragmentDTO.get();
+			}
+
+			Long marqueeId = fragmentDTO.getId();
+			MarqueeDTO marqueeDTO;
+			Optional<MarqueeDTO> optionalMarqueeDTO = marqueeRepository.findById(marqueeId);
+			if (optionalMarqueeDTO.isEmpty()) {
+				throw new Exception(String.format("Could not find marqueeId: %d", marqueeId));
+			} else {
+				marqueeDTO = optionalMarqueeDTO.get();
+			}
+
+			Long pageId = marqueeDTO.getId();
+			PageDTO pageDTO;
+			Optional<PageDTO> optionalPageDTO = pageRepository.findById(pageId);
+			if (optionalPageDTO.isEmpty()) {
+				throw new Exception(String.format("Could not find pageId: %d", pageId));
+			} else {
+				pageDTO = optionalPageDTO.get();
+			}
+
+			Long diaryId = pageDTO.getId();
+			DiaryDTO diaryDTO;
+			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(diaryId);
+			if (optionalDiaryDTO.isEmpty()) {
+				throw new Exception(String.format("Could not find diaryId: %d", diaryId));
+			} else {
+				diaryDTO = optionalDiaryDTO.get();
+			}
+
+			Diary diary = new Diary(diaryDTO);
+			Page page = new Page(diary, pageDTO);
+			Marquee marquee = new Marquee(page, marqueeDTO);
+			Fragment fragment = new Fragment(marquee, fragmentDTO);
+
+			List<Fragment> updatedFragments = new ArrayList<>();
+
+			tx.begin();
+			try {
+				String fragmentName = String.format("id:%d, date: %s.%s.%s", fragment.getId(), fragment.getYear(), fragment.getMonth(), fragment.getDay());
+
+				BigDecimal currentSeq = fragment.getSequence();
+				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
+					log.info(String.format("fragment %s already has correct sequence number", fragmentName));
+				} else {
+					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
+					log.info(String.format("       fragment: %s", fragmentName));
+					log.info(String.format("       %d/%d/%d: sequence %s -> %s", fragmentName, currentSeqStr, sequence.toPlainString()));
+
+					fragment.setSequence(sequence);
+					fragmentRepository.update(fragment);
+					updatedFragments.add(fragment);
+				}
+
+				if ((lastYear == fragment.getYear()) || (lastMonth == fragment.getMonth()) || (lastDay == fragment.getDay())) {
+					sequence.add(increment);
+				} else {
+					sequence = initial;
+				}
+				tx.commit();
+
+			} catch (Exception ex) {
+				tx.rollback();
+				throw ex;
+			}
+
+			// Publish the updated fragments
+			for (Fragment f : updatedFragments) {
+				String topic = String.format("fragment/%d/%d/%d/%d", f.getYear(), f.getMonth(), f.getDay(), f.getId());
+				String json = f.toDTO().toJson();
+				publish(client, topic, json);
 			}
 		}
 	}

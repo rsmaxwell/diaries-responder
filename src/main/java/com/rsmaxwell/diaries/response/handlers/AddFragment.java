@@ -12,12 +12,15 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDTO;
 import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
+import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
@@ -28,46 +31,44 @@ import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
 import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityTransaction;
+public class AddFragment extends RequestHandler {
 
-public class UpdateMarquee extends RequestHandler {
-
-	private static final Logger log = LogManager.getLogger(UpdateMarquee.class);
+	private static final Logger log = LogManager.getLogger(AddFragment.class);
 	static private ObjectMapper mapper = new ObjectMapper();
 
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("UpdateMarquee.handleRequest");
+		log.info("AddFragment.handleRequest");
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("UpdateMarquee.handleRequest: Authorization.check: Failed!");
+			log.info("AddFragment.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}
-		log.info("UpdateMarquee.handleRequest: Authorization.check: OK!");
+		log.info("Authorization.check: OK!");
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		Diary diary;
 		Page page;
 		Marquee marquee;
+		Fragment fragment;
 		try {
-			Long id = Utilities.getLong(args, "id");
-			Double x = Utilities.getDouble(args, "x");
-			Double y = Utilities.getDouble(args, "y");
-			Double width = Utilities.getDouble(args, "width");
-			Double height = Utilities.getDouble(args, "height");
+			Long marqueeId = Utilities.getLong(args, "marqueeId");
+			Integer year = Utilities.getInteger(args, "year");
+			Integer month = Utilities.getInteger(args, "month");
+			Integer day = Utilities.getInteger(args, "day");
+			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
+			String text = Utilities.getString(args, "text");
 
-			BigDecimal sequence = new BigDecimal(123);
-
-			Optional<MarqueeDTO> optionalMarqueeDTO = marqueeRepository.findById(id);
+			Optional<MarqueeDTO> optionalMarqueeDTO = marqueeRepository.findById(marqueeId);
 			if (optionalMarqueeDTO.isEmpty()) {
-				return Response.internalError("Marquee not found: id: " + id);
+				return Response.internalError("Marquee not found: id: " + marqueeId);
 			}
 			MarqueeDTO marqueeDTO = optionalMarqueeDTO.get();
 
@@ -82,39 +83,41 @@ public class UpdateMarquee extends RequestHandler {
 				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
 			}
 			DiaryDTO diaryDTO = optionalDiaryDTO.get();
+
 			diary = new Diary(diaryDTO);
 			page = new Page(diary, pageDTO);
-			marquee = new Marquee(id, page, x, y, width, height, sequence);
+			marquee = new Marquee(page, marqueeDTO);
+
+			fragment = new Fragment(year, month, day, sequence, marquee, text);
+
+			log.info("fragment:          " + mapper.writeValueAsString(fragment));
 
 		} catch (Exception e) {
-			log.info("UpdateMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
+			log.info("AddFragment.handleRequest: args: " + mapper.writeValueAsString(args));
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First update the marquee in the database
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		tx.begin();
+		// First add the new Fragment to the database
 		try {
-			marqueeRepository.update(marquee);
-			tx.commit();
+			fragmentRepository.save(fragment); // this also updates the 'fragment.id'
 		} catch (Exception e) {
-			tx.rollback();
+			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now update the marquee in the topic tree
-		MarqueeDTO dto = marquee.toDTO();
-		String topic = "diary/" + diary.getId() + "/" + page.getId() + "/" + marquee.getId();
+		// Now publish the new Fragment to the topic tree
+		FragmentDTO dto = fragment.toDTO();
+		String topic = String.format("diary/%s/%s/%s/%s", diary.getId(), page.getId(), marquee.getId(), fragment.getId());
 		byte[] payload = mapper.writeValueAsBytes(dto);
-		String payloadString = new String(payload);
+		String payloadStr = new String(payload);
 
 		MqttAsyncClient client = context.getClientResponder();
 		int qos = 1;
 		boolean retained = true;
 
-		log.info("UpdateMarquee.handleRequest: Publishing topic: {}, marquee: {}", topic, payloadString);
+		log.info("Publishing topic: " + topic);
+		log.info("        fragment: " + payloadStr);
+
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
 		return Response.success(marquee.getId());
