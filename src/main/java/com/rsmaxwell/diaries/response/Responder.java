@@ -31,6 +31,7 @@ import com.rsmaxwell.diaries.response.handlers.AddFragment;
 import com.rsmaxwell.diaries.response.handlers.AddMarquee;
 import com.rsmaxwell.diaries.response.handlers.Calculator;
 import com.rsmaxwell.diaries.response.handlers.DeleteMarquee;
+import com.rsmaxwell.diaries.response.handlers.NormaliseDiaries;
 import com.rsmaxwell.diaries.response.handlers.Quit;
 import com.rsmaxwell.diaries.response.handlers.RefreshToken;
 import com.rsmaxwell.diaries.response.handlers.Register;
@@ -75,6 +76,7 @@ public class Responder {
 		messageHandler.putHandler("refreshToken", new RefreshToken());
 		messageHandler.putHandler("updatePage", new UpdatePage());
 		messageHandler.putHandler("updateDiary", new UpdateDiary());
+		messageHandler.putHandler("normaliseDiaries", new NormaliseDiaries());
 		messageHandler.putHandler("addMarquee", new AddMarquee());
 		messageHandler.putHandler("updateMarquee", new UpdateMarquee());
 		messageHandler.putHandler("deleteMarquee", new DeleteMarquee());
