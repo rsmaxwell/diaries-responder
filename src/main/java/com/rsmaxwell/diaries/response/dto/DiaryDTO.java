@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -14,13 +13,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.SneakyThrows;
 
-@EqualsAndHashCode(exclude = { "id" })
+@EqualsAndHashCode(exclude = { "id" }, callSuper = false)
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DiaryDTO {
+public class DiaryDTO extends Jsonable {
 
 	private Long id;
 	private String name;
@@ -42,15 +40,5 @@ public class DiaryDTO {
 		}
 
 		return pages;
-	}
-
-	@SneakyThrows
-	public String toJson() {
-		return new ObjectMapper().writeValueAsString(this);
-	}
-
-	@SneakyThrows
-	public byte[] toJsonAsBytes() {
-		return new ObjectMapper().writeValueAsBytes(this);
 	}
 }

@@ -4,16 +4,16 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
+import com.rsmaxwell.diaries.response.dto.Jsonable;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
-import com.rsmaxwell.diaries.response.utilities.TriFunction;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,7 +27,6 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 
 @Entity
 @Table(name = "diary")
@@ -48,18 +47,6 @@ public class Diary extends Publishable {
 	@NonNull
 	@Column(precision = 10, scale = 4)
 	private BigDecimal sequence;
-
-	// Lombok-generated method to convert object to JSON
-	@SneakyThrows
-	public String toJson() {
-		return new ObjectMapper().writeValueAsString(this);
-	}
-
-	// Lombok-generated method to convert object to JSON as bytes
-	@SneakyThrows
-	public byte[] toJsonAsBytes() {
-		return new ObjectMapper().writeValueAsBytes(this);
-	}
 
 	@JsonIgnore
 	public List<PageDTO> getPages(DiaryContext context) {
@@ -91,34 +78,31 @@ public class Diary extends Publishable {
 		return new DiaryDTO(id, name, sequence);
 	}
 
+	private String getTopic() {
+		return String.format("diaries/%d", this.getId());
+	}
+
 	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
-		publishRaw(mapFn, x);
+		DiaryDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
+		publishOne(mapFn, x, payloadFn, dto, getTopic());
 	}
 
 	public void publish(MqttAsyncClient x) throws Exception {
-		publishRaw(mqttFn, x);
+		DiaryDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
+		publishOne(mqttFn, x, payloadFn, dto, getTopic());
 	}
 
 	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
-		removePublicationRaw(mapFn, x);
+		DiaryDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
+		publishOne(mapFn, x, payloadFn, dto, getTopic());
 	}
 
 	public void removePublication(MqttAsyncClient x) throws Exception {
-		removePublicationRaw(mqttFn, x);
-	}
-
-	private <X> void publishRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
-
 		DiaryDTO dto = this.toDTO();
-		String payload = dto.toJson();
-
-		publishOne(function, x, payload, String.format("diaries/%d", this.getId()));
-	}
-
-	private <X> void removePublicationRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
-
-		String payload = "";
-
-		publishOne(function, x, payload, String.format("diaries/%d", this.getId()));
+		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
+		publishOne(mqttFn, x, payloadFn, dto, getTopic());
 	}
 }

@@ -242,7 +242,7 @@ public class Synchronise {
 
 				BigDecimal currentSeq = fragment.getSequence();
 				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
-					log.info(String.format("fragment %s already has correct sequence number", fragmentName));
+					// log.info(String.format("fragment %s already has correct sequence number", fragmentName));
 				} else {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("       fragment: %s", fragmentName));

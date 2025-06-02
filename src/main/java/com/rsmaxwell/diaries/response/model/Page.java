@@ -2,11 +2,12 @@ package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
+import com.rsmaxwell.diaries.response.dto.Jsonable;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
-import com.rsmaxwell.diaries.response.utilities.TriFunction;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -91,36 +92,31 @@ public class Page extends Publishable {
 		// @formatter:on
 	}
 
+	private String getTopic() {
+		return String.format("diaries/%d/%d", diary.getId(), this.getId());
+	}
+
 	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
-		publishRaw(mapFn, x);
+		PageDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
+		publishOne(mapFn, x, payloadFn, dto, getTopic());
 	}
 
 	public void publish(MqttAsyncClient x) throws Exception {
-		publishRaw(mqttFn, x);
+		PageDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
+		publishOne(mqttFn, x, payloadFn, dto, getTopic());
 	}
 
 	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
-		removePublicationRaw(mapFn, x);
+		PageDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
+		publishOne(mapFn, x, payloadFn, dto, getTopic());
 	}
 
 	public void removePublication(MqttAsyncClient x) throws Exception {
-		removePublicationRaw(mqttFn, x);
-	}
-
-	private <X> void publishRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
-
-		Diary diary = this.getDiary();
 		PageDTO dto = this.toDTO();
-		String payload = dto.toJson();
-
-		publishOne(function, x, payload, String.format("diaries/%d/%d", diary.getId(), this.getId()));
-	}
-
-	private <X> void removePublicationRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
-
-		Diary diary = this.getDiary();
-		String payload = "";
-
-		publishOne(function, x, payload, String.format("diaries/%d/%d", diary.getId(), this.getId()));
+		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
+		publishOne(mqttFn, x, payloadFn, dto, getTopic());
 	}
 }

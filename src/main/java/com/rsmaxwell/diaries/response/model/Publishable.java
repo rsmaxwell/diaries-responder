@@ -1,33 +1,28 @@
 package com.rsmaxwell.diaries.response.model;
 
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
+import com.rsmaxwell.diaries.response.dto.Jsonable;
 import com.rsmaxwell.diaries.response.utilities.TriFunction;
 
 public class Publishable {
 
-	// private static final Logger log = LogManager.getLogger(Publishable.class);
-
-	TriFunction<MqttAsyncClient, String, String, Object> mqttFn = (client, payload, topic) -> {
+	TriFunction<MqttAsyncClient, byte[], String, Object> mqttFn = (client, payload, topic) -> {
 		int qos = 1;
 		boolean retained = true;
-		byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
-		return client.publish(topic, payloadBytes, qos, retained);
+		return client.publish(topic, payload, qos, retained);
 	};
 
-	TriFunction<ConcurrentHashMap<String, String>, String, String, Object> mapFn = (map, payload, topic) -> {
-		return map.put(topic, payload);
+	TriFunction<ConcurrentHashMap<String, String>, byte[], String, Object> mapFn = (map, payload, topic) -> {
+		String payloadString = new String(payload);
+		return map.put(topic, payloadString);
 	};
 
-	public <A> Object publishOne(TriFunction<A, String, String, Object> function, A a, String b, String c) throws Exception {
-
-		// String topic = c;
-		// String payload = b;
-		// log.info(String.format("Publishable.publishOne: topic: '%s', value: '%s'", topic, payload));
-
-		return function.apply(a, b, c);
+	public <A> Object publishOne(TriFunction<A, byte[], String, Object> function, A a, Function<Jsonable, byte[]> payloadFn, Jsonable dto, String c) throws Exception {
+		byte[] payload = payloadFn.apply(dto);
+		return function.apply(a, payload, c);
 	}
 }

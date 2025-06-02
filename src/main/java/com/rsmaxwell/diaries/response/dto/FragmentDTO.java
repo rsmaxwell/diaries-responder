@@ -2,15 +2,14 @@ package com.rsmaxwell.diaries.response.dto;
 
 import java.math.BigDecimal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.SneakyThrows;
+import lombok.EqualsAndHashCode;
 
+@EqualsAndHashCode(callSuper = false)
 @Data
 @AllArgsConstructor
-public class FragmentDTO {
+public class FragmentDTO extends Jsonable {
 
 	private Long id;
 	private Long pageId;
@@ -23,14 +22,4 @@ public class FragmentDTO {
 	private Integer day;
 	private BigDecimal sequence;
 	private String text;
-
-	@SneakyThrows
-	public String toJson() {
-		return new ObjectMapper().writeValueAsString(this);
-	}
-
-	@SneakyThrows
-	public byte[] toJsonAsBytes() {
-		return new ObjectMapper().writeValueAsBytes(this);
-	}
 }

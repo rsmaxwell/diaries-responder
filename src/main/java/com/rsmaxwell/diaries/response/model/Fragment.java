@@ -2,11 +2,12 @@ package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.rsmaxwell.diaries.response.dto.FragmentDTO;
-import com.rsmaxwell.diaries.response.utilities.TriFunction;
+import com.rsmaxwell.diaries.response.dto.Jsonable;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -88,43 +89,47 @@ public class Fragment extends Publishable {
 		return new FragmentDTO(this.id, this.page.getId(), this.x, this.y, this.width, this.height, this.year, this.month, this.day, this.sequence, this.text);
 	}
 
+	private String getTopic1() {
+		return String.format("fragments/%d", getId());
+	}
+
+	private String getTopic2() {
+		return String.format("diaries/%d/%d/%d", page.getDiary().getId(), page.getId(), getId());
+	}
+
+	private String getTopic3() {
+		return String.format("dates/%s/%s/%s/%s", year, month, day, id);
+	}
+
 	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
-		publishRaw(mapFn, x);
+		FragmentDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
+		publishOne(mapFn, x, payloadFn, dto, getTopic1());
+		publishOne(mapFn, x, payloadFn, dto, getTopic2());
+		publishOne(mapFn, x, payloadFn, dto, getTopic3());
 	}
 
 	public void publish(MqttAsyncClient x) throws Exception {
-		publishRaw(mqttFn, x);
+		FragmentDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
+		publishOne(mqttFn, x, payloadFn, dto, getTopic1());
+		publishOne(mqttFn, x, payloadFn, dto, getTopic2());
+		publishOne(mqttFn, x, payloadFn, dto, getTopic3());
 	}
 
 	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
-		removePublicationRaw(mapFn, x);
+		FragmentDTO dto = this.toDTO();
+		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
+		publishOne(mapFn, x, payloadFn, dto, getTopic1());
+		publishOne(mapFn, x, payloadFn, dto, getTopic2());
+		publishOne(mapFn, x, payloadFn, dto, getTopic3());
 	}
 
 	public void removePublication(MqttAsyncClient x) throws Exception {
-		removePublicationRaw(mqttFn, x);
-	}
-
-	private <X> void publishRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
-
-		Page page = this.getPage();
-		Diary diary = page.getDiary();
 		FragmentDTO dto = this.toDTO();
-		String payload = dto.toJson();
-
-		publishOne(function, x, payload, String.format("fragments/%d", dto.getId()));
-		publishOne(function, x, payload, String.format("diaries/%d/%d/fragments/%d", diary.getId(), page.getId(), this.getId()));
-		publishOne(function, x, payload, String.format("dates/%s/%s/%s/fragments/%s", this.getYear(), this.getMonth(), this.getDay(), this.getId()));
-	}
-
-	private <X> void removePublicationRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
-
-		Page page = this.getPage();
-		Diary diary = page.getDiary();
-		FragmentDTO dto = this.toDTO();
-		String payload = "";
-
-		publishOne(function, x, payload, String.format("fragments/%d", dto.getId()));
-		publishOne(function, x, payload, String.format("diaries/%d/%d/fragments/%d", diary.getId(), page.getId(), this.getId()));
-		publishOne(function, x, payload, String.format("dates/%s/%s/%s/fragments/%s", this.getYear(), this.getMonth(), this.getDay(), this.getId()));
+		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
+		publishOne(mqttFn, x, payloadFn, dto, getTopic1());
+		publishOne(mqttFn, x, payloadFn, dto, getTopic2());
+		publishOne(mqttFn, x, payloadFn, dto, getTopic3());
 	}
 }

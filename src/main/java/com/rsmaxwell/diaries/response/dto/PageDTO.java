@@ -3,19 +3,16 @@ package com.rsmaxwell.diaries.response.dto;
 
 import java.math.BigDecimal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.SneakyThrows;
 
-@EqualsAndHashCode(exclude = { "id" })
+@EqualsAndHashCode(exclude = { "id" }, callSuper = false)
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class PageDTO {
+public class PageDTO extends Jsonable {
 
 	private Long id;
 	private Long diaryId;
@@ -32,16 +29,6 @@ public class PageDTO {
 		this.extension = other.extension;
 		this.width = other.width;
 		this.height = other.height;
-	}
-
-	@SneakyThrows
-	public String toJson() {
-		return new ObjectMapper().writeValueAsString(this);
-	}
-
-	@SneakyThrows
-	public byte[] toJsonAsBytes() {
-		return new ObjectMapper().writeValueAsBytes(this);
 	}
 
 	public boolean equalsExcludingId(PageDTO other) {
