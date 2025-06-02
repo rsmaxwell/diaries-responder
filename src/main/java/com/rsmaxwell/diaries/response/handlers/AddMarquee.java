@@ -12,13 +12,13 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
-import com.rsmaxwell.diaries.response.model.Marquee;
+import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
+import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -36,23 +36,23 @@ public class AddMarquee extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("AddMarquee.handleRequest");
+		log.info("AddFragment.handleRequest");
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("AddMarquee.handleRequest: Authorization.check: Failed!");
+			log.info("AddFragment.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}
 		log.info("Authorization.check: OK!");
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		Diary diary;
 		Page page;
-		Marquee marquee;
+		Fragment fragment;
 		try {
 			Long pageId = Utilities.getLong(args, "pageId");
 			Double x = Utilities.getDouble(args, "x");
@@ -83,37 +83,34 @@ public class AddMarquee extends RequestHandler {
 
 			diary = new Diary(diaryDTO);
 			page = new Page(diary, pageDTO);
-			marquee = new Marquee(page, x, y, width, height, sequence);
-			log.info("marquee:          " + mapper.writeValueAsString(marquee));
+
+			Long id = 0L;
+			Integer year = 0;
+			Integer month = 0;
+			Integer day = 0;
+			String text = "";
+
+			FragmentDTO dto = new FragmentDTO(id, page.getId(), x, y, width, height, year, month, day, sequence, text);
+			fragment = new Fragment(page, dto);
+			log.info("fragment:          " + mapper.writeValueAsString(fragment));
 
 		} catch (Exception e) {
-			log.info("AddMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
+			log.info("AddFragment.handleRequest: args: " + mapper.writeValueAsString(args));
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First add the new Marquee to the database
+		// First add the new Fragment to the database
 		try {
-			marqueeRepository.save(marquee); // this also updates the 'marquee.id'
+			fragmentRepository.save(fragment); // this also updates 'fragment.id'
 		} catch (Exception e) {
-			log.info("AddMarquee.handleRequest: Exception: " + e.getMessage());
+			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the new Marquee to the topic tree
-		MarqueeDTO dto = marquee.toDTO();
-		String topic = String.format("diary/%s/%s/%s", diary.getId(), page.getId(), marquee.getId());
-		byte[] payload = mapper.writeValueAsBytes(dto);
-		String payloadStr = new String(payload);
-
+		// Now publish the Fragment to the topic tree
 		MqttAsyncClient client = context.getClientResponder();
-		int qos = 1;
-		boolean retained = true;
+		fragment.publish(client);
 
-		log.info("Publishing topic: " + topic);
-		log.info("         marquee: " + payloadStr);
-
-		client.publish(topic, payload, qos, retained).waitForCompletion();
-
-		return Response.success(marquee.getId());
+		return Response.success(fragment.getId());
 	}
 }

@@ -7,8 +7,5 @@ import com.rsmaxwell.diaries.response.model.Diary;
 
 public interface DiaryRepository extends CrudRepository<Diary, DiaryDTO, Long> {
 
-	@Override
-	Optional<DiaryDTO> findById(Long id);
-
 	Optional<DiaryDTO> findByName(String path);
 }

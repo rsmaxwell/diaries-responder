@@ -6,15 +6,15 @@ public interface CrudRepository<T, DTO, ID> {
 
 	long count();
 
-	void delete(T entity);
+	int delete(T entity);
 
-	void deleteAll();
+	int deleteAll();
 
-	void deleteAll(Iterable<? extends T> entities);
+	int deleteAll(Iterable<? extends T> entities);
 
-	void deleteAllById(Iterable<? extends ID> ids);
+	int deleteAllById(Iterable<? extends ID> ids);
 
-	void deleteById(ID id);
+	int deleteById(ID id);
 
 	boolean existsById(ID id);
 
@@ -30,9 +30,9 @@ public interface CrudRepository<T, DTO, ID> {
 
 	<S extends DTO> S saveDTO(S entity) throws Exception;
 
-	<S extends T> S update(S entity) throws Exception;
+	<S extends T> int update(S entity) throws Exception;
 
-	<S extends DTO> S updateDTO(S entity) throws Exception;
+	<S extends DTO> int updateDTO(S entity) throws Exception;
 
 	<S extends T> Iterable<S> saveAll(Iterable<S> entities) throws Exception;
 }

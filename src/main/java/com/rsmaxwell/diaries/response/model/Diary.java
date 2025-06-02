@@ -3,6 +3,9 @@ package com.rsmaxwell.diaries.response.model;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +13,7 @@ import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
+import com.rsmaxwell.diaries.response.utilities.TriFunction;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,6 +23,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -27,10 +32,11 @@ import lombok.SneakyThrows;
 @Entity
 @Table(name = "diary")
 @Data
+@EqualsAndHashCode(callSuper = false)
 @AllArgsConstructor
 @RequiredArgsConstructor
 @NoArgsConstructor
-public class Diary {
+public class Diary extends Publishable {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -83,5 +89,36 @@ public class Diary {
 
 	public DiaryDTO toDTO() {
 		return new DiaryDTO(id, name, sequence);
+	}
+
+	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
+		publishRaw(mapFn, x);
+	}
+
+	public void publish(MqttAsyncClient x) throws Exception {
+		publishRaw(mqttFn, x);
+	}
+
+	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
+		removePublicationRaw(mapFn, x);
+	}
+
+	public void removePublication(MqttAsyncClient x) throws Exception {
+		removePublicationRaw(mqttFn, x);
+	}
+
+	private <X> void publishRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
+
+		DiaryDTO dto = this.toDTO();
+		String payload = dto.toJson();
+
+		publishOne(function, x, payload, String.format("diaries/%d", this.getId()));
+	}
+
+	private <X> void removePublicationRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
+
+		String payload = "";
+
+		publishOne(function, x, payload, String.format("diaries/%d", this.getId()));
 	}
 }

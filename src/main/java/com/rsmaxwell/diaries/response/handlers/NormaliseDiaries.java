@@ -83,7 +83,7 @@ public class NormaliseDiaries extends RequestHandler {
 
 		// Publish the updates
 		for (DiaryDTO dto : updates) {
-			String topic = String.format("diary/%d", dto.getId());
+			String topic = String.format("diaries/%d", dto.getId());
 			byte[] payload = mapper.writeValueAsBytes(dto);
 			client.publish(topic, payload, qos, retained).waitForCompletion();
 		}

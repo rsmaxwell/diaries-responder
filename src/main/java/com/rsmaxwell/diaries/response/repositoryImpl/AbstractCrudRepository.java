@@ -17,7 +17,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 	private static final Logger log = LogManager.getLogger(AbstractCrudRepository.class);
 
-	private EntityManager entityManager;
+	protected EntityManager entityManager;
 
 	public AbstractCrudRepository(EntityManager entityManager) {
 		this.entityManager = entityManager;
@@ -58,43 +58,52 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	}
 
 	@Override
-	public void delete(T entity) {
+	public int delete(T entity) {
 		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), getKeyValue(entity));
 		Query query = entityManager.createNativeQuery(sql);
 		int count = query.executeUpdate();
 		log.info(String.format("deleteAll --> count: %d", count));
+		return count;
 	}
 
 	@Override
-	public void deleteAll() {
+	public int deleteAll() {
 		String sql = String.format("delete from %s", getTable());
 		Query query = entityManager.createNativeQuery(sql);
 		int count = query.executeUpdate();
 		log.info(String.format("deleteAll --> count: %d", count));
+		return count;
 	}
 
 	@Override
-	public void deleteAll(Iterable<? extends T> entities) {
+	public int deleteAll(Iterable<? extends T> entities) {
+		int totalCount = 0;
 		for (T entity : entities) {
-			delete(entity);
+			int count = delete(entity);
+			totalCount += count;
 		}
+		return totalCount;
 	}
 
 	@Override
-	public void deleteAllById(Iterable<? extends ID> ids) {
+	public int deleteAllById(Iterable<? extends ID> ids) {
+		int totalCount = 0;
 		for (ID id : ids) {
-			deleteById(id);
+			int count = deleteById(id);
+			totalCount += count;
 		}
+		return totalCount;
 	}
 
 	@Override
-	public void deleteById(ID id) {
+	public int deleteById(ID id) {
 		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), quote(id));
 		log.info(String.format("sql: %s", sql));
 
 		Query query = entityManager.createNativeQuery(sql);
 		int count = query.executeUpdate();
 		log.info(String.format("deleteById --> count: %d", count));
+		return count;
 	}
 
 	@Override
@@ -324,7 +333,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	}
 
 	@Override
-	public <S extends T> S update(S entity) throws Exception {
+	public <S extends T> int update(S entity) throws Exception {
 		String separator = "";
 		StringBuilder assignments = new StringBuilder();
 		List<String> fields = getFields();
@@ -347,11 +356,11 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		int count = query.executeUpdate();
 		log.info(String.format("update --> count: %d", count));
 
-		return entity;
+		return count;
 	}
 
 	@Override
-	public <S extends DTO> S updateDTO(S dto) throws Exception {
+	public <S extends DTO> int updateDTO(S dto) throws Exception {
 		String separator = "";
 		StringBuilder assignments = new StringBuilder();
 		List<String> fields = getDTOFields();
@@ -374,7 +383,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		int count = query.executeUpdate();
 		log.info(String.format("update --> count: %d", count));
 
-		return dto;
+		return count;
 	}
 
 	@Override

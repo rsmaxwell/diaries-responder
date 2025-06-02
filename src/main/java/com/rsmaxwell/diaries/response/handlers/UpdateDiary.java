@@ -46,7 +46,6 @@ public class UpdateDiary extends RequestHandler {
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 
 		Diary diary;
-		DiaryDTO diaryDTO;
 		try {
 			Long id = Utilities.getLong(args, "id");
 			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
@@ -56,7 +55,7 @@ public class UpdateDiary extends RequestHandler {
 			if (optionalDiaryDTO.isEmpty()) {
 				return Response.internalError("Diary not found: id: " + id);
 			}
-			diaryDTO = optionalDiaryDTO.get();
+			DiaryDTO diaryDTO = optionalDiaryDTO.get();
 			diaryDTO.setSequence(sequence.setScale(4));
 			diaryDTO.setName(name);
 
@@ -81,15 +80,17 @@ public class UpdateDiary extends RequestHandler {
 		}
 
 		// Now update the Diary in the topic tree
-		String topic = "diary/" + diary.getId();
+		DiaryDTO diaryDTO = diary.toDTO();
 		byte[] payload = mapper.writeValueAsBytes(diaryDTO);
 		String payloadStr = new String(payload);
 
 		MqttAsyncClient client = context.getClientResponder();
 		int qos = 1;
 		boolean retained = true;
+		log.info("diary: " + payloadStr);
 
-		log.info("UpdateDiary.handleRequest: Publishing topic: {}, Diary: {}", topic, payloadStr);
+		String topic = String.format("diaries/%d", diary.getId());
+		log.info("  --> topic: " + topic);
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
 		return Response.success(diary.getId());

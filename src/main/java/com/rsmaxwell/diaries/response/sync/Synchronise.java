@@ -21,19 +21,15 @@ import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.eclipse.paho.mqttv5.common.MqttMessage;
 import org.eclipse.paho.mqttv5.common.MqttSubscription;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
-import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 
@@ -43,7 +39,6 @@ import jakarta.persistence.EntityTransaction;
 public class Synchronise {
 
 	private static final Logger log = LogManager.getLogger(Synchronise.class);
-	private static ObjectMapper mapper = new ObjectMapper();
 
 	static final String clientID_syncroniser = "syncroniser";
 
@@ -74,8 +69,7 @@ public class Synchronise {
 		topicTreeMap = loadFromTopicTree(client_sync, sync);
 		normaliseDiarySequence(client_sync, context);
 		normalisePageSequence(client_sync, context);
-		normaliseMarqueeSequence(client_sync, context);
-		// normaliseFragmentSequence(client_sync, context);
+		normaliseFragmentSequence(client_sync, context);
 
 		validateMapKeys(topicTreeMap, databaseMap);
 
@@ -132,9 +126,7 @@ public class Synchronise {
 
 		// Publish the updated diaries
 		for (Diary diary : updatedDiaries) {
-			String topic = String.format("diary/%d", diary.getId());
-			String json = diary.toDTO().toJson();
-			publish(client, topic, json);
+			diary.publish(client);
 		}
 	}
 
@@ -199,96 +191,12 @@ public class Synchronise {
 
 			// Publish the updated pages
 			for (Page page : updatedPages) {
-				String topic = String.format("diary/%d/%d", diaryId, page.getId());
-				String json = page.toDTO().toJson();
-				log.info(String.format("normalisePageSequence: updating topic: %s, value: %s", topic, json));
-				publish(client, topic, json);
+				page.publish(client);
 			}
 		}
 	}
 
-	private void normaliseMarqueeSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
-		log.info("normaliseMarqueeSequence");
-
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		DiaryRepository diaryRepository = context.getDiaryRepository();
-		PageRepository pageRepository = context.getPageRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
-
-		for (DiaryDTO diaryDTO : diaryRepository.findAll()) {
-			Long diaryId = diaryDTO.getId();
-			Diary diary;
-			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(diaryId);
-			if (optionalDiaryDTO.isEmpty()) {
-				throw new Exception(String.format("Could not find diaryId: %d", diaryId));
-			} else {
-				diary = new Diary(optionalDiaryDTO.get());
-			}
-
-			for (PageDTO pageDTO : pageRepository.findAllByDiary(diaryId)) {
-				Long pageId = pageDTO.getId();
-				Page page;
-				Optional<PageDTO> optionalPageDTO = pageRepository.findById(pageId);
-				if (optionalPageDTO.isEmpty()) {
-					throw new Exception(String.format("Could not find pageId: %d", pageId));
-				} else {
-					page = new Page(diary, optionalPageDTO.get());
-				}
-
-				// Sort the fragments by (1) sequence (if not null) and (2) Fallback: id (as a tie-breaker)
-				// @formatter:off
-				List<MarqueeDTO> marqueeList = StreamSupport
-						.stream(marqueeRepository.findAllByPage(pageId).spliterator(), false)
-						.sorted(Comparator
-								.comparing(MarqueeDTO::getSequence, Comparator.nullsLast(BigDecimal::compareTo))
-								.thenComparing(MarqueeDTO::getId)).collect(Collectors.toList());
-				// @formatter:on
-
-				List<Marquee> updatedMarquees = new ArrayList<>();
-
-				BigDecimal sequence = new BigDecimal("1.0000");
-				BigDecimal increment = new BigDecimal("1.0000");
-
-				tx.begin();
-				try {
-					for (MarqueeDTO dto : marqueeList) {
-						BigDecimal currentSeq = dto.getSequence();
-
-						if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
-							// log.info(String.format("page id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
-						} else {
-							String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-							log.info(String.format("       marquee: %s", dto.toJson()));
-							log.info(String.format("       %d/%d/%d: sequence %s -> %s", diaryId, pageId, dto.getId(), currentSeqStr, sequence.toPlainString()));
-
-							Marquee marquee = new Marquee(page, dto);
-							marquee.setSequence(sequence);
-							marqueeRepository.update(marquee);
-							updatedMarquees.add(marquee);
-						}
-
-						sequence = sequence.add(increment);
-					}
-					tx.commit();
-
-				} catch (Exception ex) {
-					tx.rollback();
-					throw ex;
-				}
-
-				// Publish the updated marquees
-				for (Marquee marquee : updatedMarquees) {
-					String topic = String.format("diary/%d/%d/%d", diaryId, pageId, marquee.getId());
-					String json = marquee.toDTO().toJson();
-					publish(client, topic, json);
-				}
-			}
-		}
-	}
-
-	private void XnormaliseFragmentSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
+	private void normaliseFragmentSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
 		log.info("normaliseFragmentSequence");
 
 		EntityManager em = context.getEntityManager();
@@ -296,7 +204,6 @@ public class Synchronise {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		BigDecimal initial = new BigDecimal("1.0000");
@@ -308,45 +215,24 @@ public class Synchronise {
 
 		for (FragmentDTO fragmentDTO : fragmentRepository.findAll()) {
 
-			Long fragmentId = fragmentDTO.getId();
-			Optional<FragmentDTO> optionalFragmentDTO = fragmentRepository.findById(fragmentId);
-			if (optionalFragmentDTO.isEmpty()) {
-				throw new Exception(String.format("Could not find fragmentId: %d", fragmentId));
-			} else {
-				fragmentDTO = optionalFragmentDTO.get();
-			}
+			Long pageId = fragmentDTO.getPageId();
 
-			Long marqueeId = fragmentDTO.getId();
-			MarqueeDTO marqueeDTO;
-			Optional<MarqueeDTO> optionalMarqueeDTO = marqueeRepository.findById(marqueeId);
-			if (optionalMarqueeDTO.isEmpty()) {
-				throw new Exception(String.format("Could not find marqueeId: %d", marqueeId));
-			} else {
-				marqueeDTO = optionalMarqueeDTO.get();
-			}
-
-			Long pageId = marqueeDTO.getId();
-			PageDTO pageDTO;
 			Optional<PageDTO> optionalPageDTO = pageRepository.findById(pageId);
 			if (optionalPageDTO.isEmpty()) {
 				throw new Exception(String.format("Could not find pageId: %d", pageId));
-			} else {
-				pageDTO = optionalPageDTO.get();
 			}
+			PageDTO pageDTO = optionalPageDTO.get();
 
-			Long diaryId = pageDTO.getId();
-			DiaryDTO diaryDTO;
+			Long diaryId = pageDTO.getDiaryId();
 			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(diaryId);
 			if (optionalDiaryDTO.isEmpty()) {
 				throw new Exception(String.format("Could not find diaryId: %d", diaryId));
-			} else {
-				diaryDTO = optionalDiaryDTO.get();
 			}
+			DiaryDTO diaryDTO = optionalDiaryDTO.get();
 
 			Diary diary = new Diary(diaryDTO);
 			Page page = new Page(diary, pageDTO);
-			Marquee marquee = new Marquee(page, marqueeDTO);
-			Fragment fragment = new Fragment(marquee, fragmentDTO);
+			Fragment fragment = new Fragment(page, fragmentDTO);
 
 			List<Fragment> updatedFragments = new ArrayList<>();
 
@@ -360,7 +246,8 @@ public class Synchronise {
 				} else {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("       fragment: %s", fragmentName));
-					log.info(String.format("       %d/%d/%d: sequence %s -> %s", fragmentName, currentSeqStr, sequence.toPlainString()));
+					log.info(String.format("       %d/%d/%d: sequence %s -> %s", fragment.getYear(), fragment.getMonth(), fragment.getDay(), currentSeqStr,
+							sequence.toPlainString()));
 
 					fragment.setSequence(sequence);
 					fragmentRepository.update(fragment);
@@ -381,9 +268,7 @@ public class Synchronise {
 
 			// Publish the updated fragments
 			for (Fragment f : updatedFragments) {
-				String topic = String.format("fragment/%d/%d/%d/%d", f.getYear(), f.getMonth(), f.getDay(), f.getId());
-				String json = f.toDTO().toJson();
-				publish(client, topic, json);
+				f.publish(client);
 			}
 		}
 	}
@@ -392,7 +277,9 @@ public class Synchronise {
 
 		// @formatter:off
 		MqttSubscription[] subscriptions = {
-			    new MqttSubscription("diary/#", 1)
+			    new MqttSubscription("fragments/#", 1),
+			    new MqttSubscription("diaries/#", 1),
+			    new MqttSubscription("dates/#", 1)
 		};
 		// @formatter:on		
 
@@ -409,31 +296,22 @@ public class Synchronise {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
-
-		String topic;
-		String string;
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
-		for (DiaryDTO diary : diaries) {
-			topic = String.format("diary/%d", diary.getId());
+		for (DiaryDTO diaryDTO : diaries) {
+			Diary diary = diaryDTO.toDiary();
+			diary.publish(map);
 
-			string = diary.toJson();
-			map.put(topic, string);
+			Iterable<PageDTO> pages = pageRepository.findAllByDiary(diaryDTO.getId());
+			for (PageDTO pageDTO : pages) {
+				Page page = new Page(diary, pageDTO);
+				page.publish(map);
 
-			Iterable<PageDTO> pages = pageRepository.findAllByDiary(diary.getId());
-			for (PageDTO page : pages) {
-				topic = String.format("diary/%s/%d", diary.getId(), page.getId());
-
-				string = page.toJson();
-				map.put(topic, string);
-
-				Iterable<MarqueeDTO> marquees = marqueeRepository.findAllByPage(page.getId());
-				for (MarqueeDTO fragment : marquees) {
-					topic = String.format("diary/%s/%d/%d", diary.getId(), page.getId(), fragment.getId());
-
-					string = fragment.toJson();
-					map.put(topic, string);
+				Iterable<FragmentDTO> fragments = fragmentRepository.findAllByPage(pageDTO.getId());
+				for (FragmentDTO fragmentDTO : fragments) {
+					Fragment fragment = new Fragment(page, fragmentDTO);
+					fragment.publish(map);
 				}
 			}
 		}

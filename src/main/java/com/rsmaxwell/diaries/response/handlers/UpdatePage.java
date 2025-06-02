@@ -51,7 +51,6 @@ public class UpdatePage extends RequestHandler {
 
 		Diary diary;
 		Page page;
-		PageDTO pageDTO;
 		try {
 			Long id = Utilities.getLong(args, "id");
 			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
@@ -61,7 +60,7 @@ public class UpdatePage extends RequestHandler {
 			if (optionalPageDTO.isEmpty()) {
 				return Response.internalError("Page not found: id: " + id);
 			}
-			pageDTO = optionalPageDTO.get();
+			PageDTO pageDTO = optionalPageDTO.get();
 			pageDTO.setSequence(sequence.setScale(4));
 			pageDTO.setName(name);
 
@@ -93,15 +92,17 @@ public class UpdatePage extends RequestHandler {
 		}
 
 		// Now update the Page in the topic tree
-		String topic = String.format("diary/%s/%s", diary.getId(), page.getId());
+		PageDTO pageDTO = page.toDTO();
 		byte[] payload = mapper.writeValueAsBytes(pageDTO);
 		String payloadStr = new String(payload);
 
 		MqttAsyncClient client = context.getClientResponder();
 		int qos = 1;
 		boolean retained = true;
+		log.info("page: " + payloadStr);
 
-		log.info("UpdatePage.handleRequest: Publishing topic: {}, Page: {}", topic, payloadStr);
+		String topic = String.format("diaries/%s/%s", diary.getId(), page.getId());
+		log.info("  --> topic: " + topic);
 		client.publish(topic, payload, qos, retained).waitForCompletion();
 
 		return Response.success(page.getId());

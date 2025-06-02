@@ -1,8 +1,12 @@
 package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.rsmaxwell.diaries.response.dto.PageDTO;
+import com.rsmaxwell.diaries.response.utilities.TriFunction;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,12 +26,12 @@ import lombok.RequiredArgsConstructor;
 
 @Entity
 @Table(name = "page", uniqueConstraints = { @UniqueConstraint(columnNames = { "diary_id", "name" }) })
-@EqualsAndHashCode(exclude = { "id" })
 @Data
+@EqualsAndHashCode(callSuper = false)
 @AllArgsConstructor
 @RequiredArgsConstructor
 @NoArgsConstructor
-public class Page {
+public class Page extends Publishable {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -85,5 +89,38 @@ public class Page {
 				this.height				
 				);
 		// @formatter:on
+	}
+
+	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
+		publishRaw(mapFn, x);
+	}
+
+	public void publish(MqttAsyncClient x) throws Exception {
+		publishRaw(mqttFn, x);
+	}
+
+	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
+		removePublicationRaw(mapFn, x);
+	}
+
+	public void removePublication(MqttAsyncClient x) throws Exception {
+		removePublicationRaw(mqttFn, x);
+	}
+
+	private <X> void publishRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
+
+		Diary diary = this.getDiary();
+		PageDTO dto = this.toDTO();
+		String payload = dto.toJson();
+
+		publishOne(function, x, payload, String.format("diaries/%d/%d", diary.getId(), this.getId()));
+	}
+
+	private <X> void removePublicationRaw(TriFunction<X, String, String, Object> function, X x) throws Exception {
+
+		Diary diary = this.getDiary();
+		String payload = "";
+
+		publishOne(function, x, payload, String.format("diaries/%d/%d", diary.getId(), this.getId()));
 	}
 }

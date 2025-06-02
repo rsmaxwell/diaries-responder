@@ -1,6 +1,5 @@
 package com.rsmaxwell.diaries.response.handlers;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -12,13 +11,14 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueeDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
+import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -51,10 +51,10 @@ public class UpdateMarquee extends RequestHandler {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
-		Diary diary;
-		Page page;
+		log.info("UpdateMarquee.handleRequest: make new Marquee");
+
 		Marquee marquee;
 		try {
 			Long id = Utilities.getLong(args, "id");
@@ -63,60 +63,55 @@ public class UpdateMarquee extends RequestHandler {
 			Double width = Utilities.getDouble(args, "width");
 			Double height = Utilities.getDouble(args, "height");
 
-			BigDecimal sequence = new BigDecimal(123);
-
-			Optional<MarqueeDTO> optionalMarqueeDTO = marqueeRepository.findById(id);
-			if (optionalMarqueeDTO.isEmpty()) {
-				return Response.internalError("Marquee not found: id: " + id);
-			}
-			MarqueeDTO marqueeDTO = optionalMarqueeDTO.get();
-
-			Optional<PageDTO> optionalPageDTO = pageRepository.findById(marqueeDTO.getPageId());
-			if (optionalPageDTO.isEmpty()) {
-				return Response.internalError("Page not found: id: " + marqueeDTO.getPageId());
-			}
-			PageDTO pageDTO = optionalPageDTO.get();
-
-			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-			if (optionalDiaryDTO.isEmpty()) {
-				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
-			}
-			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-			diary = new Diary(diaryDTO);
-			page = new Page(diary, pageDTO);
-			marquee = new Marquee(id, page, x, y, width, height, sequence);
+			marquee = new Marquee(id, x, y, width, height);
 
 		} catch (Exception e) {
-			log.info("UpdateMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
+			log.info("UpdateMarquee.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First update the marquee in the database
+		// First update the fragment in the database
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
 		tx.begin();
 		try {
-			marqueeRepository.update(marquee);
+			int count = fragmentRepository.updateWithMarquee(marquee);
+			if (count != 1) {
+				log.info("UpdateMarquee.handleRequest: number of records updated: {}", count);
+			}
 			tx.commit();
 		} catch (Exception e) {
 			tx.rollback();
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now update the marquee in the topic tree
-		MarqueeDTO dto = marquee.toDTO();
-		String topic = "diary/" + diary.getId() + "/" + page.getId() + "/" + marquee.getId();
-		byte[] payload = mapper.writeValueAsBytes(dto);
-		String payloadString = new String(payload);
+		// Reconstruct the Fragment
+		Optional<FragmentDTO> optionalFragmentDTO = fragmentRepository.findById(marquee.getId());
+		if (optionalFragmentDTO.isEmpty()) {
+			return Response.internalError("Fragment not found: id: " + marquee.getId());
+		}
+		FragmentDTO fragmentDTO = optionalFragmentDTO.get();
 
+		Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
+		if (optionalPageDTO.isEmpty()) {
+			return Response.internalError("Page not found: id: " + fragmentDTO.getPageId());
+		}
+		PageDTO pageDTO = optionalPageDTO.get();
+
+		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
+		if (optionalDiaryDTO.isEmpty()) {
+			return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
+		}
+		DiaryDTO diaryDTO = optionalDiaryDTO.get();
+		Diary diary = new Diary(diaryDTO);
+		Page page = new Page(diary, pageDTO);
+		Fragment fragment = new Fragment(page, fragmentDTO);
+
+		// Now publish the Fragment to the topic tree
 		MqttAsyncClient client = context.getClientResponder();
-		int qos = 1;
-		boolean retained = true;
+		fragment.publish(client);
 
-		log.info("UpdateMarquee.handleRequest: Publishing topic: {}, marquee: {}", topic, payloadString);
-		client.publish(topic, payload, qos, retained).waitForCompletion();
-
-		return Response.success(marquee.getId());
+		return Response.success(fragmentDTO.getId());
 	}
 }

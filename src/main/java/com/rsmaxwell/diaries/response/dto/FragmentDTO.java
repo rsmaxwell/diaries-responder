@@ -13,11 +13,15 @@ import lombok.SneakyThrows;
 public class FragmentDTO {
 
 	private Long id;
+	private Long pageId;
+	private Double x;
+	private Double y;
+	private Double width;
+	private Double height;
 	private Integer year;
 	private Integer month;
 	private Integer day;
 	private BigDecimal sequence;
-	private Long marqueeId;
 	private String text;
 
 	@SneakyThrows

@@ -68,4 +68,8 @@ public class PageDTO {
 	private boolean compareToNullable(BigDecimal a, BigDecimal b) {
 		return a == null ? b == null : (a.compareTo(b) == 0);
 	}
+
+	public String getTopic() {
+		return String.format("diary/%s/%s", diaryId, id);
+	}
 }

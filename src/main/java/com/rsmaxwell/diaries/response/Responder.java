@@ -27,10 +27,8 @@ import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
-import com.rsmaxwell.diaries.response.handlers.AddFragment;
 import com.rsmaxwell.diaries.response.handlers.AddMarquee;
-import com.rsmaxwell.diaries.response.handlers.Calculator;
-import com.rsmaxwell.diaries.response.handlers.DeleteMarquee;
+import com.rsmaxwell.diaries.response.handlers.DeleteFragment;
 import com.rsmaxwell.diaries.response.handlers.NormaliseDiaries;
 import com.rsmaxwell.diaries.response.handlers.Quit;
 import com.rsmaxwell.diaries.response.handlers.RefreshToken;
@@ -41,12 +39,10 @@ import com.rsmaxwell.diaries.response.handlers.UpdateMarquee;
 import com.rsmaxwell.diaries.response.handlers.UpdatePage;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
-import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
 import com.rsmaxwell.diaries.response.repositoryImpl.DiaryRepositoryImpl;
 import com.rsmaxwell.diaries.response.repositoryImpl.FragmentRepositoryImpl;
-import com.rsmaxwell.diaries.response.repositoryImpl.MarqueeRepositoryImpl;
 import com.rsmaxwell.diaries.response.repositoryImpl.PageRepositoryImpl;
 import com.rsmaxwell.diaries.response.repositoryImpl.PersonRepositoryImpl;
 import com.rsmaxwell.diaries.response.sync.Synchronise;
@@ -79,9 +75,7 @@ public class Responder {
 		messageHandler.putHandler("normaliseDiaries", new NormaliseDiaries());
 		messageHandler.putHandler("addMarquee", new AddMarquee());
 		messageHandler.putHandler("updateMarquee", new UpdateMarquee());
-		messageHandler.putHandler("deleteMarquee", new DeleteMarquee());
-		messageHandler.putHandler("addFragment", new AddFragment());
-		messageHandler.putHandler("calculator", new Calculator());
+		messageHandler.putHandler("deleteFragment", new DeleteFragment());
 		messageHandler.putHandler("quit", new Quit());
 	}
 
@@ -163,7 +157,6 @@ public class Responder {
 			DiaryRepository diaryRepository = new DiaryRepositoryImpl(entityManager);
 			PageRepository pageRepository = new PageRepositoryImpl(entityManager);
 			PersonRepository personRepository = new PersonRepositoryImpl(entityManager);
-			MarqueeRepository marqueeRepository = new MarqueeRepositoryImpl(entityManager);
 			FragmentRepository fragmentRepository = new FragmentRepositoryImpl(entityManager);
 
 			DiaryContext context = new DiaryContext();
@@ -171,7 +164,6 @@ public class Responder {
 			context.setDiaryRepository(diaryRepository);
 			context.setPageRepository(pageRepository);
 			context.setPersonRepository(personRepository);
-			context.setMarqueeRepository(marqueeRepository);
 			context.setFragmentRepository(fragmentRepository);
 			context.setSecret(config.getSecret());
 			context.setDiaries(config.getDiaries());
