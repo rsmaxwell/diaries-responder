@@ -2,11 +2,9 @@ package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
-import com.rsmaxwell.diaries.response.dto.Jsonable;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 
 import jakarta.persistence.Column;
@@ -97,26 +95,22 @@ public class Page extends Publishable {
 	}
 
 	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
-		PageDTO dto = this.toDTO();
-		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
-		publishOne(mapFn, x, payloadFn, dto, getTopic());
+		String payload = this.toDTO().toJson();
+		publish(mapFn, x, publishFn, payload, getTopic());
 	}
 
 	public void publish(MqttAsyncClient x) throws Exception {
-		PageDTO dto = this.toDTO();
-		Function<Jsonable, byte[]> payloadFn = dto.publishFn;
-		publishOne(mqttFn, x, payloadFn, dto, getTopic());
+		String payload = this.toDTO().toJson();
+		publish(mqttFn, x, publishFn, payload, getTopic());
 	}
 
 	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
-		PageDTO dto = this.toDTO();
-		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
-		publishOne(mapFn, x, payloadFn, dto, getTopic());
+		String payload = this.toDTO().toJson();
+		publish(mapFn, x, removeFn, payload, getTopic());
 	}
 
 	public void removePublication(MqttAsyncClient x) throws Exception {
-		PageDTO dto = this.toDTO();
-		Function<Jsonable, byte[]> payloadFn = dto.removeFn;
-		publishOne(mqttFn, x, payloadFn, dto, getTopic());
+		String payload = this.toDTO().toJson();
+		publish(mqttFn, x, removeFn, payload, getTopic());
 	}
 }

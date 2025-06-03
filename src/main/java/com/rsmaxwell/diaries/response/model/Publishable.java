@@ -5,7 +5,6 @@ import java.util.function.Function;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
-import com.rsmaxwell.diaries.response.dto.Jsonable;
 import com.rsmaxwell.diaries.response.utilities.TriFunction;
 
 public class Publishable {
@@ -21,8 +20,16 @@ public class Publishable {
 		return map.put(topic, payloadString);
 	};
 
-	public <A> Object publishOne(TriFunction<A, byte[], String, Object> function, A a, Function<Jsonable, byte[]> payloadFn, Jsonable dto, String c) throws Exception {
-		byte[] payload = payloadFn.apply(dto);
-		return function.apply(a, payload, c);
+	Function<String, byte[]> publishFn = (x) -> {
+		return x.getBytes();
+	};
+
+	Function<String, byte[]> removeFn = (x) -> {
+		return new byte[0];
+	};
+
+	public <A> Object publish(TriFunction<A, byte[], String, Object> function, A a, Function<String, byte[]> payloadFn, String payload, String c) throws Exception {
+		byte[] payloadBytes = payloadFn.apply(payload);
+		return function.apply(a, payloadBytes, c);
 	}
 }
