@@ -96,7 +96,7 @@ public class UpdatePage extends RequestHandler {
 		byte[] payload = mapper.writeValueAsBytes(pageDTO);
 		String payloadStr = new String(payload);
 
-		MqttAsyncClient client = context.getClientResponder();
+		MqttAsyncClient client = context.getPublisherClient();
 		int qos = 1;
 		boolean retained = true;
 		log.info("page: " + payloadStr);

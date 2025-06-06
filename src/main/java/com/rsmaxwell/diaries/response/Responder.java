@@ -20,7 +20,6 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence;
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
-import org.eclipse.paho.mqttv5.common.MqttSubscription;
 
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
@@ -48,6 +47,7 @@ import com.rsmaxwell.diaries.response.repositoryImpl.PersonRepositoryImpl;
 import com.rsmaxwell.diaries.response.sync.Synchronise;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.diaries.response.utilities.GetEntityManager;
+import com.rsmaxwell.diaries.response.utilities.MyMessageHandler;
 import com.rsmaxwell.mqtt.rpc.response.MessageHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -60,11 +60,11 @@ public class Responder {
 
 	private static final Logger log = LogManager.getLogger(Responder.class);
 
-	static final String clientID_responder = "responder";
+	static final String clientID_publisher = "responder";
 	static final String clientID_listener = "listener";
-	static final String requestTopic = "request";
 	static final int qos = 0;
 	static MessageHandler messageHandler = new MessageHandler();
+	static MyMessageHandler myMessageHandler = new MyMessageHandler(messageHandler);
 
 	static {
 		messageHandler.putHandler("register", new Register());
@@ -188,39 +188,40 @@ public class Responder {
 	}
 
 	private void respond(DiaryContext context, String server, User user, MqttClientPersistence persistence) throws Exception {
-		MqttAsyncClient client_responder = new MqttAsyncClient(server, clientID_responder, persistence);
-		MqttAsyncClient client_listener = new MqttAsyncClient(server, clientID_listener, persistence);
+		MqttAsyncClient publisherClient = new MqttAsyncClient(server, clientID_publisher, persistence);
+		MqttAsyncClient listenerClient = new MqttAsyncClient(server, clientID_listener, persistence);
 
 		messageHandler.setContext(context);
-		messageHandler.setClient(client_responder);
-		context.setClientResponder(client_responder);
-		client_listener.setCallback(messageHandler);
+		messageHandler.setPublisherClient(publisherClient);
+		messageHandler.setListenerClient(listenerClient);
+		context.setPublisherClient(publisherClient);
+		listenerClient.setCallback(myMessageHandler);
 
-		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_responder));
-		MqttConnectionOptions connOpts_responder = new MqttConnectionOptions();
-		connOpts_responder.setUserName(user.getUsername());
-		connOpts_responder.setPassword(user.getPassword().getBytes());
-		connOpts_responder.setCleanStart(false);
-		connOpts_responder.setAutomaticReconnect(true);
-		client_responder.connect(connOpts_responder).waitForCompletion();
+		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_publisher));
+		MqttConnectionOptions publisherConnOpts = new MqttConnectionOptions();
+		publisherConnOpts.setUserName(user.getUsername());
+		publisherConnOpts.setPassword(user.getPassword().getBytes());
+		publisherConnOpts.setCleanStart(false);
+		publisherConnOpts.setAutomaticReconnect(true);
+		publisherClient.connect(publisherConnOpts).waitForCompletion();
 
 		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_listener));
-		MqttConnectionOptions connOpts_subscriber = new MqttConnectionOptions();
-		connOpts_subscriber.setUserName(user.getUsername());
-		connOpts_subscriber.setPassword(user.getPassword().getBytes());
-		connOpts_subscriber.setCleanStart(false);
-		connOpts_subscriber.setAutomaticReconnect(true);
-		client_listener.connect(connOpts_subscriber).waitForCompletion();
+		MqttConnectionOptions listenerConnOpts = new MqttConnectionOptions();
+		listenerConnOpts.setUserName(user.getUsername());
+		listenerConnOpts.setPassword(user.getPassword().getBytes());
+		listenerConnOpts.setCleanStart(false);
+		listenerConnOpts.setAutomaticReconnect(true);
+		listenerClient.connect(listenerConnOpts).waitForCompletion();
 
-		log.info(String.format("subscribing to: %s", requestTopic));
-		MqttSubscription subscription = new MqttSubscription(requestTopic);
-		client_listener.subscribe(subscription).waitForCompletion();
+		// log.info(String.format("subscribing to: %s", requestTopic));
+		// MqttSubscription subscription = new MqttSubscription(requestTopic);
+		// client_listener.subscribe(subscription).waitForCompletion();
 
 		// Wait till quit request received
 		messageHandler.waitForCompletion();
 
-		client_responder.disconnect().waitForCompletion();
-		client_listener.disconnect().waitForCompletion();
+		publisherClient.disconnect().waitForCompletion();
+		listenerClient.disconnect().waitForCompletion();
 	}
 
 }

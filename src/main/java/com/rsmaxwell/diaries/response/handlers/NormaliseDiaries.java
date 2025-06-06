@@ -41,13 +41,13 @@ public class NormaliseDiaries extends RequestHandler {
 		}
 		log.info("NormaliseDiaries.handleRequest: Authorization.check: OK!");
 
-		MqttAsyncClient client = context.getClientResponder();
+		MqttAsyncClient client = context.getPublisherClient();
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
-		List<DiaryDTO> updates = new ArrayList<>();
+		List<Diary> updates = new ArrayList<>();
 
 		BigDecimal sequence = new BigDecimal("1.0000");
 		BigDecimal increment = new BigDecimal("1.0000");
@@ -61,12 +61,12 @@ public class NormaliseDiaries extends RequestHandler {
 					// log.info(String.format("diary id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
 				} else {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-					log.info(String.format("Updating diary id:%d: name:%s: sequence %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
+					log.info(String.format("Updating diary id: %d, name: %s, sequence: %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
 
 					Diary diary = new Diary(dto);
 					diary.setSequence(sequence);
 					diaryRepository.update(diary);
-					updates.add(dto);
+					updates.add(diary);
 				}
 
 				sequence = sequence.add(increment);
@@ -78,14 +78,10 @@ public class NormaliseDiaries extends RequestHandler {
 			throw ex;
 		}
 
-		int qos = 1;
-		boolean retained = true;
-
 		// Publish the updates
-		for (DiaryDTO dto : updates) {
-			String topic = String.format("diaries/%d", dto.getId());
-			byte[] payload = mapper.writeValueAsBytes(dto);
-			client.publish(topic, payload, qos, retained).waitForCompletion();
+		for (Diary diary : updates) {
+			log.info(String.format("Publishing diary id:%d, name:%s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
+			diary.publish(client);
 		}
 
 		return Response.success(updates.size());

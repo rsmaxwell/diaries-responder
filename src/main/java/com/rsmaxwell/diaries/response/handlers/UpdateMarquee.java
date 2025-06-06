@@ -109,7 +109,7 @@ public class UpdateMarquee extends RequestHandler {
 		Fragment fragment = new Fragment(page, fragmentDTO);
 
 		// Now publish the Fragment to the topic tree
-		MqttAsyncClient client = context.getClientResponder();
+		MqttAsyncClient client = context.getPublisherClient();
 		fragment.publish(client);
 
 		return Response.success(fragmentDTO.getId());

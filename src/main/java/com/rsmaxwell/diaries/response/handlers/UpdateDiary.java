@@ -84,7 +84,7 @@ public class UpdateDiary extends RequestHandler {
 		byte[] payload = mapper.writeValueAsBytes(diaryDTO);
 		String payloadStr = new String(payload);
 
-		MqttAsyncClient client = context.getClientResponder();
+		MqttAsyncClient client = context.getPublisherClient();
 		int qos = 1;
 		boolean retained = true;
 		log.info("diary: " + payloadStr);

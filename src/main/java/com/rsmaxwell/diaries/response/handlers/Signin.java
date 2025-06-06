@@ -10,7 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.mindrot.jbcrypt.BCrypt;
 
-import com.rsmaxwell.diaries.common.response.SigninResponsePayload;
+import com.rsmaxwell.diaries.common.response.SigninReply;
 import com.rsmaxwell.diaries.response.dto.PersonDTO;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
@@ -54,7 +54,7 @@ public class Signin extends RequestHandler {
 		Integer refreshPeriod = context.getRefreshPeriod();
 		Long id = person.getId();
 
-		SigninResponsePayload payload = new SigninResponsePayload(accessToken, refreshToken, refreshPeriod, id);
+		SigninReply payload = new SigninReply(accessToken, refreshToken, refreshPeriod, id);
 		return Response.success(payload);
 	}
 }

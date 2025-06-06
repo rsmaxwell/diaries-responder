@@ -8,6 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
+import com.rsmaxwell.diaries.common.response.RefreshTokenReply;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -33,8 +34,12 @@ public class RefreshToken extends RequestHandler {
 		String secret = context.getSecret();
 		int expiration = context.getRefreshExpiration();
 
+		String token = Authorization.getToken(secret, "access", expiration, ChronoUnit.SECONDS);
+		Integer refreshPeriod = context.getRefreshPeriod();
+		RefreshTokenReply reply = new RefreshTokenReply(token, refreshPeriod);
+
 		Response response = Response.success();
-		response.setPayload(Authorization.getToken(secret, "access", expiration, ChronoUnit.SECONDS));
+		response.setPayload(reply);
 		return response;
 	}
 }

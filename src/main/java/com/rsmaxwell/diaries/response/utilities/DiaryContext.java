@@ -23,6 +23,6 @@ public class DiaryContext {
 	private Integer refreshExpiration;
 	private String secret;
 	private DiariesConfig diaries;
-	private MqttAsyncClient clientResponder;
+	private MqttAsyncClient publisherClient;
 
 }

@@ -108,7 +108,7 @@ public class AddMarquee extends RequestHandler {
 		}
 
 		// Now publish the Fragment to the topic tree
-		MqttAsyncClient client = context.getClientResponder();
+		MqttAsyncClient client = context.getPublisherClient();
 		fragment.publish(client);
 
 		return Response.success(fragment.getId());

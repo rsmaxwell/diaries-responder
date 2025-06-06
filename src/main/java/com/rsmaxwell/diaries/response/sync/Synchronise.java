@@ -126,6 +126,7 @@ public class Synchronise {
 
 		// Publish the updated diaries
 		for (Diary diary : updatedDiaries) {
+			log.info(String.format("publishing diary id: %d, name: %s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
 			diary.publish(client);
 		}
 	}
