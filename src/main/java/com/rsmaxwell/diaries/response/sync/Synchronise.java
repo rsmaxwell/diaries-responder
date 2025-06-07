@@ -309,7 +309,7 @@ public class Synchronise {
 				Page page = new Page(diary, pageDTO);
 				page.publish(map);
 
-				Iterable<FragmentDTO> fragments = fragmentRepository.findAllByPage(pageDTO.getId());
+				Iterable<FragmentDTO> fragments = fragmentRepository.findByPage(pageDTO.getId());
 				for (FragmentDTO fragmentDTO : fragments) {
 					Fragment fragment = new Fragment(page, fragmentDTO);
 					fragment.publish(map);

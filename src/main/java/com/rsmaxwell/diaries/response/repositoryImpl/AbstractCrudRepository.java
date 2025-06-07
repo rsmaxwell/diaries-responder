@@ -62,7 +62,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), getKeyValue(entity));
 		Query query = entityManager.createNativeQuery(sql);
 		int count = query.executeUpdate();
-		log.info(String.format("deleteAll --> count: %d", count));
+		log.info(String.format("delete --> count: %d", count));
 		return count;
 	}
 

@@ -135,7 +135,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	}
 
 	@Override
-	public Iterable<FragmentDTO> findAllByDate(Integer year, Integer month, Integer day) {
+	public Iterable<FragmentDTO> findByDate(Integer year, Integer month, Integer day) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
@@ -149,11 +149,11 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	}
 
 	@Override
-	public Iterable<FragmentDTO> findAllByPage(Long marqueeId) {
+	public Iterable<FragmentDTO> findByPage(Long pageId) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
-				.add("page_id", marqueeId)
+				.add("page_id", pageId)
 				.build();
 		// @formatter:on
 
