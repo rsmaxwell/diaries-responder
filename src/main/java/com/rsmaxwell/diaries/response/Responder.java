@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,6 +21,7 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence;
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
+import org.eclipse.paho.mqttv5.common.MqttException;
 
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
@@ -102,8 +104,29 @@ public class Responder {
 
 		startFileServer(config);
 
-		Responder responder = new Responder();
-		responder.run(config);
+		try {
+			Responder responder = new Responder();
+			responder.run(config);
+
+		} catch (MqttException e) {
+			Throwable cause = e.getCause();
+			if (cause instanceof ConnectException) {
+				System.err.println("Unable to connect to MQTT broker at: " + config.getMqtt().getServer());
+				System.err.println("Possible reasons:");
+				System.err.println(" - Mosquitto is not running");
+				System.err.println(" - Another instance of the Responder is already running");
+				System.err.println(" - Port " + config.getMqtt().getPort() + " is blocked or unavailable");
+			} else {
+				System.err.println("MQTT Exception occurred: " + e.getMessage());
+				e.printStackTrace();
+			}
+			System.exit(1);
+
+		} catch (Exception e) {
+			System.err.println("Unexpected error: " + e.getMessage());
+			e.printStackTrace();
+			System.exit(2);
+		}
 	}
 
 	// This will serve files like {baseurl}/{diary-name}/{page-name}.jpg
@@ -144,7 +167,7 @@ public class Responder {
 		log.info(String.format("      from %s", diariesConfig.getOriginal()));
 	}
 
-	void run(Config config) {
+	void run(Config config) throws Exception {
 
 		DbConfig dbConfig = config.getDb();
 		MqttConfig mqttConfig = config.getMqtt();
@@ -188,10 +211,6 @@ public class Responder {
 			respond(context, server, user, persistence);
 
 			log.info("Success");
-
-		} catch (Exception e) {
-			log.catching(e);
-			return;
 		}
 	}
 
