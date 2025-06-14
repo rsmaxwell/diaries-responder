@@ -33,18 +33,8 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 	}
 
 	@Override
-	public <S extends PersonDTO> String getDTOKeyValue(S dto) {
-		return dto.getId().toString();
-	}
-
-	@Override
 	public <S extends Person> void setKeyValue(S entity, Object value) {
 		entity.setId((Long) value);
-	}
-
-	@Override
-	public <S extends PersonDTO> void setDTOKeyValue(S dto, Object value) {
-		dto.setId((Long) value);
 	}
 
 	@Override
@@ -54,20 +44,6 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 
 	@Override
 	public List<String> getFields() {
-		List<String> list = new ArrayList<String>();
-		list.add("username");
-		list.add("passwordHash");
-		list.add("firstName");
-		list.add("lastName");
-		list.add("knownas");
-		list.add("email");
-		list.add("countryCode");
-		list.add("nationalNumber");
-		return list;
-	}
-
-	@Override
-	public List<String> getDTOFields() {
 		List<String> list = new ArrayList<String>();
 		list.add("username");
 		list.add("passwordHash");
@@ -91,20 +67,6 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		list.add(entity.getEmail());
 		list.add(entity.getCountryCode());
 		list.add(entity.getNationalNumber());
-		return list;
-	}
-
-	@Override
-	public <S extends PersonDTO> List<Object> getDTOValues(S dto) {
-		List<Object> list = new ArrayList<Object>();
-		list.add(dto.getUsername());
-		list.add(dto.getPasswordHash());
-		list.add(dto.getFirstName());
-		list.add(dto.getLastName());
-		list.add(dto.getKnownas());
-		list.add(dto.getEmail());
-		list.add(dto.getCountryCode());
-		list.add(dto.getNationalNumber());
 		return list;
 	}
 

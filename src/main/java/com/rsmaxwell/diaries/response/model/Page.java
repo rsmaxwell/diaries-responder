@@ -95,22 +95,22 @@ public class Page extends Publishable {
 	}
 
 	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mapFn, x, publishFn, payload, getTopic());
+		byte[] payload = this.toDTO().toJsonAsBytes();
+		publish(mapFn, x, payload, getTopic());
 	}
 
 	public void publish(MqttAsyncClient x) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mqttFn, x, publishFn, payload, getTopic());
+		byte[] payload = this.toDTO().toJsonAsBytes();
+		publish(mqttFn, x, payload, getTopic());
 	}
 
 	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mapFn, x, removeFn, payload, getTopic());
+		byte[] payload = new byte[0];
+		publish(mapFn, x, payload, getTopic());
 	}
 
 	public void removePublication(MqttAsyncClient x) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mqttFn, x, removeFn, payload, getTopic());
+		byte[] payload = new byte[0];
+		publish(mqttFn, x, payload, getTopic());
 	}
 }

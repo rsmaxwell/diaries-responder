@@ -12,13 +12,13 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -48,11 +48,11 @@ public class AddMarquee extends RequestHandler {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		Diary diary;
 		Page page;
 		Fragment fragment;
+		Marquee marquee;
 		try {
 			Long pageId = Utilities.getLong(args, "pageId");
 			Double x = Utilities.getDouble(args, "x");
@@ -88,11 +88,16 @@ public class AddMarquee extends RequestHandler {
 			Integer year = 0;
 			Integer month = 0;
 			Integer day = 0;
-			String text = "";
+			String text = "Hello World!";
 
-			FragmentDTO dto = new FragmentDTO(id, page.getId(), x, y, width, height, year, month, day, sequence, text);
-			fragment = new Fragment(page, dto);
-			log.info("fragment:          " + mapper.writeValueAsString(fragment));
+			marquee = new Marquee(id, null, x, y, width, height);
+			FragmentDBDTO fragmentDTO = new FragmentDBDTO(id, page.getId(), null, year, month, day, sequence, text);
+			fragment = new Fragment(page, fragmentDTO);
+
+			fragment.setMarquee(marquee);
+			marquee.setFragment(fragment);
+
+			log.info("fragmentDTO: " + mapper.writeValueAsString(fragmentDTO));
 
 		} catch (Exception e) {
 			log.info("AddFragment.handleRequest: args: " + mapper.writeValueAsString(args));
@@ -101,15 +106,16 @@ public class AddMarquee extends RequestHandler {
 
 		// First add the new Fragment to the database
 		try {
-			fragmentRepository.save(fragment); // this also updates 'fragment.id'
+			context.save(fragment); // This saves both the fragment and the marquee to the database
 		} catch (Exception e) {
 			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the Fragment to the topic tree
+		// Now publish the Fragment (and its marquee) to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
 		fragment.publish(client);
+		marquee.publish(client);
 
 		return Response.success(fragment.getId());
 	}

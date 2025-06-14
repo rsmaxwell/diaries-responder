@@ -11,13 +11,12 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -26,9 +25,6 @@ import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
 import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityTransaction;
 
 public class DeleteFragment extends RequestHandler {
 
@@ -50,7 +46,6 @@ public class DeleteFragment extends RequestHandler {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		Diary diary;
 		Page page;
@@ -58,11 +53,11 @@ public class DeleteFragment extends RequestHandler {
 		try {
 			Long id = Utilities.getLong(args, "id");
 
-			Optional<FragmentDTO> optionalFragmentDTO = fragmentRepository.findById(id);
+			Optional<FragmentDBDTO> optionalFragmentDTO = context.findFragmentWithMarqueeById(id);
 			if (optionalFragmentDTO.isEmpty()) {
 				return Response.internalError("Fragment not found: id: " + id);
 			}
-			FragmentDTO fragmentDTO = optionalFragmentDTO.get();
+			FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
 
 			Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
 			if (optionalPageDTO.isEmpty()) {
@@ -86,16 +81,7 @@ public class DeleteFragment extends RequestHandler {
 		}
 
 		// First delete the fragment from the database
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		tx.begin();
-		try {
-			fragmentRepository.delete(fragment);
-			tx.commit();
-		} catch (Exception e) {
-			return Response.internalError(e.getMessage());
-		}
+		context.deleteFragment(fragment);
 
 		// Then remove the fragment from the topic tree
 		MqttAsyncClient client = context.getPublisherClient();

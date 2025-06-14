@@ -32,6 +32,7 @@ import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.dto.RoleDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.RoleRepository;
@@ -225,25 +226,34 @@ public class SyncroniseDatabase {
 			BigDecimal sequence = new BigDecimal(1);
 
 			ImageInfo info = getImageInfo(imageFile);
-			PageDTO fsPage = new PageDTO(0L, diaryDTO.getId(), pageName, sequence, pageExtension, info.getWidth(), info.getHeight());
+			PageDTO fsPageDTO = new PageDTO(0L, diaryDTO.getId(), pageName, sequence, pageExtension, info.getWidth(), info.getHeight());
+
+			Optional<DiaryDTO> optionalDiary2 = diaryRepository.findById(diaryDTO.getId());
+			if (optionalDiary2.isEmpty()) {
+				throw new Exception(String.format("Could not find diary with id: %d", diaryDTO.getId()));
+			}
+			Diary diary = new Diary(diaryDTO);
+			Page fsPage = new Page(diary, fsPageDTO);
 
 			Optional<PageDTO> optionalPage = pageRepository.findByDiaryAndName(diaryDTO.getId(), pageName);
 			if (optionalPage.isEmpty()) {
 				log.info(String.format("Creating new DbPage '%s/%s' to match the filesystem directory", diaryName, pageName));
-				pageRepository.saveDTO(fsPage);
+				pageRepository.save(fsPage);
 			} else {
-				PageDTO dbPage = optionalPage.get();
+				PageDTO dbPageDTO = optionalPage.get();
 
-				if (fsPage.equalsExcludingId(dbPage)) {
+				if (fsPageDTO.equalsExcludingId(dbPageDTO)) {
 					log.info(String.format("DbPage matches the filesystemPage. Nothing to do: '%s/%s'", diaryName, pageName));
 				} else {
 					log.info(String.format("DbPage does not match the filesystemPage. Updating the dbPage: '%s/%s'", diaryName, pageName));
 
-					log.info(String.format("fsPage: %s", mapper.writeValueAsString(fsPage)));
-					log.info(String.format("dbPage: %s", mapper.writeValueAsString(dbPage)));
+					log.info(String.format("fsPage: %s", mapper.writeValueAsString(fsPageDTO)));
+					log.info(String.format("dbPage: %s", mapper.writeValueAsString(dbPageDTO)));
+
+					Page dbPage = new Page(diary, dbPageDTO);
 
 					dbPage.updateFrom(fsPage);
-					pageRepository.updateDTO(dbPage);
+					pageRepository.update(dbPage);
 				}
 			}
 		}

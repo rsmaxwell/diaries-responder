@@ -29,18 +29,8 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 	}
 
 	@Override
-	public <S extends PageDTO> String getDTOKeyValue(S dto) {
-		return dto.getId().toString();
-	}
-
-	@Override
 	public <S extends Page> void setKeyValue(S entity, Object value) {
 		entity.setId((Long) value);
-	}
-
-	@Override
-	public <S extends PageDTO> void setDTOKeyValue(S dto, Object value) {
-		dto.setId((Long) value);
 	}
 
 	@Override
@@ -61,18 +51,6 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 	}
 
 	@Override
-	public List<String> getDTOFields() {
-		List<String> list = new ArrayList<String>();
-		list.add("diary_id");
-		list.add("name");
-		list.add("sequence");
-		list.add("extension");
-		list.add("width");
-		list.add("height");
-		return list;
-	}
-
-	@Override
 	public <S extends Page> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getDiary().getId());
@@ -81,18 +59,6 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		list.add(entity.getExtension());
 		list.add(entity.getWidth());
 		list.add(entity.getHeight());
-		return list;
-	}
-
-	@Override
-	public <S extends PageDTO> List<Object> getDTOValues(S dto) {
-		List<Object> list = new ArrayList<Object>();
-		list.add(dto.getDiaryId());
-		list.add(dto.getName());
-		list.add(dto.getSequence());
-		list.add(dto.getExtension());
-		list.add(dto.getWidth());
-		list.add(dto.getHeight());
 		return list;
 	}
 

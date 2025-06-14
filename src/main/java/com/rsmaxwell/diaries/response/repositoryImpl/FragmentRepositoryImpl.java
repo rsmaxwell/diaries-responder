@@ -7,7 +7,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
@@ -16,7 +16,7 @@ import com.rsmaxwell.diaries.response.utilities.WhereBuilder;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 
-public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, FragmentDTO, Long> implements FragmentRepository {
+public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, FragmentDBDTO, Long> implements FragmentRepository {
 
 	private static final Logger log = LogManager.getLogger(FragmentRepositoryImpl.class);
 
@@ -35,18 +35,8 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	}
 
 	@Override
-	public <S extends FragmentDTO> String getDTOKeyValue(S dto) {
-		return dto.getId().toString();
-	}
-
-	@Override
 	public <S extends Fragment> void setKeyValue(S entity, Object value) {
 		entity.setId((Long) value);
-	}
-
-	@Override
-	public <S extends FragmentDTO> void setDTOKeyValue(S dto, Object value) {
-		dto.setId((Long) value);
 	}
 
 	@Override
@@ -58,26 +48,6 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
 		list.add("page_id");
-		list.add("x");
-		list.add("y");
-		list.add("width");
-		list.add("height");
-		list.add("year");
-		list.add("month");
-		list.add("day");
-		list.add("sequence");
-		list.add("text");
-		return list;
-	}
-
-	@Override
-	public List<String> getDTOFields() {
-		List<String> list = new ArrayList<String>();
-		list.add("page_id");
-		list.add("x");
-		list.add("y");
-		list.add("width");
-		list.add("height");
 		list.add("year");
 		list.add("month");
 		list.add("day");
@@ -90,10 +60,6 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	public <S extends Fragment> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getPage().getId());
-		list.add(entity.getX());
-		list.add(entity.getY());
-		list.add(entity.getWidth());
-		list.add(entity.getHeight());
 		list.add(entity.getYear());
 		list.add(entity.getMonth());
 		list.add(entity.getDay());
@@ -103,39 +69,19 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	}
 
 	@Override
-	public <S extends FragmentDTO> List<Object> getDTOValues(S dto) {
-		List<Object> list = new ArrayList<Object>();
-		list.add(dto.getPageId());
-		list.add(dto.getX());
-		list.add(dto.getY());
-		list.add(dto.getWidth());
-		list.add(dto.getHeight());
-		list.add(dto.getYear());
-		list.add(dto.getMonth());
-		list.add(dto.getDay());
-		list.add(dto.getSequence());
-		list.add(dto.getText());
-		return list;
-	}
-
-	@Override
-	public FragmentDTO newDTO(Object[] result) {
+	public FragmentDBDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
 		Long pageId = getLongFromSqlResult(result, 1, null);
-		Double x = getDoubleFromSqlResult(result, 2, null);
-		Double y = getDoubleFromSqlResult(result, 3, null);
-		Double width = getDoubleFromSqlResult(result, 4, null);
-		Double height = getDoubleFromSqlResult(result, 5, null);
-		Integer year = getIntegerFromSqlResult(result, 6, null);
-		Integer month = getIntegerFromSqlResult(result, 7, null);
-		Integer day = getIntegerFromSqlResult(result, 8, null);
-		BigDecimal sequence = getBigDecimalFromSqlResult(result, 9, null);
-		String text = getStringFromSqlResult(result, 10, null);
-		return new FragmentDTO(id, pageId, x, y, width, height, year, month, day, sequence, text);
+		Integer year = getIntegerFromSqlResult(result, 2, null);
+		Integer month = getIntegerFromSqlResult(result, 3, null);
+		Integer day = getIntegerFromSqlResult(result, 4, null);
+		BigDecimal sequence = getBigDecimalFromSqlResult(result, 5, null);
+		String text = getStringFromSqlResult(result, 6, null);
+		return new FragmentDBDTO(id, pageId, null, year, month, day, sequence, text);
 	}
 
 	@Override
-	public Iterable<FragmentDTO> findByDate(Integer year, Integer month, Integer day) {
+	public Iterable<FragmentDBDTO> findByDate(Integer year, Integer month, Integer day) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
@@ -149,7 +95,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	}
 
 	@Override
-	public Iterable<FragmentDTO> findByPage(Long pageId) {
+	public Iterable<FragmentDBDTO> findByPage(Long pageId) {
 
 		// @formatter:off
 		String where = new WhereBuilder()

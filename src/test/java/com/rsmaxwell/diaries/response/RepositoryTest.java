@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -112,106 +113,54 @@ public class RepositoryTest {
 		PersonRepository repository = new PersonRepositoryImpl(entityManager);
 		repository.deleteAll();
 
-		Person x0 = repository.save(new Person("007", "secrethash", "James", "Bond", "007", "bond@mi6.uk.gov", 44, 56220218978L));
-		Person x1 = repository.save(new Person("horrorpoplar", "maze", "Ayana", "Bush", "bob", "bobhorror@acer.com", 44, 54990891104L));
-		Person x2 = repository.save(new Person("swarmbreath", "architect", "Frederick", "Costa", "jill", "jgswarm@@london.edu.uk", 44, 12190125697L));
-		Person x3 = repository.save(new Person("sickowither", "direct", "Brian", "Villa", "greg", "gyobbo@os.co.uk", 44, 46431927722L));
-		Person x4 = repository.save(new Person("pushprovision", "landowner", "Evelyn", "Benton", "top", "beefsteak@waitrose.co.uk", 44, 50782257157L));
-		Person x5 = repository.save(new Person("fantasy", "quarter", "Jazlynn", "Collins", "toby", "thomashall@ntlworld.co.uk", 44, 53377002182L));
-		Person x6 = repository.save(new Person("shine", "conductor", "Sean", "Pierce", "sue", "qwerty@outlook.com", 44, 42326833933L));
-		Person x7 = repository.save(new Person("indulge", "action", "Gisselle", "Moss", "tom", "gross@hotmail.com", 44, 39906867554L));
+		Person p0 = new Person("007", "secrethash", "James", "Bond", "007", "bond@mi6.uk.gov", 44, 56220218978L);
+		Person p1 = new Person("horrorpoplar", "maze", "Ayana", "Bush", "bob", "bobhorror@acer.com", 44, 54990891104L);
+		Person p2 = new Person("swarmbreath", "architect", "Frederick", "Costa", "jill", "jgswarm@@london.edu.uk", 44, 12190125697L);
+		Person p3 = new Person("sickowither", "direct", "Brian", "Villa", "greg", "gyobbo@os.co.uk", 44, 46431927722L);
+		Person p4 = new Person("pushprovision", "landowner", "Evelyn", "Benton", "top", "beefsteak@waitrose.co.uk", 44, 50782257157L);
+		Person p5 = new Person("fantasy", "quarter", "Jazlynn", "Collins", "toby", "thomashall@ntlworld.co.uk", 44, 53377002182L);
+		Person p6 = new Person("shine", "conductor", "Sean", "Pierce", "sue", "qwerty@outlook.com", 44, 42326833933L);
+		Person p7 = new Person("indulge", "action", "Gisselle", "Moss", "tom", "gross@hotmail.com", 44, 39906867554L);
+		Person p8 = new Person("hemisphere", "horseshoe", "Cherish", "Nguyen", "georgy", "george@hotmail.com", 44, 35598005196L);
+		Person p9 = new Person("judicial", "sigh", "Tianna ", "Meza", "fred", "fredbloggs@vista.co.uk", 44, 35598005196L);
+
+		Long id0 = repository.save(p0);
+		Long id1 = repository.save(p1);
+		Long id2 = repository.save(p2);
+		Long id3 = repository.save(p3);
+		Long id4 = repository.save(p4);
+		Long id5 = repository.save(p5);
+		Long id6 = repository.save(p6);
+		Long id7 = repository.save(p7);
 		assertEquals(8, repository.count());
 
-		List<Person> extra = new ArrayList<Person>();
-		extra.add(new Person("hemisphere", "horseshoe", "Cherish", "Nguyen", "georgy", "george@hotmail.com", 44, 35598005196L));
-		extra.add(new Person("judicial", "sigh", "Tianna ", "Meza", "fred", "fredbloggs@vista.co.uk", 44, 35598005196L));
-
-		List<Person> output = new ArrayList<Person>();
-		Iterable<Person> result = repository.saveAll(extra);
-		for (Person p : result) {
-			output.add(p);
-		}
-		assertEquals(output.size(), 2);
-		Person x8 = output.get(0);
-		Person x9 = output.get(1);
+		Long id8 = repository.save(p8);
+		Long id9 = repository.save(p9);
 
 		int count1 = 0;
-		List<Long> ids = new ArrayList<Long>();
 		Iterable<PersonDTO> all = repository.findAll();
 		for (PersonDTO p : all) {
-			Optional<PersonDTO> y = repository.findById(p.getId());
+			Long personId = p.getId();
+			Optional<PersonDTO> optionalPersonDTO = repository.findById(personId);
+			if (optionalPersonDTO.isEmpty()) {
+				fail("Person not found: id: " + personId);
+			}
+			PersonDTO dto = optionalPersonDTO.get();
+			Person person2 = new Person(dto);
 
-			assertNotNull(y.isPresent());
-			PersonDTO p2 = y.get();
+			assertEquals(p.getId(), person2.getId());
+			assertTrue(p.equals(dto));
 
-			assertEquals(p.getId(), p2.getId());
-			assertTrue(p.equals(p2));
-
-			ids.add(p.getId());
 			count1++;
 		}
 
 		assertEquals(count1, 10);
 		assertEquals(count1, repository.count());
 
-		int count2 = 0;
-		Iterable<PersonDTO> more = repository.findById(ids);
-		for (PersonDTO p : more) {
-			Optional<PersonDTO> y = repository.findById(p.getId());
-
-			assertNotNull(y.isPresent());
-			PersonDTO p2 = y.get();
-
-			assertEquals(p.getId(), p2.getId());
-			assertTrue(p.equals(p2));
-			count2++;
-		}
-
-		assertEquals(count2, 10);
-
-		assertEquals(repository.count(), 10);
-		assertTrue(repository.existsById(x0.getId()));
-		repository.deleteById(x0.getId());
-		assertFalse(repository.existsById(x0.getId()));
+		assertTrue(repository.existsById(id1));
+		repository.delete(p1);
+		assertFalse(repository.existsById(id1));
 		assertEquals(repository.count(), 9);
-
-		assertTrue(repository.existsById(x1.getId()));
-		repository.delete(x1);
-		assertFalse(repository.existsById(x1.getId()));
-		assertEquals(repository.count(), 8);
-
-		List<Person> entities = new ArrayList<Person>();
-		entities.add(x2);
-		entities.add(x3);
-
-		assertTrue(repository.existsById(x2.getId()));
-		assertTrue(repository.existsById(x3.getId()));
-		repository.deleteAll(entities);
-		assertFalse(repository.existsById(x2.getId()));
-		assertFalse(repository.existsById(x3.getId()));
-		assertEquals(repository.count(), 6);
-
-		List<Long> listOfIds = new ArrayList<Long>();
-		listOfIds.add(x4.getId());
-		listOfIds.add(x5.getId());
-
-		assertTrue(repository.existsById(x4.getId()));
-		assertTrue(repository.existsById(x5.getId()));
-		repository.deleteAllById(listOfIds);
-		assertFalse(repository.existsById(x4.getId()));
-		assertFalse(repository.existsById(x5.getId()));
-		assertEquals(repository.count(), 4);
-
-		List<Person> listOfEntities = new ArrayList<Person>();
-		listOfEntities.add(x6);
-		listOfEntities.add(x7);
-
-		assertTrue(repository.existsById(x6.getId()));
-		assertTrue(repository.existsById(x7.getId()));
-		repository.deleteAll(listOfEntities);
-		assertFalse(repository.existsById(x6.getId()));
-		assertFalse(repository.existsById(x7.getId()));
-		assertEquals(repository.count(), 2);
 
 		repository.deleteAll();
 		assertEquals(repository.count(), 0);
@@ -224,31 +173,33 @@ public class RepositoryTest {
 		DiaryRepository repository = new DiaryRepositoryImpl(entityManager);
 		repository.deleteAll();
 
-		Diary x0 = repository.save(new Diary("hardship"));
-		Diary x1 = repository.save(new Diary("horrorpoplar"));
-		Diary x2 = repository.save(new Diary("swarmbreath"));
-		Diary x3 = repository.save(new Diary("sickowither"));
-		Diary x4 = repository.save(new Diary("pushprovision"));
-		Diary x5 = repository.save(new Diary("fantasy"));
-		Diary x6 = repository.save(new Diary("shine"));
-		Diary x7 = repository.save(new Diary("indulge"));
+		Diary d0 = new Diary("hardship");
+		Diary d1 = new Diary("horrorpoplar");
+		Diary d2 = new Diary("swarmbreath");
+		Diary d3 = new Diary("sickowither");
+		Diary d4 = new Diary("pushprovision");
+		Diary d5 = new Diary("fantasy");
+		Diary d6 = new Diary("shine");
+		Diary d7 = new Diary("indulge");
+
+		Long id0 = repository.save(d0);
+		Long id1 = repository.save(d1);
+		Long id2 = repository.save(d2);
+		Long id3 = repository.save(d3);
+		Long id4 = repository.save(d4);
+		Long id5 = repository.save(d5);
+		Long id6 = repository.save(d6);
+		Long id7 = repository.save(d7);
 		assertEquals(8, repository.count());
 
 		List<Diary> extra = new ArrayList<Diary>();
-		extra.add(new Diary("hemisphere"));
-		extra.add(new Diary("judicial"));
+		Diary d8 = new Diary("hemisphere");
+		Diary d9 = new Diary("judicial");
 
-		List<Diary> output = new ArrayList<Diary>();
-		Iterable<Diary> result = repository.saveAll(extra);
-		for (Diary p : result) {
-			output.add(p);
-		}
-		assertEquals(output.size(), 2);
-		Diary x8 = output.get(0);
-		Diary x9 = output.get(1);
+		Long id8 = repository.save(d8);
+		Long id9 = repository.save(d9);
 
 		int count1 = 0;
-		List<Long> ids = new ArrayList<Long>();
 		Iterable<DiaryDTO> all = repository.findAll();
 		for (DiaryDTO p : all) {
 			Optional<DiaryDTO> y = repository.findById(p.getId());
@@ -259,71 +210,22 @@ public class RepositoryTest {
 			assertEquals(p.getId(), p2.getId());
 			assertTrue(p.equals(p2));
 
-			ids.add(p.getId());
 			count1++;
 		}
 
 		assertEquals(count1, 10);
 		assertEquals(count1, repository.count());
 
-		int count2 = 0;
-		Iterable<DiaryDTO> more = repository.findById(ids);
-		for (DiaryDTO p : more) {
-			Optional<DiaryDTO> y = repository.findById(p.getId());
-
-			assertNotNull(y.isPresent());
-			DiaryDTO p2 = y.get();
-
-			assertEquals(p.getId(), p2.getId());
-			assertTrue(p.equals(p2));
-			count2++;
-		}
-
-		assertEquals(count2, 10);
-
 		assertEquals(repository.count(), 10);
-		assertTrue(repository.existsById(x0.getId()));
-		repository.deleteById(x0.getId());
-		assertFalse(repository.existsById(x0.getId()));
+		assertTrue(repository.existsById(id0));
+		repository.delete(d0);
+		assertFalse(repository.existsById(id0));
 		assertEquals(repository.count(), 9);
 
-		assertTrue(repository.existsById(x1.getId()));
-		repository.delete(x1);
-		assertFalse(repository.existsById(x1.getId()));
+		assertTrue(repository.existsById(id1));
+		repository.delete(d1);
+		assertFalse(repository.existsById(id1));
 		assertEquals(repository.count(), 8);
-
-		List<Diary> entities = new ArrayList<Diary>();
-		entities.add(x2);
-		entities.add(x3);
-
-		assertTrue(repository.existsById(x2.getId()));
-		assertTrue(repository.existsById(x3.getId()));
-		repository.deleteAll(entities);
-		assertFalse(repository.existsById(x2.getId()));
-		assertFalse(repository.existsById(x3.getId()));
-		assertEquals(repository.count(), 6);
-
-		List<Long> listOfIds = new ArrayList<Long>();
-		listOfIds.add(x4.getId());
-		listOfIds.add(x5.getId());
-
-		assertTrue(repository.existsById(x4.getId()));
-		assertTrue(repository.existsById(x5.getId()));
-		repository.deleteAllById(listOfIds);
-		assertFalse(repository.existsById(x4.getId()));
-		assertFalse(repository.existsById(x5.getId()));
-		assertEquals(repository.count(), 4);
-
-		List<Diary> listOfEntities = new ArrayList<Diary>();
-		listOfEntities.add(x6);
-		listOfEntities.add(x7);
-
-		assertTrue(repository.existsById(x6.getId()));
-		assertTrue(repository.existsById(x7.getId()));
-		repository.deleteAll(listOfEntities);
-		assertFalse(repository.existsById(x6.getId()));
-		assertFalse(repository.existsById(x7.getId()));
-		assertEquals(repository.count(), 2);
 
 		repository.deleteAll();
 		assertEquals(repository.count(), 0);
@@ -339,37 +241,41 @@ public class RepositoryTest {
 		DiaryRepository diaryRepository = new DiaryRepositoryImpl(entityManager);
 		diaryRepository.deleteAll();
 
-		Diary x0 = diaryRepository.save(new Diary("hardship"));
-		Diary x1 = diaryRepository.save(new Diary("horrorpoplar"));
-		Diary x2 = diaryRepository.save(new Diary("swarmbreath"));
+		Diary d0 = new Diary("hardship");
+		Diary d1 = new Diary("horrorpoplar");
+		Diary d2 = new Diary("swarmbreath");
+
+		Long diaryId0 = diaryRepository.save(d0);
+		Long diaryId1 = diaryRepository.save(d1);
+		Long diaryId2 = diaryRepository.save(d2);
 		assertEquals(3, diaryRepository.count());
 
 		BigDecimal sequence = new BigDecimal(1);
 
-		Page y0 = pageRepository.save(new Page(x0, "structure", sequence, "jpg", 123, 456));
-		Page y1 = pageRepository.save(new Page(x0, "deficit", sequence, "jpg", 123, 456));
-		Page y2 = pageRepository.save(new Page(x0, "asset", sequence, "jpg", 123, 456));
+		Long p0 = pageRepository.save(new Page(d0, "structure", sequence, "jpg", 123, 456));
+		Long p1 = pageRepository.save(new Page(d0, "deficit", sequence, "jpg", 123, 456));
+		Long p2 = pageRepository.save(new Page(d0, "asset", sequence, "jpg", 123, 456));
 
-		Page y3 = pageRepository.save(new Page(x1, "intermediate", sequence, "jpg", 123, 456));
-		Page y4 = pageRepository.save(new Page(x1, "calendar", sequence, "jpg", 123, 456));
-		Page y5 = pageRepository.save(new Page(x1, "body", sequence, "jpg", 123, 456));
+		Long p3 = pageRepository.save(new Page(d1, "intermediate", sequence, "jpg", 123, 456));
+		Long p4 = pageRepository.save(new Page(d1, "calendar", sequence, "jpg", 123, 456));
+		Long p5 = pageRepository.save(new Page(d1, "body", sequence, "jpg", 123, 456));
 
-		Page y6 = pageRepository.save(new Page(x2, "basin", sequence, "jpg", 123, 456));
-		Page y7 = pageRepository.save(new Page(x2, "deal", sequence, "jpg", 123, 456));
-		Page y8 = pageRepository.save(new Page(x2, "promotion", sequence, "jpg", 123, 456));
+		Long p6 = pageRepository.save(new Page(d2, "basin", sequence, "jpg", 123, 456));
+		Long p7 = pageRepository.save(new Page(d2, "deal", sequence, "jpg", 123, 456));
+		Long p8 = pageRepository.save(new Page(d2, "promotion", sequence, "jpg", 123, 456));
 		assertEquals(9, pageRepository.count());
 
-		Iterable<PageDTO> pages = pageRepository.findAllByDiary(x1.getId());
+		Iterable<PageDTO> pages = pageRepository.findAllByDiary(d1.getId());
 		List<PageDTO> list = new ArrayList<PageDTO>();
 		for (PageDTO page : pages) {
 			list.add(page);
 		}
 		assertEquals(3, list.size());
 
-		Optional<PageDTO> optionalPage1 = pageRepository.findByDiaryAndName(x1.getId(), "calendar");
+		Optional<PageDTO> optionalPage1 = pageRepository.findByDiaryAndName(d1.getId(), "calendar");
 		assertTrue(optionalPage1.isPresent());
 
-		Optional<PageDTO> optionalPage2 = pageRepository.findByDiaryAndName(x1.getId(), "junk");
+		Optional<PageDTO> optionalPage2 = pageRepository.findByDiaryAndName(d1.getId(), "junk");
 		assertTrue(optionalPage2.isEmpty());
 
 		pageRepository.deleteAll();
@@ -386,31 +292,31 @@ public class RepositoryTest {
 		RoleRepository repository = new RoleRepositoryImpl(entityManager);
 		repository.deleteAll();
 
-		Role x0 = repository.save(new Role("hardship"));
-		Role x1 = repository.save(new Role("horrorpoplar"));
-		Role x2 = repository.save(new Role("swarmbreath"));
-		Role x3 = repository.save(new Role("sickowither"));
-		Role x4 = repository.save(new Role("pushprovision"));
-		Role x5 = repository.save(new Role("fantasy"));
-		Role x6 = repository.save(new Role("shine"));
-		Role x7 = repository.save(new Role("indulge"));
+		Role r0 = new Role("hardship");
+		Role r1 = new Role("horrorpoplar");
+		Role r2 = new Role("swarmbreath");
+		Role r3 = new Role("sickowither");
+		Role r4 = new Role("pushprovision");
+		Role r5 = new Role("fantasy");
+		Role r6 = new Role("shine");
+		Role r7 = new Role("indulge");
+
+		Long id0 = repository.save(r0);
+		Long id1 = repository.save(r1);
+		Long id2 = repository.save(r2);
+		Long id3 = repository.save(r3);
+		Long id4 = repository.save(r4);
+		Long id5 = repository.save(r5);
+		Long id6 = repository.save(r6);
+		Long id7 = repository.save(r7);
 		assertEquals(8, repository.count());
 
-		List<Role> extra = new ArrayList<Role>();
-		extra.add(new Role("hemisphere"));
-		extra.add(new Role("judicial"));
-
-		List<Role> output = new ArrayList<Role>();
-		Iterable<Role> result = repository.saveAll(extra);
-		for (Role p : result) {
-			output.add(p);
-		}
-		assertEquals(output.size(), 2);
-		Role x8 = output.get(0);
-		Role x9 = output.get(1);
+		Role r8 = new Role("hemisphere");
+		Role r9 = new Role("judicial");
+		Long id8 = repository.save(r8);
+		Long id9 = repository.save(r9);
 
 		int count1 = 0;
-		List<Long> ids = new ArrayList<Long>();
 		Iterable<RoleDTO> all = repository.findAll();
 		for (RoleDTO p : all) {
 			Optional<RoleDTO> y = repository.findById(p.getId());
@@ -421,71 +327,22 @@ public class RepositoryTest {
 			assertEquals(p.getId(), p2.getId());
 			assertTrue(p.equals(p2));
 
-			ids.add(p.getId());
 			count1++;
 		}
 
 		assertEquals(count1, 10);
 		assertEquals(count1, repository.count());
 
-		int count2 = 0;
-		Iterable<RoleDTO> more = repository.findById(ids);
-		for (RoleDTO p : more) {
-			Optional<RoleDTO> y = repository.findById(p.getId());
-
-			assertNotNull(y.isPresent());
-			RoleDTO p2 = y.get();
-
-			assertEquals(p.getId(), p2.getId());
-			assertTrue(p.equals(p2));
-			count2++;
-		}
-
-		assertEquals(count2, 10);
-
 		assertEquals(repository.count(), 10);
-		assertTrue(repository.existsById(x0.getId()));
-		repository.deleteById(x0.getId());
-		assertFalse(repository.existsById(x0.getId()));
+		assertTrue(repository.existsById(id0));
+		repository.delete(r0);
+		assertFalse(repository.existsById(id0));
 		assertEquals(repository.count(), 9);
 
-		assertTrue(repository.existsById(x1.getId()));
-		repository.delete(x1);
-		assertFalse(repository.existsById(x1.getId()));
+		assertTrue(repository.existsById(id1));
+		repository.delete(r1);
+		assertFalse(repository.existsById(id1));
 		assertEquals(repository.count(), 8);
-
-		List<Role> entities = new ArrayList<Role>();
-		entities.add(x2);
-		entities.add(x3);
-
-		assertTrue(repository.existsById(x2.getId()));
-		assertTrue(repository.existsById(x3.getId()));
-		repository.deleteAll(entities);
-		assertFalse(repository.existsById(x2.getId()));
-		assertFalse(repository.existsById(x3.getId()));
-		assertEquals(repository.count(), 6);
-
-		List<Long> listOfIds = new ArrayList<Long>();
-		listOfIds.add(x4.getId());
-		listOfIds.add(x5.getId());
-
-		assertTrue(repository.existsById(x4.getId()));
-		assertTrue(repository.existsById(x5.getId()));
-		repository.deleteAllById(listOfIds);
-		assertFalse(repository.existsById(x4.getId()));
-		assertFalse(repository.existsById(x5.getId()));
-		assertEquals(repository.count(), 4);
-
-		List<Role> listOfEntities = new ArrayList<Role>();
-		listOfEntities.add(x6);
-		listOfEntities.add(x7);
-
-		assertTrue(repository.existsById(x6.getId()));
-		assertTrue(repository.existsById(x7.getId()));
-		repository.deleteAll(listOfEntities);
-		assertFalse(repository.existsById(x6.getId()));
-		assertFalse(repository.existsById(x7.getId()));
-		assertEquals(repository.count(), 2);
 
 		repository.deleteAll();
 		assertEquals(repository.count(), 0);

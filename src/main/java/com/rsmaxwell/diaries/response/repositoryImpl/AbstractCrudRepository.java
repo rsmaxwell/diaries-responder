@@ -29,19 +29,16 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 	abstract public <S extends T> String getKeyValue(S entity);
 
-	abstract public <S extends DTO> String getDTOKeyValue(S dto);
-
 	abstract public <S extends T> void setKeyValue(S entity, Object value);
-
-	abstract public <S extends DTO> void setDTOKeyValue(S dto, Object value);
 
 	abstract public List<String> getFields();
 
-	abstract public List<String> getDTOFields();
-
 	abstract public <S extends T> List<Object> getValues(S entity);
 
-	abstract public <S extends DTO> List<Object> getDTOValues(S dto);
+	@SuppressWarnings("unchecked")
+	public ID idFromResult(Object result) {
+		return (ID) result;
+	}
 
 	abstract public DTO newDTO(Object[] result);
 
@@ -76,37 +73,6 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	}
 
 	@Override
-	public int deleteAll(Iterable<? extends T> entities) {
-		int totalCount = 0;
-		for (T entity : entities) {
-			int count = delete(entity);
-			totalCount += count;
-		}
-		return totalCount;
-	}
-
-	@Override
-	public int deleteAllById(Iterable<? extends ID> ids) {
-		int totalCount = 0;
-		for (ID id : ids) {
-			int count = deleteById(id);
-			totalCount += count;
-		}
-		return totalCount;
-	}
-
-	@Override
-	public int deleteById(ID id) {
-		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), quote(id));
-		log.info(String.format("sql: %s", sql));
-
-		Query query = entityManager.createNativeQuery(sql);
-		int count = query.executeUpdate();
-		log.info(String.format("deleteById --> count: %d", count));
-		return count;
-	}
-
-	@Override
 	public boolean existsById(ID id) {
 		String sql = String.format("select exists(select 1 from %s where %s = %s)", getTable(), getKeyField(), quote(id));
 		log.debug(String.format("sql: %s", sql));
@@ -119,6 +85,12 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		return "";
 	}
 
+	@SuppressWarnings("unchecked")
+	@Override
+	public ID getId(Object value) throws Exception {
+		return (ID) value;
+	}
+
 	@Override
 	@SuppressWarnings("unchecked")
 	public Iterable<DTO> findAll() {
@@ -129,7 +101,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(",  ");
 
 		String seperator = "";
-		for (String field : getDTOFields()) {
+		for (String field : getFields()) {
 			sql.append(seperator);
 			sql.append(field);
 			seperator = ", ";
@@ -158,50 +130,6 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public Iterable<DTO> findById(Iterable<ID> ids) {
-
-		List<DTO> list = new ArrayList<DTO>();
-		for (ID id : ids) {
-
-			StringBuffer sql = new StringBuffer();
-			sql.append("select ");
-			sql.append(getKeyField());
-			sql.append(", ");
-
-			String seperator = "";
-			for (String field : getDTOFields()) {
-				sql.append(seperator);
-				sql.append(field);
-				seperator = ", ";
-			}
-
-			sql.append(" from ");
-			sql.append(getTable());
-			sql.append(" where ");
-			sql.append(getKeyField());
-			sql.append(" = ");
-			sql.append(quote(id));
-
-			String orderClause = orderBy().trim();
-			if (!orderClause.isEmpty()) {
-				sql.append(" ");
-				sql.append(orderClause);
-			}
-
-			Query query = entityManager.createNativeQuery(sql.toString());
-			List<Object[]> resultList = query.getResultList();
-
-			for (Object[] result : resultList) {
-				DTO x = newDTO(result);
-				list.add(x);
-			}
-		}
-
-		return list;
-	}
-
-	@Override
-	@SuppressWarnings("unchecked")
 	public Optional<DTO> findById(ID id) {
 
 		List<DTO> list = new ArrayList<DTO>();
@@ -212,7 +140,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(", ");
 
 		String seperator = "";
-		for (String field : getDTOFields()) {
+		for (String field : getFields()) {
 			sql.append(seperator);
 			sql.append(field);
 			seperator = ", ";
@@ -247,7 +175,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(", ");
 
 		String seperator = "";
-		for (String field : getDTOFields()) {
+		for (String field : getFields()) {
 			sql.append(seperator);
 			sql.append(field);
 			seperator = ", ";
@@ -275,61 +203,35 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	}
 
 	@Override
-	public <S extends T> S save(S entity) throws Exception {
+	public <S extends T> ID save(S entity) throws Exception {
 
 		String separator = "";
-		StringBuffer assignments = new StringBuffer();
+		StringBuilder assignments = new StringBuilder();
 		for (String field : getFields()) {
-			assignments.append(separator);
-			assignments.append(field);
+			assignments.append(separator).append(field);
 			separator = ", ";
 		}
 
 		separator = "";
-		StringBuffer valuesBuffer = new StringBuffer();
+		StringBuilder valuesBuffer = new StringBuilder();
 		for (Object value : getValues(entity)) {
-			valuesBuffer.append(separator);
-			valuesBuffer.append(quote(value));
+			valuesBuffer.append(separator).append(quote(value));
 			separator = ", ";
 		}
 
-		String sql = String.format("insert into %s ( %s ) values ( %s ) returning %s", getTable(), assignments, valuesBuffer, getKeyField());
+		// @formatter:off
+		String sql = String.format(
+				"insert into %s ( %s ) values ( %s ) returning %s",
+				getTable(), assignments, valuesBuffer, getKeyField()
+		);
+		// @formatter:on
+
 		Query query = entityManager.createNativeQuery(sql);
-		Object value = query.getSingleResult();
-		log.info(String.format("save --> %s: %s", getKeyField(), value.toString()));
+		Object keyValue = query.getSingleResult();
+		log.info(String.format("save %s --> %s: %s", entity.getClass().getSimpleName(), getKeyField(), keyValue.toString()));
+		setKeyValue(entity, keyValue);
 
-		setKeyValue(entity, value);
-
-		return entity;
-	}
-
-	@Override
-	public <S extends DTO> S saveDTO(S entity) throws Exception {
-
-		String separator = "";
-		StringBuffer assignments = new StringBuffer();
-		for (String field : getDTOFields()) {
-			assignments.append(separator);
-			assignments.append(field);
-			separator = ", ";
-		}
-
-		separator = "";
-		StringBuffer valuesBuffer = new StringBuffer();
-		for (Object value : getDTOValues(entity)) {
-			valuesBuffer.append(separator);
-			valuesBuffer.append(quote(value));
-			separator = ", ";
-		}
-
-		String sql = String.format("insert into %s ( %s ) values ( %s ) returning %s", getTable(), assignments, valuesBuffer, getKeyField());
-		Query query = entityManager.createNativeQuery(sql);
-		Object value = query.getSingleResult();
-		log.info(String.format("save --> %s: %s", getKeyField(), value.toString()));
-
-		setDTOKeyValue(entity, value);
-
-		return entity;
+		return idFromResult(keyValue);
 	}
 
 	@Override
@@ -357,42 +259,6 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		log.info(String.format("update --> count: %d", count));
 
 		return count;
-	}
-
-	@Override
-	public <S extends DTO> int updateDTO(S dto) throws Exception {
-		String separator = "";
-		StringBuilder assignments = new StringBuilder();
-		List<String> fields = getDTOFields();
-		List<Object> values = getDTOValues(dto);
-
-		for (int i = 0; i < fields.size(); i++) {
-			String field = fields.get(i);
-			Object value = values.get(i);
-			if (field.equals(getKeyField())) {
-				continue; // don't update the primary key
-			}
-			assignments.append(separator);
-			assignments.append(field).append(" = ").append(quote(value));
-			separator = ", ";
-		}
-
-		String sql = String.format("update %s set %s where %s = %s", getTable(), assignments, getKeyField(), getDTOKeyValue(dto));
-
-		Query query = entityManager.createNativeQuery(sql);
-		int count = query.executeUpdate();
-		log.info(String.format("update --> count: %d", count));
-
-		return count;
-	}
-
-	@Override
-	public <S extends T> Iterable<S> saveAll(Iterable<S> entities) throws Exception {
-		List<S> list = new ArrayList<S>();
-		for (S entity : entities) {
-			list.add(save(entity));
-		}
-		return list;
 	}
 
 	@SuppressWarnings("unchecked")

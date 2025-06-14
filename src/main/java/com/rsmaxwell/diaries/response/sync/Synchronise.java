@@ -23,10 +23,11 @@ import org.eclipse.paho.mqttv5.common.MqttSubscription;
 
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
@@ -214,7 +215,7 @@ public class Synchronise {
 		Integer lastMonth = 0;
 		Integer lastDay = 0;
 
-		for (FragmentDTO fragmentDTO : fragmentRepository.findAll()) {
+		for (FragmentDBDTO fragmentDTO : fragmentRepository.findAll()) {
 
 			Long pageId = fragmentDTO.getPageId();
 
@@ -259,6 +260,9 @@ public class Synchronise {
 					sequence.add(increment);
 				} else {
 					sequence = initial;
+					lastYear = fragment.getYear();
+					lastMonth = fragment.getMonth();
+					lastDay = fragment.getDay();
 				}
 				tx.commit();
 
@@ -278,9 +282,10 @@ public class Synchronise {
 
 		// @formatter:off
 		MqttSubscription[] subscriptions = {
-			    new MqttSubscription("fragments/#", 1),
 			    new MqttSubscription("diaries/#", 1),
-			    new MqttSubscription("dates/#", 1)
+			    new MqttSubscription("dates/#", 1),
+			    new MqttSubscription("fragments/#", 1),
+			    new MqttSubscription("marquees/#", 1)
 		};
 		// @formatter:on		
 
@@ -297,7 +302,6 @@ public class Synchronise {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
 		for (DiaryDTO diaryDTO : diaries) {
@@ -309,10 +313,12 @@ public class Synchronise {
 				Page page = new Page(diary, pageDTO);
 				page.publish(map);
 
-				Iterable<FragmentDTO> fragments = fragmentRepository.findByPage(pageDTO.getId());
-				for (FragmentDTO fragmentDTO : fragments) {
+				Iterable<FragmentDBDTO> fragments = context.findFragmentsWithMarqueesByPage(pageDTO.getId());
+				for (FragmentDBDTO fragmentDTO : fragments) {
 					Fragment fragment = new Fragment(page, fragmentDTO);
+					Marquee marquee = fragment.getMarquee();
 					fragment.publish(map);
+					marquee.publish(map);
 				}
 			}
 		}
@@ -322,6 +328,7 @@ public class Synchronise {
 
 	private void addNewEntries(MqttAsyncClient client, Map<String, String> topicTreeMap, Map<String, String> databaseMap) throws Exception {
 
+		log.info("addNewEntries");
 		int count = 0;
 
 		// Make sure there is a matching topicTree entry for every database entry
@@ -343,6 +350,7 @@ public class Synchronise {
 
 	private void removeOrphanEntries(MqttAsyncClient client, Map<String, String> topicTreeMap, Map<String, String> databaseMap) throws Exception {
 
+		log.info("removeOrphanEntries");
 		int count = 0;
 
 		// If there is an entry in the topicTree but not in the database, then delete it

@@ -29,18 +29,8 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	}
 
 	@Override
-	public <S extends DiaryDTO> String getDTOKeyValue(S dto) {
-		return dto.getId().toString();
-	}
-
-	@Override
 	public <S extends Diary> void setKeyValue(S entity, Object value) {
 		entity.setId((Long) value);
-	}
-
-	@Override
-	public <S extends DiaryDTO> void setDTOKeyValue(S dto, Object value) {
-		dto.setId((Long) value);
 	}
 
 	@Override
@@ -57,26 +47,10 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	}
 
 	@Override
-	public List<String> getDTOFields() {
-		List<String> list = new ArrayList<String>();
-		list.add("name");
-		list.add("sequence");
-		return list;
-	}
-
-	@Override
 	public <S extends Diary> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getName());
 		list.add(entity.getSequence());
-		return list;
-	}
-
-	@Override
-	public <S extends DiaryDTO> List<Object> getDTOValues(S dto) {
-		List<Object> list = new ArrayList<Object>();
-		list.add(dto.getName());
-		list.add(dto.getSequence());
 		return list;
 	}
 

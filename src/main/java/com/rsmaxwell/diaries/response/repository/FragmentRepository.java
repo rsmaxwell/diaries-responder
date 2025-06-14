@@ -1,14 +1,14 @@
 package com.rsmaxwell.diaries.response.repository;
 
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 
-public interface FragmentRepository extends CrudRepository<Fragment, FragmentDTO, Long> {
+public interface FragmentRepository extends CrudRepository<Fragment, FragmentDBDTO, Long> {
 
-	Iterable<FragmentDTO> findByDate(Integer year, Integer month, Integer day);
+	Iterable<FragmentDBDTO> findByDate(Integer year, Integer month, Integer day);
 
-	Iterable<FragmentDTO> findByPage(Long pageId);
+	Iterable<FragmentDBDTO> findByPage(Long pageId);
 
 	int updateWithMarquee(Marquee marquee) throws Exception;
 }

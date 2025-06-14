@@ -10,16 +10,10 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
-import com.rsmaxwell.diaries.response.dto.PageDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
-import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.FragmentRepository;
-import com.rsmaxwell.diaries.response.repository.PageRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -49,21 +43,31 @@ public class UpdateMarquee extends RequestHandler {
 		}
 		log.info("UpdateMarquee.handleRequest: Authorization.check: OK!");
 
-		DiaryRepository diaryRepository = context.getDiaryRepository();
-		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		log.info("UpdateMarquee.handleRequest: make new Marquee");
+		log.info("UpdateMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
 
+		Fragment fragment;
 		Marquee marquee;
 		try {
-			Long id = Utilities.getLong(args, "id");
+			Long fragmentId = Utilities.getLong(args, "fragmentId");
 			Double x = Utilities.getDouble(args, "x");
 			Double y = Utilities.getDouble(args, "y");
 			Double width = Utilities.getDouble(args, "width");
 			Double height = Utilities.getDouble(args, "height");
 
-			marquee = new Marquee(id, x, y, width, height);
+			Optional<FragmentDBDTO> optionalFragmentDTO = context.findFragmentWithMarqueeById(fragmentId);
+			if (optionalFragmentDTO.isEmpty()) {
+				throw new Exception("Fragment not found: id: " + fragmentId);
+			}
+			FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
+			fragment = context.fragmentInflateDBDTO(fragmentDTO);
+			marquee = fragment.getMarquee();
+			marquee.setX(x);
+			marquee.setY(y);
+			marquee.setWidth(width);
+			marquee.setHeight(height);
 
 		} catch (Exception e) {
 			log.info("UpdateMarquee.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
@@ -76,7 +80,7 @@ public class UpdateMarquee extends RequestHandler {
 
 		tx.begin();
 		try {
-			int count = fragmentRepository.updateWithMarquee(marquee);
+			int count = marqueeRepository.update(marquee);
 			if (count != 1) {
 				log.info("UpdateMarquee.handleRequest: number of records updated: {}", count);
 			}
@@ -86,32 +90,11 @@ public class UpdateMarquee extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// Reconstruct the Fragment
-		Optional<FragmentDTO> optionalFragmentDTO = fragmentRepository.findById(marquee.getId());
-		if (optionalFragmentDTO.isEmpty()) {
-			return Response.internalError("Fragment not found: id: " + marquee.getId());
-		}
-		FragmentDTO fragmentDTO = optionalFragmentDTO.get();
-
-		Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
-		if (optionalPageDTO.isEmpty()) {
-			return Response.internalError("Page not found: id: " + fragmentDTO.getPageId());
-		}
-		PageDTO pageDTO = optionalPageDTO.get();
-
-		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-		if (optionalDiaryDTO.isEmpty()) {
-			return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
-		}
-		DiaryDTO diaryDTO = optionalDiaryDTO.get();
-		Diary diary = new Diary(diaryDTO);
-		Page page = new Page(diary, pageDTO);
-		Fragment fragment = new Fragment(page, fragmentDTO);
-
 		// Now publish the Fragment to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
+		marquee.publish(client);
 		fragment.publish(client);
 
-		return Response.success(fragmentDTO.getId());
+		return Response.success(marquee.getId());
 	}
 }

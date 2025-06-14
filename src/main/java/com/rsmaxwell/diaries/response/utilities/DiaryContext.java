@@ -1,14 +1,26 @@
 package com.rsmaxwell.diaries.response.utilities;
 
+import java.util.Optional;
+
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
+import com.rsmaxwell.diaries.response.dto.DiaryDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
+import com.rsmaxwell.diaries.response.dto.PageDTO;
+import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
+import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.repository.PersonRepository;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityTransaction;
 import lombok.Data;
 
 @Data
@@ -19,10 +31,194 @@ public class DiaryContext {
 	private PageRepository pageRepository;
 	private PersonRepository personRepository;
 	private FragmentRepository fragmentRepository;
+	private MarqueeRepository marqueeRepository;
 	private Integer refreshPeriod;
 	private Integer refreshExpiration;
 	private String secret;
 	private DiariesConfig diaries;
 	private MqttAsyncClient publisherClient;
 
+	public Fragment save(Fragment fragment) throws Exception {
+
+		EntityTransaction tx = entityManager.getTransaction();
+		try {
+			tx.begin();
+			this.fragmentRepository.save(fragment); // this also updates fragment.id
+
+			Marquee marquee = fragment.getMarquee();
+			if (marquee != null) {
+				marqueeRepository.save(marquee); // this also updates marquee.id
+			}
+
+			tx.commit();
+			return fragment;
+
+		} catch (Exception e) {
+			tx.rollback();
+			throw e;
+		}
+	}
+
+	public Optional<FragmentDBDTO> findFragmentWithMarqueeById(Long id) throws Exception {
+
+		Optional<FragmentDBDTO> optionalFragment = fragmentRepository.findById(id);
+		if (optionalFragment.isPresent()) {
+			FragmentDBDTO fragmentDTO = optionalFragment.get();
+
+			Optional<MarqueeDBDTO> optionalMarquee = marqueeRepository.findByFragmentId(fragmentDTO.getId());
+			if (optionalMarquee.isPresent()) {
+				MarqueeDBDTO marqueeDTO = optionalMarquee.get();
+				Marquee marquee = marqueeInflateDBDTO(marqueeDTO);
+				fragmentDTO.setMarquee(marquee);
+			}
+		}
+		return optionalFragment;
+	}
+
+	public Iterable<FragmentDBDTO> findAllFragmentsWithMarquees() throws Exception {
+
+		Iterable<FragmentDBDTO> fragments = fragmentRepository.findAll();
+		for (FragmentDBDTO fragmentDTO : fragments) {
+
+			Optional<MarqueeDBDTO> optional = marqueeRepository.findByFragmentId(fragmentDTO.getId());
+			if (optional.isPresent()) {
+				MarqueeDBDTO marqueeDTO = optional.get();
+				Marquee marquee = marqueeInflateDBDTO(marqueeDTO);
+				fragmentDTO.setMarquee(marquee);
+			}
+		}
+		return fragments;
+	}
+
+	public Iterable<FragmentDBDTO> findFragmentsWithMarqueesByDate(Integer year, Integer month, Integer day) throws Exception {
+
+		Iterable<FragmentDBDTO> fragments = fragmentRepository.findByDate(year, month, day);
+		for (FragmentDBDTO fragmentDTO : fragments) {
+
+			Optional<MarqueeDBDTO> optional = marqueeRepository.findByFragmentId(fragmentDTO.getId());
+			if (optional.isPresent()) {
+				MarqueeDBDTO marqueeDTO = optional.get();
+				Marquee marquee = marqueeInflateDBDTO(marqueeDTO);
+				fragmentDTO.setMarquee(marquee);
+			}
+		}
+		return fragments;
+	}
+
+	public Iterable<FragmentDBDTO> findFragmentsWithMarqueesByPage(Long pageId) throws Exception {
+
+		Iterable<FragmentDBDTO> fragments = fragmentRepository.findByPage(pageId);
+		for (FragmentDBDTO fragmentDTO : fragments) {
+
+			Long fragmentid = fragmentDTO.getId();
+			Optional<MarqueeDBDTO> optional = marqueeRepository.findByFragmentId(fragmentid);
+			if (optional.isPresent()) {
+				MarqueeDBDTO marqueeDTO = optional.get();
+				Marquee marquee = marqueeInflateDBDTO(marqueeDTO);
+				fragmentDTO.setMarquee(marquee);
+			}
+		}
+		return fragments;
+	}
+
+	public Fragment toFragment(FragmentDBDTO fragmentDTO) throws Exception {
+
+		Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
+		if (optionalPageDTO.isEmpty()) {
+			throw new Exception("Page not found: id: " + fragmentDTO.getPageId());
+		}
+		PageDTO pageDTO = optionalPageDTO.get();
+
+		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
+		if (optionalDiaryDTO.isEmpty()) {
+			throw new Exception("Diary not found: id: " + pageDTO.getDiaryId());
+		}
+		DiaryDTO diaryDTO = optionalDiaryDTO.get();
+		Diary diary = new Diary(diaryDTO);
+		Page page = new Page(diary, pageDTO);
+		Fragment fragment = new Fragment(page, fragmentDTO);
+
+		return fragment;
+	}
+
+	public Page toPage(PageDTO pageDTO) throws Exception {
+
+		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
+		if (optionalDiaryDTO.isEmpty()) {
+			throw new Exception("Diary not found: id: " + pageDTO.getDiaryId());
+		}
+		DiaryDTO diaryDTO = optionalDiaryDTO.get();
+
+		Diary diary = new Diary(diaryDTO);
+		Page page = new Page(diary, pageDTO);
+
+		return page;
+	}
+
+	public Marquee marqueeInflateDBDTO(MarqueeDBDTO marqueeDTO) throws Exception {
+
+		Optional<FragmentDBDTO> optionalFragmentDTO = fragmentRepository.findById(marqueeDTO.getFragmentId());
+		if (optionalFragmentDTO.isEmpty()) {
+			throw new Exception("Fragment not found: id: " + marqueeDTO.getFragmentId());
+		}
+		FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
+
+		Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
+		if (optionalPageDTO.isEmpty()) {
+			throw new Exception("Page not found: id: " + fragmentDTO.getPageId());
+		}
+		PageDTO pageDTO = optionalPageDTO.get();
+
+		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
+		if (optionalDiaryDTO.isEmpty()) {
+			throw new Exception("Diary not found: id: " + pageDTO.getDiaryId());
+		}
+		DiaryDTO diaryDTO = optionalDiaryDTO.get();
+
+		Diary diary = new Diary(diaryDTO);
+		Page page = new Page(diary, pageDTO);
+		Fragment fragment = new Fragment(page, fragmentDTO);
+		Marquee marquee = new Marquee(fragment, marqueeDTO);
+
+		fragment.setMarquee(marquee);
+
+		return marquee;
+	}
+
+	public void deleteFragment(Fragment fragment) {
+
+		EntityTransaction tx = entityManager.getTransaction();
+		try {
+			tx.begin();
+			Marquee marquee = fragment.getMarquee();
+			if (marquee != null) {
+				marqueeRepository.delete(marquee);
+			}
+
+			fragmentRepository.delete(fragment);
+			tx.commit();
+		} catch (Exception e) {
+			tx.rollback();
+			throw e;
+		}
+	}
+
+	public Fragment fragmentInflateDBDTO(FragmentDBDTO fragmentDTO) throws Exception {
+
+		Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
+		if (optionalPageDTO.isEmpty()) {
+			throw new Exception("Page not found: id: " + fragmentDTO.getPageId());
+		}
+		PageDTO pageDTO = optionalPageDTO.get();
+
+		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
+		if (optionalDiaryDTO.isEmpty()) {
+			throw new Exception("Diary not found: id: " + pageDTO.getDiaryId());
+		}
+		DiaryDTO diaryDTO = optionalDiaryDTO.get();
+
+		Diary diary = new Diary(diaryDTO);
+		Page page = new Page(diary, pageDTO);
+		return new Fragment(page, fragmentDTO);
+	}
 }

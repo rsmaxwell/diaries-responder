@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,15 +11,9 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.DiaryDTO;
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
-import com.rsmaxwell.diaries.response.dto.PageDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
-import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -51,8 +44,6 @@ public class NormaliseFragments extends RequestHandler {
 		log.info("NormaliseFragments.handleRequest: Authorization.check: OK!");
 
 		MqttAsyncClient client = context.getPublisherClient();
-		DiaryRepository diaryRepository = context.getDiaryRepository();
-		PageRepository pageRepository = context.getPageRepository();
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		log.info("NormaliseFragments.handleRequest: get the date arguments");
@@ -73,14 +64,14 @@ public class NormaliseFragments extends RequestHandler {
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
-		List<Diary> updates = new ArrayList<>();
+		List<Fragment> updates = new ArrayList<>();
 
 		BigDecimal sequence = new BigDecimal("1.0000");
 		BigDecimal increment = new BigDecimal("1.0000");
 
 		tx.begin();
 		try {
-			for (FragmentDTO fragmentDTO : fragmentRepository.findByDate(year, month, day)) {
+			for (FragmentDBDTO fragmentDTO : context.findFragmentsWithMarqueesByDate(year, month, day)) {
 				BigDecimal currentSeq = fragmentDTO.getSequence();
 
 				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
@@ -89,24 +80,11 @@ public class NormaliseFragments extends RequestHandler {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("Updating fragment id: %d, sequence: %s -> %s", fragmentDTO.getId(), currentSeqStr, sequence.toPlainString()));
 
-					Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
-					if (optionalPageDTO.isEmpty()) {
-						return Response.internalError("Page not found: id: " + fragmentDTO.getPageId());
-					}
-					PageDTO pageDTO = optionalPageDTO.get();
-
-					Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-					if (optionalDiaryDTO.isEmpty()) {
-						return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
-					}
-					DiaryDTO diaryDTO = optionalDiaryDTO.get();
-					Diary diary = new Diary(diaryDTO);
-					Page page = new Page(diary, pageDTO);
-					Fragment fragment = new Fragment(page, fragmentDTO);
+					Fragment fragment = context.toFragment(fragmentDTO);
 
 					fragment.setSequence(sequence);
 					fragmentRepository.update(fragment);
-					updates.add(diary);
+					updates.add(fragment);
 				}
 
 				sequence = sequence.add(increment);
@@ -119,9 +97,13 @@ public class NormaliseFragments extends RequestHandler {
 		}
 
 		// Publish the updates
-		for (Diary diary : updates) {
-			log.info(String.format("Publishing diary id:%d, name:%s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
-			diary.publish(client);
+		for (Fragment fragment : updates) {
+			// @formatter:off
+			log.info(String.format("Publishing fragment %d:%d:%d - %d --> sequence: %s",
+					fragment.getYear(), fragment.getMonth(), fragment.getDay(), fragment.getId(),
+					fragment.getSequence().toPlainString()));
+			// @formatter:on
+			fragment.publish(client);
 		}
 
 		return Response.success(updates.size());

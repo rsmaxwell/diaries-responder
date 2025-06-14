@@ -5,15 +5,20 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
-import com.rsmaxwell.diaries.response.dto.FragmentDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -41,17 +46,8 @@ public class Fragment extends Publishable {
 	@JoinColumn(name = "page_id")
 	private Page page;
 
-	@NonNull
-	private Double x;
-
-	@NonNull
-	private Double y;
-
-	@NonNull
-	private Double width;
-
-	@NonNull
-	private Double height;
+	@OneToOne(mappedBy = "fragment", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY, optional = true)
+	private Marquee marquee;
 
 	@NonNull
 	private Integer year;
@@ -70,60 +66,69 @@ public class Fragment extends Publishable {
 	@Column(length = 4096)
 	private String text;
 
-	public Fragment(Page page, FragmentDTO dto) {
+	public Fragment(Page page, FragmentDBDTO dto) {
 		this.id = dto.getId();
 		this.page = page;
-		this.x = dto.getX();
-		this.y = dto.getY();
-		this.width = dto.getWidth();
-		this.height = dto.getHeight();
+		this.marquee = dto.getMarquee();
 		this.year = dto.getYear();
 		this.month = dto.getMonth();
 		this.day = dto.getDay();
 		this.sequence = dto.getSequence();
 	}
 
-	public FragmentDTO toDTO() {
-		return new FragmentDTO(this.id, this.page.getId(), this.x, this.y, this.width, this.height, this.year, this.month, this.day, this.sequence, this.text);
+	public FragmentDBDTO toDBDTO() {
+		return new FragmentDBDTO(this.id, this.page.getId(), this.marquee, this.year, this.month, this.day, this.sequence, this.text);
+	}
+
+	public FragmentPublishDTO toPublishDTO() {
+		MarqueePublishDTO marqueeDTO = null;
+		if (this.marquee != null) {
+			marqueeDTO = this.marquee.toPublishDTO();
+		}
+		return new FragmentPublishDTO(this.id, this.page.getId(), marqueeDTO, this.year, this.month, this.day, this.sequence, this.text);
 	}
 
 	private String getTopic1() {
-		return String.format("fragments/%d", getId());
+		return String.format("fragments/%d", id);
 	}
 
 	private String getTopic2() {
-		return String.format("diaries/%d/%d/%d", page.getDiary().getId(), page.getId(), getId());
-	}
-
-	private String getTopic3() {
 		return String.format("dates/%s/%s/%s/%s", year, month, day, id);
 	}
 
 	public void publish(ConcurrentHashMap<String, String> map) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mapFn, map, publishFn, payload, getTopic1());
-		publish(mapFn, map, publishFn, payload, getTopic2());
-		publish(mapFn, map, publishFn, payload, getTopic3());
+		String payloadString = this.toPublishDTO().toJson();
+		byte[] payload = payloadString.getBytes();
+		publish(mapFn, map, payload, getTopic1());
+		publish(mapFn, map, payload, getTopic2());
 	}
 
 	public void publish(MqttAsyncClient client) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mqttFn, client, publishFn, payload, getTopic1());
-		publish(mqttFn, client, publishFn, payload, getTopic2());
-		publish(mqttFn, client, publishFn, payload, getTopic3());
+		String payloadString = this.toPublishDTO().toJson();
+		byte[] payload = payloadString.getBytes();
+		publish(mqttFn, client, payload, getTopic1());
+		publish(mqttFn, client, payload, getTopic2());
 	}
 
 	public void removePublication(ConcurrentHashMap<String, String> map) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mapFn, map, removeFn, payload, getTopic1());
-		publish(mapFn, map, removeFn, payload, getTopic2());
-		publish(mapFn, map, removeFn, payload, getTopic3());
+
+		if (marquee != null) {
+			marquee.removePublication(map);
+		}
+
+		byte[] payload = new byte[0];
+		publish(mapFn, map, payload, getTopic1());
+		publish(mapFn, map, payload, getTopic2());
 	}
 
 	public void removePublication(MqttAsyncClient client) throws Exception {
-		String payload = this.toDTO().toJson();
-		publish(mqttFn, client, removeFn, payload, getTopic1());
-		publish(mqttFn, client, removeFn, payload, getTopic2());
-		publish(mqttFn, client, removeFn, payload, getTopic3());
+
+		if (marquee != null) {
+			marquee.removePublication(client);
+		}
+
+		byte[] payload = new byte[0];
+		publish(mqttFn, client, payload, getTopic1());
+		publish(mqttFn, client, payload, getTopic2());
 	}
 }

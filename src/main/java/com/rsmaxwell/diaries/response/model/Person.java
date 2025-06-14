@@ -1,5 +1,7 @@
 package com.rsmaxwell.diaries.response.model;
 
+import com.rsmaxwell.diaries.response.dto.PersonDTO;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -56,4 +58,16 @@ public class Person {
 	@NonNull
 	@Column(name = "nationalNumber")
 	private Long nationalNumber;
+
+	public Person(PersonDTO dto) {
+		this.id = dto.getId();
+		this.username = dto.getUsername();
+		this.passwordHash = dto.getPasswordHash();
+		this.firstName = dto.getFirstName();
+		this.lastName = dto.getLastName();
+		this.knownas = dto.getKnownas();
+		this.email = dto.getEmail();
+		this.countryCode = dto.getCountryCode();
+		this.nationalNumber = dto.getNationalNumber();
+	}
 }

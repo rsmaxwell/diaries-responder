@@ -10,29 +10,17 @@ public interface CrudRepository<T, DTO, ID> {
 
 	int deleteAll();
 
-	int deleteAll(Iterable<? extends T> entities);
-
-	int deleteAllById(Iterable<? extends ID> ids);
-
-	int deleteById(ID id);
-
 	boolean existsById(ID id);
 
-	Iterable<DTO> findAll();
+	ID getId(Object value) throws Exception;
 
-	Iterable<DTO> findById(Iterable<ID> ids);
+	Iterable<DTO> findAll();
 
 	Iterable<DTO> find(String wheree);
 
 	Optional<DTO> findById(ID id);
 
-	<S extends T> S save(S entity) throws Exception;
-
-	<S extends DTO> S saveDTO(S entity) throws Exception;
+	<S extends T> ID save(S entity) throws Exception;
 
 	<S extends T> int update(S entity) throws Exception;
-
-	<S extends DTO> int updateDTO(S entity) throws Exception;
-
-	<S extends T> Iterable<S> saveAll(Iterable<S> entities) throws Exception;
 }

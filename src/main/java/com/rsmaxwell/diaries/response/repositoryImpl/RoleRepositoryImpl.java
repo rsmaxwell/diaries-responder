@@ -33,17 +33,7 @@ public class RoleRepositoryImpl extends AbstractCrudRepository<Role, RoleDTO, Lo
 	}
 
 	@Override
-	public <S extends RoleDTO> String getDTOKeyValue(S dto) {
-		return dto.getId().toString();
-	}
-
-	@Override
 	public <S extends Role> void setKeyValue(S entity, Object value) {
-		entity.setId((Long) value);
-	}
-
-	@Override
-	public <S extends RoleDTO> void setDTOKeyValue(S entity, Object value) {
 		entity.setId((Long) value);
 	}
 
@@ -55,21 +45,7 @@ public class RoleRepositoryImpl extends AbstractCrudRepository<Role, RoleDTO, Lo
 	}
 
 	@Override
-	public List<String> getDTOFields() {
-		List<String> list = new ArrayList<String>();
-		list.add("name");
-		return list;
-	}
-
-	@Override
 	public <S extends Role> List<Object> getValues(S entity) {
-		List<Object> list = new ArrayList<Object>();
-		list.add(entity.getName());
-		return list;
-	}
-
-	@Override
-	public <S extends RoleDTO> List<Object> getDTOValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getName());
 		return list;

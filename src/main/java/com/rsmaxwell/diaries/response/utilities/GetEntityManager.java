@@ -114,6 +114,7 @@ public class GetEntityManager {
 			info.addClasses(Role.class.getName());
 			info.addClasses(Marquee.class.getName());
 			info.addClasses(Fragment.class.getName());
+			info.addClasses(Marquee.class.getName());
 
 			entityManagerFactory = Bootstrap.getEntityManagerFactoryBuilder(info, props).build();
 
