@@ -2,7 +2,6 @@ package com.rsmaxwell.diaries.response.handlers;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,7 +9,6 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
@@ -45,9 +43,6 @@ public class UpdateMarquee extends RequestHandler {
 
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
-		log.info("UpdateMarquee.handleRequest: make new Marquee");
-		log.info("UpdateMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
-
 		Fragment fragment;
 		Marquee marquee;
 		try {
@@ -57,12 +52,7 @@ public class UpdateMarquee extends RequestHandler {
 			Double width = Utilities.getDouble(args, "width");
 			Double height = Utilities.getDouble(args, "height");
 
-			Optional<FragmentDBDTO> optionalFragmentDTO = context.findFragmentWithMarqueeById(fragmentId);
-			if (optionalFragmentDTO.isEmpty()) {
-				throw new Exception("Fragment not found: id: " + fragmentId);
-			}
-			FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
-			fragment = context.fragmentInflateDBDTO(fragmentDTO);
+			fragment = context.inflateFragment(fragmentId);
 			marquee = fragment.getMarquee();
 			marquee.setX(x);
 			marquee.setY(y);
@@ -90,10 +80,10 @@ public class UpdateMarquee extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the Fragment to the topic tree
+		// Now publish the Fragment (and its marquee) to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		marquee.publish(client);
 		fragment.publish(client);
+		marquee.publish(client);
 
 		return Response.success(marquee.getId());
 	}

@@ -3,7 +3,6 @@ package com.rsmaxwell.diaries.response.handlers;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,15 +10,10 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
-import com.rsmaxwell.diaries.response.dto.PageDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -46,10 +40,6 @@ public class AddMarquee extends RequestHandler {
 		}
 		log.info("Authorization.check: OK!");
 
-		DiaryRepository diaryRepository = context.getDiaryRepository();
-		PageRepository pageRepository = context.getPageRepository();
-
-		Diary diary;
 		Page page;
 		Fragment fragment;
 		Marquee marquee;
@@ -69,20 +59,7 @@ public class AddMarquee extends RequestHandler {
 				height = 40.0;
 			}
 
-			Optional<PageDTO> optionalPageDTO = pageRepository.findById(pageId);
-			if (optionalPageDTO.isEmpty()) {
-				return Response.internalError("Page not found: id: " + pageId);
-			}
-			PageDTO pageDTO = optionalPageDTO.get();
-
-			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-			if (optionalDiaryDTO.isEmpty()) {
-				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
-			}
-			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-
-			diary = new Diary(diaryDTO);
-			page = new Page(diary, pageDTO);
+			page = context.inflatePage(pageId);
 
 			Long id = 0L;
 			Integer year = 0;
