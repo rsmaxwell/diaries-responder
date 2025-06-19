@@ -3,6 +3,7 @@ package com.rsmaxwell.diaries.response.repositoryImpl;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -137,5 +138,23 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		log.info(String.format("update --> count: %d", count));
 
 		return count;
+	}
+
+	@Override
+	public Optional<FragmentDBDTO> findByMarqueeId(Long id) {
+
+		// @formatter:off
+		String where = new WhereBuilder()
+				.add("marquee_id", id)
+				.build();
+		// @formatter:on
+
+		List<FragmentDBDTO> list = new ArrayList<FragmentDBDTO>();
+		for (FragmentDBDTO dto : find(where)) {
+			list.add(dto);
+		}
+
+		return singleItem(list);
+
 	}
 }

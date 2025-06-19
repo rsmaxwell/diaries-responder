@@ -94,6 +94,6 @@ public class AddMarquee extends RequestHandler {
 		fragment.publish(client);
 		marquee.publish(client);
 
-		return Response.success(fragment.getId());
+		return Response.success(marquee.getId());
 	}
 }

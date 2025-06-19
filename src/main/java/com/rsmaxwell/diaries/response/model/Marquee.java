@@ -74,7 +74,7 @@ public class Marquee extends Publishable {
 	private String getTopic() {
 		Page page = fragment.getPage();
 		Diary diary = page.getDiary();
-		return String.format("diaries/%d/%d/%d", diary.getId(), page.getId(), fragment.getId());
+		return String.format("diaries/%d/%d/%d", diary.getId(), page.getId(), id);
 	}
 
 	public void publish(ConcurrentHashMap<String, String> x) throws Exception {

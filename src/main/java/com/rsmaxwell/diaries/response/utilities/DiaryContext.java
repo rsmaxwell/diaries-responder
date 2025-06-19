@@ -197,7 +197,10 @@ public class DiaryContext {
 		if (optionalFragmentDTO.isEmpty()) {
 			throw new Exception("Fragment not found: id: " + fragmentId);
 		}
-		FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
+		return inflateFragment(optionalFragmentDTO.get());
+	}
+
+	public Fragment inflateFragment(FragmentDBDTO fragmentDTO) throws Exception {
 		Page page = inflatePage(fragmentDTO.getPageId());
 		return new Fragment(page, fragmentDTO);
 	}

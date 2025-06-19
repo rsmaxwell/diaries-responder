@@ -22,7 +22,7 @@ public class FragmentPublishDTO extends Jsonable {
 
 	private Long id;
 	private Long pageId;
-	private MarqueePublishDTO marquee;
+	private Long marqueeId;
 	private Integer year;
 	private Integer month;
 	private Integer day;

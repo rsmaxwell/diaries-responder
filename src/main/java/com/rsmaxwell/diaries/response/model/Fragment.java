@@ -7,7 +7,6 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -81,11 +80,11 @@ public class Fragment extends Publishable {
 	}
 
 	public FragmentPublishDTO toPublishDTO() {
-		MarqueePublishDTO marqueeDTO = null;
+		Long marqueeId = null;
 		if (this.marquee != null) {
-			marqueeDTO = this.marquee.toPublishDTO();
+			marqueeId = this.marquee.getId();
 		}
-		return new FragmentPublishDTO(this.id, this.page.getId(), marqueeDTO, this.year, this.month, this.day, this.sequence, this.text);
+		return new FragmentPublishDTO(this.id, this.page.getId(), marqueeId, this.year, this.month, this.day, this.sequence, this.text);
 	}
 
 	private String getTopic1() {
