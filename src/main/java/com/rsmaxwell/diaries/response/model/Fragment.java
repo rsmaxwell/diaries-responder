@@ -1,6 +1,8 @@
 package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
@@ -87,47 +89,30 @@ public class Fragment extends Publishable {
 		return new FragmentPublishDTO(this.id, this.page.getId(), marqueeId, this.year, this.month, this.day, this.sequence, this.text);
 	}
 
-	private String getTopic1() {
-		return String.format("fragments/%d", id);
+	@Override
+	List<String> getTopics() {
+		List<String> topics = new ArrayList<String>();
+		topics.add(String.format("fragments/%d", id));
+		topics.add(String.format("dates/%s/%s/%s/%s", year, month, day, id));
+		return topics;
 	}
 
-	private String getTopic2() {
-		return String.format("dates/%s/%s/%s/%s", year, month, day, id);
+	@Override
+	String getPayload() {
+		return this.toPublishDTO().toJson();
 	}
 
-	public void publish(ConcurrentHashMap<String, String> map) throws Exception {
-		String payloadString = this.toPublishDTO().toJson();
-		byte[] payload = payloadString.getBytes();
-		publish(mapFn, map, payload, getTopic1());
-		publish(mapFn, map, payload, getTopic2());
-	}
-
-	public void publish(MqttAsyncClient client) throws Exception {
-		String payloadString = this.toPublishDTO().toJson();
-		byte[] payload = payloadString.getBytes();
-		publish(mqttFn, client, payload, getTopic1());
-		publish(mqttFn, client, payload, getTopic2());
-	}
-
-	public void removePublication(ConcurrentHashMap<String, String> map) throws Exception {
-
+	@Override
+	void removeChildren(ConcurrentHashMap<String, String> map) throws Exception {
 		if (marquee != null) {
-			marquee.removePublication(map);
+			marquee.removeAll(map);
 		}
-
-		byte[] payload = new byte[0];
-		publish(mapFn, map, payload, getTopic1());
-		publish(mapFn, map, payload, getTopic2());
 	}
 
-	public void removePublication(MqttAsyncClient client) throws Exception {
-
+	@Override
+	void removeChildren(MqttAsyncClient client) throws Exception {
 		if (marquee != null) {
-			marquee.removePublication(client);
+			marquee.removeAll(client);
 		}
-
-		byte[] payload = new byte[0];
-		publish(mqttFn, client, payload, getTopic1());
-		publish(mqttFn, client, payload, getTopic2());
 	}
 }

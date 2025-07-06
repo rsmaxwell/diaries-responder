@@ -80,7 +80,7 @@ public class NormaliseDiaries extends RequestHandler {
 		// Publish the updates
 		for (Diary diary : updates) {
 			log.info(String.format("Publishing diary id:%d, name:%s --> sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
-			diary.publish(client);
+			diary.publishAll(client);
 		}
 
 		return Response.success(updates.size());

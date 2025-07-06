@@ -62,8 +62,8 @@ public class DeleteMarquee extends RequestHandler {
 
 		// Then remove the fragment (and its marquee) from the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		fragment.removePublication(client);
-		fragment.getMarquee().removePublication(client);
+		fragment.removeAll(client);
+		fragment.getMarquee().removeAll(client);
 
 		return Response.success(fragment.getId());
 	}

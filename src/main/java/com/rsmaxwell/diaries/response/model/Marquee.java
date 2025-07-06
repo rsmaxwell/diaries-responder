@@ -1,8 +1,7 @@
 package com.rsmaxwell.diaries.response.model;
 
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
@@ -71,29 +70,18 @@ public class Marquee extends Publishable {
 		this.height = dto.getHeight();
 	}
 
-	private String getTopic() {
+	@Override
+	List<String> getTopics() {
 		Page page = fragment.getPage();
 		Diary diary = page.getDiary();
-		return String.format("diaries/%d/%d/%d", diary.getId(), page.getId(), id);
+		List<String> topics = new ArrayList<String>();
+		topics.add(String.format("diaries/%d/%d/%d", diary.getId(), page.getId(), id));
+		topics.add(String.format("marquees/%d", id));
+		return topics;
 	}
 
-	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
-		byte[] payload = this.toPublishDTO().toJsonAsBytes();
-		publish(mapFn, x, payload, getTopic());
-	}
-
-	public void publish(MqttAsyncClient x) throws Exception {
-		byte[] payload = this.toPublishDTO().toJsonAsBytes();
-		publish(mqttFn, x, payload, getTopic());
-	}
-
-	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
-		byte[] payload = new byte[0];
-		publish(mapFn, x, payload, getTopic());
-	}
-
-	public void removePublication(MqttAsyncClient x) throws Exception {
-		byte[] payload = new byte[0];
-		publish(mqttFn, x, payload, getTopic());
+	@Override
+	String getPayload() {
+		return this.toPublishDTO().toJson();
 	}
 }

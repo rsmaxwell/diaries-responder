@@ -1,9 +1,8 @@
 package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 
@@ -90,27 +89,16 @@ public class Page extends Publishable {
 		// @formatter:on
 	}
 
-	private String getTopic() {
-		return String.format("diaries/%d/%d", diary.getId(), this.getId());
+	@Override
+	List<String> getTopics() {
+		List<String> topics = new ArrayList<String>();
+		topics.add(String.format("diaries/%d/%d", diary.getId(), this.getId()));
+		topics.add(String.format("pages/%d", this.getId()));
+		return topics;
 	}
 
-	public void publish(ConcurrentHashMap<String, String> x) throws Exception {
-		byte[] payload = this.toDTO().toJsonAsBytes();
-		publish(mapFn, x, payload, getTopic());
-	}
-
-	public void publish(MqttAsyncClient x) throws Exception {
-		byte[] payload = this.toDTO().toJsonAsBytes();
-		publish(mqttFn, x, payload, getTopic());
-	}
-
-	public void removePublication(ConcurrentHashMap<String, String> x) throws Exception {
-		byte[] payload = new byte[0];
-		publish(mapFn, x, payload, getTopic());
-	}
-
-	public void removePublication(MqttAsyncClient x) throws Exception {
-		byte[] payload = new byte[0];
-		publish(mqttFn, x, payload, getTopic());
+	@Override
+	String getPayload() {
+		return this.toDTO().toJson();
 	}
 }

@@ -128,7 +128,7 @@ public class Synchronise {
 		// Publish the updated diaries
 		for (Diary diary : updatedDiaries) {
 			log.info(String.format("publishing diary id: %d, name: %s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
-			diary.publish(client);
+			diary.publishAll(client);
 		}
 	}
 
@@ -193,7 +193,7 @@ public class Synchronise {
 
 			// Publish the updated pages
 			for (Page page : updatedPages) {
-				page.publish(client);
+				page.publishAll(client);
 			}
 		}
 	}
@@ -273,7 +273,7 @@ public class Synchronise {
 
 			// Publish the updated fragments
 			for (Fragment f : updatedFragments) {
-				f.publish(client);
+				f.publishAll(client);
 			}
 		}
 	}
@@ -306,19 +306,19 @@ public class Synchronise {
 		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
 		for (DiaryDTO diaryDTO : diaries) {
 			Diary diary = diaryDTO.toDiary();
-			diary.publish(map);
+			diary.publishAll(map);
 
 			Iterable<PageDTO> pages = pageRepository.findAllByDiary(diaryDTO.getId());
 			for (PageDTO pageDTO : pages) {
 				Page page = new Page(diary, pageDTO);
-				page.publish(map);
+				page.publishAll(map);
 
 				Iterable<FragmentDBDTO> fragments = context.findFragmentsWithMarqueesByPage(pageDTO.getId());
 				for (FragmentDBDTO fragmentDTO : fragments) {
 					Fragment fragment = new Fragment(page, fragmentDTO);
 					Marquee marquee = fragment.getMarquee();
-					fragment.publish(map);
-					marquee.publish(map);
+					fragment.publishAll(map);
+					marquee.publishAll(map);
 				}
 			}
 		}
