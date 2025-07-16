@@ -103,7 +103,7 @@ public class NormaliseFragments extends RequestHandler {
 					fragment.getYear(), fragment.getMonth(), fragment.getDay(), fragment.getId(),
 					fragment.getSequence().toPlainString()));
 			// @formatter:on
-			fragment.publishAll(client);
+			fragment.publish(client);
 		}
 
 		return Response.success(updates.size());

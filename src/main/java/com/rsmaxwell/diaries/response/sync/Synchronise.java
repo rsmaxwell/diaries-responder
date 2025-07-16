@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import org.apache.logging.log4j.LogManager;
@@ -43,13 +44,12 @@ public class Synchronise {
 
 	static final String clientID_syncroniser = "syncroniser";
 
+	private static final String[] topicFilters = { "diaries/#", "dates/#", "pages/#", "fragments/#", "marquees/#" };
+
 	public void perform(DiaryContext context, String server, User user, MqttClientPersistence persistence) throws Exception {
 
 		String clientId = clientID_syncroniser + "-" + System.currentTimeMillis();
 		MqttAsyncClient client_sync = new MqttAsyncClient(server, clientId, persistence);
-
-		SynchroniseCallback sync = new SynchroniseCallback();
-		client_sync.setCallback(sync);
 
 		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientId));
 		MqttConnectionOptions connOpts_sync = new MqttConnectionOptions();
@@ -59,21 +59,36 @@ public class Synchronise {
 		connOpts_sync.setAutomaticReconnect(true);
 		client_sync.connect(connOpts_sync).waitForCompletion();
 
-		Map<String, String> topicTreeMap = loadFromTopicTree(client_sync, sync);
+		// Set up the callback and subscribe to all the topics
+		SynchroniseCallback sync = new SynchroniseCallback();
+		client_sync.setCallback(sync);
+		Map<String, String> topicTreeMap = sync.getTopicMap();
+
+		// @formatter:off
+	    MqttSubscription[] subs = Stream.of(topicFilters)
+	            .map(t -> new MqttSubscription(t, 1))
+	            .toArray(MqttSubscription[]::new);
+		// @formatter:on		
+		client_sync.subscribe(subs).waitForCompletion();
+
+		sync.waitForRetainedMessages();
 		Map<String, String> databaseMap = loadFromDatabase(context);
 
 		addNewEntries(client_sync, topicTreeMap, databaseMap);
 		removeOrphanEntries(client_sync, topicTreeMap, databaseMap);
 
 		// Wait for broker to actually drop retained messages
-		Thread.sleep(500);
-		topicTreeMap = loadFromTopicTree(client_sync, sync);
+		sync.waitForRetainedMessages();
 		normaliseDiarySequence(client_sync, context);
 		normalisePageSequence(client_sync, context);
 		normaliseFragmentSequence(client_sync, context);
 
+		// Wait again for those publishes to arrive
+		sync.waitForRetainedMessages();
+
 		validateMapKeys(topicTreeMap, databaseMap);
 
+		client_sync.unsubscribe(topicFilters).waitForCompletion();
 		client_sync.disconnect().waitForCompletion();
 	}
 
@@ -128,7 +143,7 @@ public class Synchronise {
 		// Publish the updated diaries
 		for (Diary diary : updatedDiaries) {
 			log.info(String.format("publishing diary id: %d, name: %s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
-			diary.publishAll(client);
+			diary.publish(client);
 		}
 	}
 
@@ -193,7 +208,7 @@ public class Synchronise {
 
 			// Publish the updated pages
 			for (Page page : updatedPages) {
-				page.publishAll(client);
+				page.publish(client);
 			}
 		}
 	}
@@ -273,28 +288,9 @@ public class Synchronise {
 
 			// Publish the updated fragments
 			for (Fragment f : updatedFragments) {
-				f.publishAll(client);
+				f.publish(client);
 			}
 		}
-	}
-
-	private Map<String, String> loadFromTopicTree(MqttAsyncClient client, SynchroniseCallback sync) throws Exception {
-
-		// @formatter:off
-		MqttSubscription[] subscriptions = {
-			    new MqttSubscription("diaries/#", 1),
-			    new MqttSubscription("dates/#", 1),
-			    new MqttSubscription("fragments/#", 1),
-			    new MqttSubscription("marquees/#", 1)
-		};
-		// @formatter:on		
-
-		client.subscribe(subscriptions).waitForCompletion();
-		sync.waitForRetainedMessages();
-
-		Map<String, String> map = sync.getTopicMap();
-		// log.info(String.format("loadFromTopicTree: sizeof map: %d", map.size()));
-		return map;
 	}
 
 	private Map<String, String> loadFromDatabase(DiaryContext context) throws Exception {
@@ -306,19 +302,19 @@ public class Synchronise {
 		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
 		for (DiaryDTO diaryDTO : diaries) {
 			Diary diary = diaryDTO.toDiary();
-			diary.publishAll(map);
+			diary.publish(map);
 
 			Iterable<PageDTO> pages = pageRepository.findAllByDiary(diaryDTO.getId());
 			for (PageDTO pageDTO : pages) {
 				Page page = new Page(diary, pageDTO);
-				page.publishAll(map);
+				page.publish(map);
 
 				Iterable<FragmentDBDTO> fragments = context.findFragmentsWithMarqueesByPage(pageDTO.getId());
 				for (FragmentDBDTO fragmentDTO : fragments) {
 					Fragment fragment = new Fragment(page, fragmentDTO);
 					Marquee marquee = fragment.getMarquee();
-					fragment.publishAll(map);
-					marquee.publishAll(map);
+					fragment.publish(map);
+					marquee.publish(map);
 				}
 			}
 		}

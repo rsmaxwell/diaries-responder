@@ -105,14 +105,14 @@ public class Fragment extends Publishable {
 	@Override
 	void removeChildren(ConcurrentHashMap<String, String> map) throws Exception {
 		if (marquee != null) {
-			marquee.removeAll(map);
+			marquee.remove(map);
 		}
 	}
 
 	@Override
 	void removeChildren(MqttAsyncClient client) throws Exception {
 		if (marquee != null) {
-			marquee.removeAll(client);
+			marquee.remove(client);
 		}
 	}
 }

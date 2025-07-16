@@ -34,19 +34,19 @@ public abstract class Publishable {
 	void removeChildren(MqttAsyncClient client) throws Exception {
 	}
 
-	public void publishAll(ConcurrentHashMap<String, String> map) throws Exception {
+	public void publish(ConcurrentHashMap<String, String> map) throws Exception {
 		for (String topic : getTopics()) {
 			publish(mapFn, map, getPayload().getBytes(), topic);
 		}
 	}
 
-	public void publishAll(MqttAsyncClient client) throws Exception {
+	public void publish(MqttAsyncClient client) throws Exception {
 		for (String topic : getTopics()) {
 			publish(mqttFn, client, getPayload().getBytes(), topic);
 		}
 	}
 
-	public void removeAll(ConcurrentHashMap<String, String> map) throws Exception {
+	public void remove(ConcurrentHashMap<String, String> map) throws Exception {
 
 		removeChildren(map);
 
@@ -56,7 +56,7 @@ public abstract class Publishable {
 		}
 	}
 
-	public void removeAll(MqttAsyncClient client) throws Exception {
+	public void remove(MqttAsyncClient client) throws Exception {
 
 		removeChildren(client);
 

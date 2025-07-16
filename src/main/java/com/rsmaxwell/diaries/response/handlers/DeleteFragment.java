@@ -85,8 +85,8 @@ public class DeleteFragment extends RequestHandler {
 
 		// Then remove the fragment from the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		fragment.removeAll(client);
-		fragment.getMarquee().removeAll(client);
+		fragment.remove(client);
+		fragment.getMarquee().remove(client);
 
 		return Response.success(fragment.getId());
 	}

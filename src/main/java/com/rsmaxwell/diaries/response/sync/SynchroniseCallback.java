@@ -23,17 +23,13 @@ public class SynchroniseCallback extends Adapter implements MqttCallback {
 		lastMessageTime.set(System.currentTimeMillis());
 
 		byte[] payload = message.getPayload();
-		boolean retained = message.isRetained();
 
 		if (payload == null || payload.length == 0) {
 			topicMap.remove(topic);
-			System.out.printf("Deleted topic (empty payload): %s%n", topic);
-		} else if (retained) {
-			topicMap.put(topic, new String(payload));
-			// System.out.printf("Received retained topic: %s (%d bytes)%n", topic,
-			// payload.length);
+			// System.out.printf("Deleted topic (empty payload): %s%n", topic);
 		} else {
-			// System.out.printf("Ignored non-retained message: %s%n", topic);
+			topicMap.put(topic, new String(payload));
+			// System.out.printf("Received topic: %s (%d bytes)%n", topic, payload.length);
 		}
 	}
 
@@ -42,9 +38,13 @@ public class SynchroniseCallback extends Adapter implements MqttCallback {
 	}
 
 	public void waitForRetainedMessages() throws InterruptedException {
+
+		lastMessageTime.set(System.currentTimeMillis());
+
 		while (true) {
 			Thread.sleep(CHECK_INTERVAL_MS);
 			long idle = System.currentTimeMillis() - lastMessageTime.get();
+
 			if (idle > QUIET_PERIOD_MS) {
 				break; // Done receiving retained messages
 			}
