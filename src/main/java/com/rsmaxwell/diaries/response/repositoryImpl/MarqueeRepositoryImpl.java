@@ -41,6 +41,7 @@ public class MarqueeRepositoryImpl extends AbstractCrudRepository<Marquee, Marqu
 	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
+		list.add("page_id");
 		list.add("fragment_id");
 		list.add("x");
 		list.add("y");
@@ -52,6 +53,7 @@ public class MarqueeRepositoryImpl extends AbstractCrudRepository<Marquee, Marqu
 	@Override
 	public <S extends Marquee> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
+		list.add(entity.getPage().getId());
 		list.add(entity.getFragment().getId());
 		list.add(entity.getX());
 		list.add(entity.getY());
@@ -63,12 +65,13 @@ public class MarqueeRepositoryImpl extends AbstractCrudRepository<Marquee, Marqu
 	@Override
 	public MarqueeDBDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
-		Long fragmentId = getLongFromSqlResult(result, 1, null);
-		Double x = getDoubleFromSqlResult(result, 2, null);
-		Double y = getDoubleFromSqlResult(result, 3, null);
-		Double width = getDoubleFromSqlResult(result, 4, null);
-		Double height = getDoubleFromSqlResult(result, 5, null);
-		return new MarqueeDBDTO(id, fragmentId, x, y, width, height);
+		Long pageId = getLongFromSqlResult(result, 1, null);
+		Long fragmentId = getLongFromSqlResult(result, 2, null);
+		Double x = getDoubleFromSqlResult(result, 3, null);
+		Double y = getDoubleFromSqlResult(result, 4, null);
+		Double width = getDoubleFromSqlResult(result, 5, null);
+		Double height = getDoubleFromSqlResult(result, 6, null);
+		return new MarqueeDBDTO(id, pageId, fragmentId, x, y, width, height);
 	}
 
 	@Override
@@ -98,6 +101,17 @@ public class MarqueeRepositoryImpl extends AbstractCrudRepository<Marquee, Marqu
 		}
 
 		return singleItem(list);
+	}
 
+	@Override
+	public Iterable<MarqueeDBDTO> findByPage(Long pageId) {
+
+		// @formatter:off
+		String where = new WhereBuilder()
+				.add("page_id", pageId)
+				.build();
+		// @formatter:on
+
+		return find(where);
 	}
 }

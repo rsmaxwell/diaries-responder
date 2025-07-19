@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 public class MarqueeDBDTO extends Jsonable {
 
 	private Long id;
+	private Long pageId;
 	private Long fragmentId;
 	private Double x;
 	private Double y;

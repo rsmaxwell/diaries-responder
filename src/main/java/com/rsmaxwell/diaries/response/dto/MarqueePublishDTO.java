@@ -12,6 +12,7 @@ import lombok.EqualsAndHashCode;
 public class MarqueePublishDTO extends Jsonable {
 
 	private Long id;
+	private Long pageId;
 	private Long fragmentId;
 	private Rectangle rectangle;
 }

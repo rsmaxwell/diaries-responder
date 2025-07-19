@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import org.apache.logging.log4j.LogManager;
@@ -19,12 +18,14 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence;
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
+import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
 import org.eclipse.paho.mqttv5.common.MqttMessage;
 import org.eclipse.paho.mqttv5.common.MqttSubscription;
 
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
@@ -32,6 +33,7 @@ import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 
@@ -42,54 +44,73 @@ public class Synchronise {
 
 	private static final Logger log = LogManager.getLogger(Synchronise.class);
 
-	static final String clientID_syncroniser = "syncroniser";
+	static final String clientID_sync_pub = "syncronise-pub";
+	static final String clientID_sync_sub = "syncronise-sub";
 
 	private static final String[] topicFilters = { "diaries/#", "dates/#", "pages/#", "fragments/#", "marquees/#" };
 
-	public void perform(DiaryContext context, String server, User user, MqttClientPersistence persistence) throws Exception {
+	public void perform(DiaryContext context, String server, User user) throws Exception {
 
-		String clientId = clientID_syncroniser + "-" + System.currentTimeMillis();
-		MqttAsyncClient client_sync = new MqttAsyncClient(server, clientId, persistence);
+		// Setup the Publish Client
+		String clientId_pub = clientID_sync_pub + "-" + System.currentTimeMillis();
+		MqttClientPersistence pubPersistence = new MemoryPersistence();
+		MqttAsyncClient client_pub = new MqttAsyncClient(server, clientId_pub, pubPersistence);
 
-		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientId));
-		MqttConnectionOptions connOpts_sync = new MqttConnectionOptions();
-		connOpts_sync.setUserName(user.getUsername());
-		connOpts_sync.setPassword(user.getPassword().getBytes());
-		connOpts_sync.setCleanStart(false);
-		connOpts_sync.setAutomaticReconnect(true);
-		client_sync.connect(connOpts_sync).waitForCompletion();
+		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientId_pub));
+		MqttConnectionOptions connOpts_pub = new MqttConnectionOptions();
+		connOpts_pub.setUserName(user.getUsername());
+		connOpts_pub.setPassword(user.getPassword().getBytes());
+		connOpts_pub.setCleanStart(true);
+		connOpts_pub.setAutomaticReconnect(true);
+		client_pub.connect(connOpts_pub).waitForCompletion();
+
+		// Setup the Subscribe Client
+		String clientId_sub = clientID_sync_sub + "-" + System.currentTimeMillis();
+		MqttClientPersistence subPersistence = new MemoryPersistence();
+		MqttAsyncClient client_sub = new MqttAsyncClient(server, clientId_sub, subPersistence);
+
+		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientId_sub));
+		MqttConnectionOptions connOpts_sub = new MqttConnectionOptions();
+		connOpts_sub.setUserName(user.getUsername());
+		connOpts_sub.setPassword(user.getPassword().getBytes());
+		connOpts_sub.setCleanStart(true);
+		connOpts_sub.setAutomaticReconnect(true);
+		client_sub.connect(connOpts_sub).waitForCompletion();
 
 		// Set up the callback and subscribe to all the topics
-		SynchroniseCallback sync = new SynchroniseCallback();
-		client_sync.setCallback(sync);
-		Map<String, String> topicTreeMap = sync.getTopicMap();
+		ConcurrentHashMap<String, String> topicTreeMap = new ConcurrentHashMap<>();
+		SynchroniseCallback sync = new SynchroniseCallback(topicTreeMap);
+		client_sub.setCallback(sync);
 
-		// @formatter:off
-	    MqttSubscription[] subs = Stream.of(topicFilters)
-	            .map(t -> new MqttSubscription(t, 1))
-	            .toArray(MqttSubscription[]::new);
-		// @formatter:on		
-		client_sync.subscribe(subs).waitForCompletion();
+		for (String topic : topicFilters) {
+			MqttSubscription sub = new MqttSubscription(topic, 1);
+			log.info(String.format("SUBSCRIBED %s", sub));
+			client_sub.subscribe(sub).waitForCompletion();
+			sync.waitForMessages();
+		}
 
-		sync.waitForRetainedMessages();
 		Map<String, String> databaseMap = loadFromDatabase(context);
 
-		addNewEntries(client_sync, topicTreeMap, databaseMap);
-		removeOrphanEntries(client_sync, topicTreeMap, databaseMap);
+		log.info("sizeof(topicTreeMap) = {}", topicTreeMap.size());
+		log.info("sizeof(databaseMap) = {}", databaseMap.size());
 
-		// Wait for broker to actually drop retained messages
-		sync.waitForRetainedMessages();
-		normaliseDiarySequence(client_sync, context);
-		normalisePageSequence(client_sync, context);
-		normaliseFragmentSequence(client_sync, context);
+		addNewEntries(client_pub, topicTreeMap, databaseMap);
+		removeOrphanEntries(client_pub, topicTreeMap, databaseMap);
+
+		// Wait for broker to actually drop the retained messages
+		sync.waitForMessages();
+		normaliseDiarySequence(client_pub, context);
+		normalisePageSequence(client_pub, context);
+		normaliseFragmentSequence(client_pub, context);
 
 		// Wait again for those publishes to arrive
-		sync.waitForRetainedMessages();
+		sync.waitForMessages();
 
 		validateMapKeys(topicTreeMap, databaseMap);
 
-		client_sync.unsubscribe(topicFilters).waitForCompletion();
-		client_sync.disconnect().waitForCompletion();
+		client_sub.unsubscribe(topicFilters).waitForCompletion();
+		client_sub.disconnect().waitForCompletion();
+		client_pub.disconnect().waitForCompletion();
 	}
 
 	private void normaliseDiarySequence(MqttAsyncClient client, DiaryContext context) throws Exception {
@@ -219,8 +240,6 @@ public class Synchronise {
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
-		DiaryRepository diaryRepository = context.getDiaryRepository();
-		PageRepository pageRepository = context.getPageRepository();
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
 		BigDecimal initial = new BigDecimal("1.0000");
@@ -231,25 +250,7 @@ public class Synchronise {
 		Integer lastDay = 0;
 
 		for (FragmentDBDTO fragmentDTO : fragmentRepository.findAll()) {
-
-			Long pageId = fragmentDTO.getPageId();
-
-			Optional<PageDTO> optionalPageDTO = pageRepository.findById(pageId);
-			if (optionalPageDTO.isEmpty()) {
-				throw new Exception(String.format("Could not find pageId: %d", pageId));
-			}
-			PageDTO pageDTO = optionalPageDTO.get();
-
-			Long diaryId = pageDTO.getDiaryId();
-			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(diaryId);
-			if (optionalDiaryDTO.isEmpty()) {
-				throw new Exception(String.format("Could not find diaryId: %d", diaryId));
-			}
-			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-
-			Diary diary = new Diary(diaryDTO);
-			Page page = new Page(diary, pageDTO);
-			Fragment fragment = new Fragment(page, fragmentDTO);
+			Fragment fragment = new Fragment(fragmentDTO);
 
 			List<Fragment> updatedFragments = new ArrayList<>();
 
@@ -298,25 +299,31 @@ public class Synchronise {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
 		for (DiaryDTO diaryDTO : diaries) {
-			Diary diary = diaryDTO.toDiary();
+			Diary diary = new Diary(diaryDTO);
 			diary.publish(map);
+		}
 
-			Iterable<PageDTO> pages = pageRepository.findAllByDiary(diaryDTO.getId());
-			for (PageDTO pageDTO : pages) {
-				Page page = new Page(diary, pageDTO);
-				page.publish(map);
+		Iterable<PageDTO> pages = pageRepository.findAll();
+		for (PageDTO pageDTO : pages) {
+			Page page = context.inflatePage(pageDTO);
+			page.publish(map);
+		}
 
-				Iterable<FragmentDBDTO> fragments = context.findFragmentsWithMarqueesByPage(pageDTO.getId());
-				for (FragmentDBDTO fragmentDTO : fragments) {
-					Fragment fragment = new Fragment(page, fragmentDTO);
-					Marquee marquee = fragment.getMarquee();
-					fragment.publish(map);
-					marquee.publish(map);
-				}
-			}
+		Iterable<FragmentDBDTO> fragments = fragmentRepository.findAll();
+		for (FragmentDBDTO fragmentDTO : fragments) {
+			Fragment fragment = context.inflateFragment(fragmentDTO);
+			fragment.publish(map);
+		}
+
+		Iterable<MarqueeDBDTO> marquees = marqueeRepository.findAll();
+		for (MarqueeDBDTO marqueeDTO : marquees) {
+			Marquee marquee = context.inflateMarquee(marqueeDTO);
+			marquee.publish(map);
 		}
 
 		return map;

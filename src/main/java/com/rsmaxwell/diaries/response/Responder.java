@@ -203,22 +203,25 @@ public class Responder {
 			context.setRefreshPeriod(config.getRefreshPeriodSeconds());
 			context.setRefreshExpiration(config.getRefreshExpirationSeconds());
 
-			MqttClientPersistence persistence = new MemoryPersistence();
-
 			// Synchronise the topic tree with the database
 			Synchronise sync = new Synchronise();
-			sync.perform(context, server, user, persistence);
+			sync.perform(context, server, user);
+			// sync.test(context, server, user);
 
 			// Respond to user requests till asked to quit
-			respond(context, server, user, persistence);
+			respond(context, server, user);
 
 			log.info("Success");
 		}
 	}
 
-	private void respond(DiaryContext context, String server, User user, MqttClientPersistence persistence) throws Exception {
-		MqttAsyncClient publisherClient = new MqttAsyncClient(server, clientID_publisher, persistence);
-		MqttAsyncClient listenerClient = new MqttAsyncClient(server, clientID_listener, persistence);
+	private void respond(DiaryContext context, String server, User user) throws Exception {
+
+		MqttClientPersistence pubPersistence = new MemoryPersistence();
+		MqttAsyncClient publisherClient = new MqttAsyncClient(server, clientID_publisher, pubPersistence);
+
+		MqttClientPersistence subPersistence = new MemoryPersistence();
+		MqttAsyncClient listenerClient = new MqttAsyncClient(server, clientID_listener, subPersistence);
 
 		messageHandler.setContext(context);
 		messageHandler.setPublisherClient(publisherClient);

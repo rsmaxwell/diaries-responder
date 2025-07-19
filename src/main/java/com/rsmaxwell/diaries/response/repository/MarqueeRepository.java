@@ -12,4 +12,5 @@ public interface MarqueeRepository extends CrudRepository<Marquee, MarqueeDBDTO,
 
 	Optional<MarqueeDBDTO> findByFragmentId(Long id);
 
+	Iterable<MarqueeDBDTO> findByPage(Long pageId);
 }

@@ -48,7 +48,6 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
-		list.add("page_id");
 		list.add("year");
 		list.add("month");
 		list.add("day");
@@ -60,7 +59,6 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public <S extends Fragment> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
-		list.add(entity.getPage().getId());
 		list.add(entity.getYear());
 		list.add(entity.getMonth());
 		list.add(entity.getDay());
@@ -72,13 +70,12 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public FragmentDBDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
-		Long pageId = getLongFromSqlResult(result, 1, null);
-		Integer year = getIntegerFromSqlResult(result, 2, null);
-		Integer month = getIntegerFromSqlResult(result, 3, null);
-		Integer day = getIntegerFromSqlResult(result, 4, null);
-		BigDecimal sequence = getBigDecimalFromSqlResult(result, 5, null);
-		String text = getStringFromSqlResult(result, 6, null);
-		return new FragmentDBDTO(id, pageId, null, year, month, day, sequence, text);
+		Integer year = getIntegerFromSqlResult(result, 1, null);
+		Integer month = getIntegerFromSqlResult(result, 2, null);
+		Integer day = getIntegerFromSqlResult(result, 3, null);
+		BigDecimal sequence = getBigDecimalFromSqlResult(result, 4, null);
+		String text = getStringFromSqlResult(result, 5, null);
+		return new FragmentDBDTO(id, null, year, month, day, sequence, text);
 	}
 
 	@Override
@@ -89,18 +86,6 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 				.add("year", year)
 				.add("month", month)
 				.add("day", day)
-				.build();
-		// @formatter:on
-
-		return find(where);
-	}
-
-	@Override
-	public Iterable<FragmentDBDTO> findByPage(Long pageId) {
-
-		// @formatter:off
-		String where = new WhereBuilder()
-				.add("page_id", pageId)
 				.build();
 		// @formatter:on
 

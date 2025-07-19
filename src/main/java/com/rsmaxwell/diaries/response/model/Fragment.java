@@ -17,8 +17,6 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -42,11 +40,6 @@ public class Fragment extends Publishable {
 	@Column(name = "id", nullable = false, unique = true)
 	private Long id;
 
-	@NonNull
-	@ManyToOne
-	@JoinColumn(name = "page_id")
-	private Page page;
-
 	@OneToOne(mappedBy = "fragment", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY, optional = true)
 	private Marquee marquee;
 
@@ -67,18 +60,18 @@ public class Fragment extends Publishable {
 	@Column(length = 4096)
 	private String text;
 
-	public Fragment(Page page, FragmentDBDTO dto) {
+	public Fragment(FragmentDBDTO dto) {
 		this.id = dto.getId();
-		this.page = page;
 		this.marquee = dto.getMarquee();
 		this.year = dto.getYear();
 		this.month = dto.getMonth();
 		this.day = dto.getDay();
 		this.sequence = dto.getSequence();
+		this.text = dto.getText();
 	}
 
 	public FragmentDBDTO toDBDTO() {
-		return new FragmentDBDTO(this.id, this.page.getId(), this.marquee, this.year, this.month, this.day, this.sequence, this.text);
+		return new FragmentDBDTO(this.id, this.marquee, this.year, this.month, this.day, this.sequence, this.text);
 	}
 
 	public FragmentPublishDTO toPublishDTO() {
@@ -86,7 +79,7 @@ public class Fragment extends Publishable {
 		if (this.marquee != null) {
 			marqueeId = this.marquee.getId();
 		}
-		return new FragmentPublishDTO(this.id, this.page.getId(), marqueeId, this.year, this.month, this.day, this.sequence, this.text);
+		return new FragmentPublishDTO(this.id, marqueeId, this.year, this.month, this.day, this.sequence, this.text);
 	}
 
 	@Override

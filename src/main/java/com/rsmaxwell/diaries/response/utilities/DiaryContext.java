@@ -105,39 +105,8 @@ public class DiaryContext {
 		return fragments;
 	}
 
-	public Iterable<FragmentDBDTO> findFragmentsWithMarqueesByPage(Long pageId) throws Exception {
-
-		Iterable<FragmentDBDTO> fragments = fragmentRepository.findByPage(pageId);
-		for (FragmentDBDTO fragmentDTO : fragments) {
-
-			Long fragmentid = fragmentDTO.getId();
-			Optional<MarqueeDBDTO> optional = marqueeRepository.findByFragmentId(fragmentid);
-			if (optional.isPresent()) {
-				MarqueeDBDTO marqueeDTO = optional.get();
-				Marquee marquee = inflateMarquee(marqueeDTO);
-				fragmentDTO.setMarquee(marquee);
-			}
-		}
-		return fragments;
-	}
-
 	public Fragment toFragment(FragmentDBDTO fragmentDTO) throws Exception {
-
-		Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
-		if (optionalPageDTO.isEmpty()) {
-			throw new Exception("Page not found: id: " + fragmentDTO.getPageId());
-		}
-		PageDTO pageDTO = optionalPageDTO.get();
-
-		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-		if (optionalDiaryDTO.isEmpty()) {
-			throw new Exception("Diary not found: id: " + pageDTO.getDiaryId());
-		}
-		DiaryDTO diaryDTO = optionalDiaryDTO.get();
-		Diary diary = new Diary(diaryDTO);
-		Page page = new Page(diary, pageDTO);
-		Fragment fragment = new Fragment(page, fragmentDTO);
-
+		Fragment fragment = new Fragment(fragmentDTO);
 		return fragment;
 	}
 
@@ -188,6 +157,10 @@ public class DiaryContext {
 			throw new Exception("Page not found: id: " + pageId);
 		}
 		PageDTO pageDTO = optionalPageDTO.get();
+		return inflatePage(pageDTO);
+	}
+
+	public Page inflatePage(PageDTO pageDTO) throws Exception {
 		Diary diary = inflateDiary(pageDTO.getDiaryId());
 		return new Page(diary, pageDTO);
 	}
@@ -201,8 +174,7 @@ public class DiaryContext {
 	}
 
 	public Fragment inflateFragment(FragmentDBDTO fragmentDTO) throws Exception {
-		Page page = inflatePage(fragmentDTO.getPageId());
-		return new Fragment(page, fragmentDTO);
+		return new Fragment(fragmentDTO);
 	}
 
 	public Marquee inflateMarquee(MarqueeDBDTO marqueeDTO) throws Exception {
@@ -213,9 +185,9 @@ public class DiaryContext {
 		}
 		FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
 
-		Page page = inflatePage(fragmentDTO.getPageId());
-		Fragment fragment = new Fragment(page, fragmentDTO);
-		Marquee marquee = new Marquee(fragment, marqueeDTO);
+		Page page = inflatePage(marqueeDTO.getPageId());
+		Fragment fragment = new Fragment(fragmentDTO);
+		Marquee marquee = new Marquee(page, fragment, marqueeDTO);
 
 		fragment.setMarquee(marquee);
 

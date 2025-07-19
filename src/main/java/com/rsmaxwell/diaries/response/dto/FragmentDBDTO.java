@@ -20,7 +20,6 @@ import lombok.EqualsAndHashCode;
 public class FragmentDBDTO extends Jsonable {
 
 	private Long id;
-	private Long pageId;
 	private Marquee marquee;
 	private Integer year;
 	private Integer month;

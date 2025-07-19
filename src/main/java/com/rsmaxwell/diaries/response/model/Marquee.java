@@ -13,6 +13,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -36,6 +37,11 @@ public class Marquee extends Publishable {
 	@Column(name = "id", nullable = false, unique = true)
 	private Long id;
 
+	@NonNull
+	@ManyToOne
+	@JoinColumn(name = "page_id")
+	private Page page;
+
 	@OneToOne(optional = false)
 	@JoinColumn(name = "fragment_id", nullable = false, unique = true)
 	private Fragment fragment;
@@ -53,16 +59,17 @@ public class Marquee extends Publishable {
 	private Double height;
 
 	public MarqueeDBDTO toDBDTO() {
-		return new MarqueeDBDTO(this.id, this.getFragment().getId(), this.x, this.y, this.width, this.height);
+		return new MarqueeDBDTO(this.id, this.getPage().getId(), this.getFragment().getId(), this.x, this.y, this.width, this.height);
 	}
 
 	public MarqueePublishDTO toPublishDTO() {
 		Rectangle rectangle = new Rectangle(this.x, this.y, this.width, this.height);
-		return new MarqueePublishDTO(this.id, this.getFragment().getId(), rectangle);
+		return new MarqueePublishDTO(this.id, this.getPage().getId(), this.getFragment().getId(), rectangle);
 	}
 
-	public Marquee(Fragment fragment, MarqueeDBDTO dto) {
+	public Marquee(Page page, Fragment fragment, MarqueeDBDTO dto) {
 		this.id = dto.getId();
+		this.page = page;
 		this.fragment = fragment;
 		this.x = dto.getX();
 		this.y = dto.getY();
@@ -72,7 +79,6 @@ public class Marquee extends Publishable {
 
 	@Override
 	List<String> getTopics() {
-		Page page = fragment.getPage();
 		Diary diary = page.getDiary();
 		List<String> topics = new ArrayList<String>();
 		topics.add(String.format("diaries/%d/%d/%d", diary.getId(), page.getId(), id));

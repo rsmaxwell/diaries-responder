@@ -10,14 +10,8 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
-import com.rsmaxwell.diaries.response.dto.PageDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.repository.DiaryRepository;
-import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -44,11 +38,6 @@ public class DeleteFragment extends RequestHandler {
 		}
 		log.info("DeleteFragment.handleRequest: Authorization.check: OK!");
 
-		DiaryRepository diaryRepository = context.getDiaryRepository();
-		PageRepository pageRepository = context.getPageRepository();
-
-		Diary diary;
-		Page page;
 		Fragment fragment;
 		try {
 			Long id = Utilities.getLong(args, "id");
@@ -58,22 +47,7 @@ public class DeleteFragment extends RequestHandler {
 				return Response.internalError("Fragment not found: id: " + id);
 			}
 			FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
-
-			Optional<PageDTO> optionalPageDTO = pageRepository.findById(fragmentDTO.getPageId());
-			if (optionalPageDTO.isEmpty()) {
-				return Response.internalError("Page not found: id: " + fragmentDTO.getPageId());
-			}
-			PageDTO pageDTO = optionalPageDTO.get();
-
-			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-			if (optionalDiaryDTO.isEmpty()) {
-				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
-			}
-			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-
-			diary = new Diary(diaryDTO);
-			page = new Page(diary, pageDTO);
-			fragment = new Fragment(page, fragmentDTO);
+			fragment = new Fragment(fragmentDTO);
 
 		} catch (Exception e) {
 			log.info("DeleteFragment.handleRequest: args: " + mapper.writeValueAsString(args));
