@@ -9,9 +9,9 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
-import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
+import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -23,58 +23,58 @@ import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 
-public class UpdateMarquee extends RequestHandler {
+public class UpdateFragment extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(UpdateMarquee.class);
+	private static final Logger log = LogManager.getLogger(UpdateFragment.class);
 	static private ObjectMapper mapper = new ObjectMapper();
 
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("UpdateMarquee.handleRequest");
+		log.info("UpdateFragment.handleRequest");
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("UpdateMarquee.handleRequest: Authorization.check: Failed!");
+			log.info("UpdateFragment.handleRequest: Authorization.check: Failed!");
 			throw new Unauthorised();
 		}
-		log.info("UpdateMarquee.handleRequest: Authorization.check: OK!");
+		log.info("UpdateFragment.handleRequest: Authorization.check: OK!");
 
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
-		Marquee marquee;
+		Fragment fragment;
 		try {
 			Long id = Utilities.getLong(args, "id");
-			Long pageId = Utilities.getLong(args, "pageId");
-			Double x = Utilities.getDouble(args, "x");
-			Double y = Utilities.getDouble(args, "y");
-			Double width = Utilities.getDouble(args, "width");
-			Double height = Utilities.getDouble(args, "height");
+			Integer year = Utilities.getInteger(args, "year");
+			Integer month = Utilities.getInteger(args, "month");
+			Integer day = Utilities.getInteger(args, "day");
+			Long marqueeId = Utilities.getLong(args, "marqueeId");
+			String text = Utilities.getString(args, "text");
 
-			Page page = context.inflatePage(pageId);
+			Marquee marquee = context.inflateMarquee(marqueeId);
 
-			marquee = context.inflateMarquee(id);
-			marquee.setPage(page);
-			marquee.setX(x);
-			marquee.setY(y);
-			marquee.setWidth(width);
-			marquee.setHeight(height);
+			fragment = context.inflateFragment(id);
+			fragment.setYear(year);
+			fragment.setMonth(month);
+			fragment.setDay(day);
+			fragment.setMarquee(marquee);
+			fragment.setText(text);
 
 		} catch (Exception e) {
-			log.info("UpdateMarquee.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
+			log.info("UpdateFragment.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First update the marquee in the database
+		// First update the fragment in the database
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
 		tx.begin();
 		try {
-			int count = marqueeRepository.update(marquee);
+			int count = fragmentRepository.update(fragment);
 			if (count != 1) {
-				log.info("UpdateMarquee.handleRequest: number of records updated: {}", count);
+				log.info("UpdateFragment.handleRequest: number of records updated: {}", count);
 			}
 			tx.commit();
 		} catch (Exception e) {
@@ -82,10 +82,10 @@ public class UpdateMarquee extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the Marquee to the topic tree
+		// Now publish the Fragment to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		marquee.publish(client);
+		fragment.publish(client);
 
-		return Response.success(marquee.getId());
+		return Response.success(fragment.getId());
 	}
 }

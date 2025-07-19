@@ -177,6 +177,14 @@ public class DiaryContext {
 		return new Fragment(fragmentDTO);
 	}
 
+	public Marquee inflateMarquee(Long marqueeId) throws Exception {
+		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findById(marqueeId);
+		if (optionalMarqueeDTO.isEmpty()) {
+			throw new Exception("Marquee not found: id: " + marqueeId);
+		}
+		return inflateMarquee(optionalMarqueeDTO.get());
+	}
+
 	public Marquee inflateMarquee(MarqueeDBDTO marqueeDTO) throws Exception {
 
 		Optional<FragmentDBDTO> optionalFragmentDTO = fragmentRepository.findById(marqueeDTO.getFragmentId());
