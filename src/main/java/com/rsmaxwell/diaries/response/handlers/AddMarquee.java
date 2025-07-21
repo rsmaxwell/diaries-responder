@@ -65,10 +65,11 @@ public class AddMarquee extends RequestHandler {
 			Integer year = 0;
 			Integer month = 0;
 			Integer day = 0;
+			Long version = 0L;
 			String text = "Hello World!";
 
 			marquee = new Marquee(id, page, null, x, y, width, height);
-			FragmentDBDTO fragmentDTO = new FragmentDBDTO(id, null, year, month, day, sequence, text);
+			FragmentDBDTO fragmentDTO = new FragmentDBDTO(id, null, year, month, day, sequence, version, text);
 			fragment = new Fragment(fragmentDTO);
 
 			fragment.setMarquee(marquee);

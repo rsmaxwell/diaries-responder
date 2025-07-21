@@ -1,7 +1,9 @@
 package com.rsmaxwell.diaries.response.handlers;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,6 +11,7 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
@@ -43,23 +46,21 @@ public class UpdateFragment extends RequestHandler {
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
-		Fragment fragment;
+		Fragment incomingFragment;
+		Fragment originalFragment;
 		try {
 			Long id = Utilities.getLong(args, "id");
 			Integer year = Utilities.getInteger(args, "year");
 			Integer month = Utilities.getInteger(args, "month");
 			Integer day = Utilities.getInteger(args, "day");
 			Long marqueeId = Utilities.getLong(args, "marqueeId");
+			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
+			Long version = Utilities.getLong(args, "version");
 			String text = Utilities.getString(args, "text");
 
 			Marquee marquee = context.inflateMarquee(marqueeId);
-
-			fragment = context.inflateFragment(id);
-			fragment.setYear(year);
-			fragment.setMonth(month);
-			fragment.setDay(day);
-			fragment.setMarquee(marquee);
-			fragment.setText(text);
+			FragmentDBDTO fragmentDTO = new FragmentDBDTO(id, marquee, year, month, day, sequence, version, text);
+			incomingFragment = new Fragment(fragmentDTO);
 
 		} catch (Exception e) {
 			log.info("UpdateFragment.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
@@ -72,20 +73,48 @@ public class UpdateFragment extends RequestHandler {
 
 		tx.begin();
 		try {
-			int count = fragmentRepository.update(fragment);
+			// (1) get the original Fragment
+			Optional<FragmentDBDTO> optionalOriginalFragmentDTO = fragmentRepository.findById(incomingFragment.getId());
+			if (optionalOriginalFragmentDTO.isEmpty()) {
+				throw new BadRequest(String.format("original Fragment id %d not found", incomingFragment.getId()));
+			}
+			FragmentDBDTO fragmentDTO = optionalOriginalFragmentDTO.get();
+			originalFragment = new Fragment(fragmentDTO);
+
+			// (2) check the incoming version number
+			if (incomingFragment.getVersion() != originalFragment.getVersion()) {
+				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingFragment.getVersion(), originalFragment.getVersion()));
+			}
+
+			// (3) bump the version
+			Long version = incomingFragment.getVersion();
+			incomingFragment.setVersion(version + 1);
+
+			// (4) save to database
+			int count = fragmentRepository.update(incomingFragment);
 			if (count != 1) {
 				log.info("UpdateFragment.handleRequest: number of records updated: {}", count);
 			}
 			tx.commit();
+
+		} catch (BadRequest e) {
+			tx.rollback();
+			return Response.badRequest(e.getMessage());
 		} catch (Exception e) {
 			tx.rollback();
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the Fragment to the topic tree
+		// (5) Remove the original Fragment from the TopicTree & add the incoming Fragment
 		MqttAsyncClient client = context.getPublisherClient();
-		fragment.publish(client);
+		if (originalFragment.keyFieldsChanged(incomingFragment)) {
+			log.info("UpdateFragment.handleRequest: removing the original fragment from the TopicTree");
+			originalFragment.remove(client);
+		}
 
-		return Response.success(fragment.getId());
+		log.info("UpdateFragment.handleRequest: publishing the incomming fragment to the TopicTree");
+		incomingFragment.publish(client);
+
+		return Response.success(incomingFragment.getId());
 	}
 }

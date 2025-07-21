@@ -52,6 +52,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		list.add("month");
 		list.add("day");
 		list.add("sequence");
+		list.add("version");
 		list.add("text");
 		return list;
 	}
@@ -63,6 +64,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		list.add(entity.getMonth());
 		list.add(entity.getDay());
 		list.add(entity.getSequence());
+		list.add(entity.getVersion());
 		list.add(entity.getText());
 		return list;
 	}
@@ -74,8 +76,9 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		Integer month = getIntegerFromSqlResult(result, 2, null);
 		Integer day = getIntegerFromSqlResult(result, 3, null);
 		BigDecimal sequence = getBigDecimalFromSqlResult(result, 4, null);
-		String text = getStringFromSqlResult(result, 5, null);
-		return new FragmentDBDTO(id, null, year, month, day, sequence, text);
+		Long version = getLongFromSqlResult(result, 5, null);
+		String text = getStringFromSqlResult(result, 6, null);
+		return new FragmentDBDTO(id, null, year, month, day, sequence, version, text);
 	}
 
 	@Override

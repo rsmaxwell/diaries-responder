@@ -25,5 +25,6 @@ public class FragmentDBDTO extends Jsonable {
 	private Integer month;
 	private Integer day;
 	private BigDecimal sequence;
+	private Long version;
 	private String text;
 }

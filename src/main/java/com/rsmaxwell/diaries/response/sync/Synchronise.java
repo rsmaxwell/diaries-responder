@@ -314,7 +314,7 @@ public class Synchronise {
 			page.publish(map);
 		}
 
-		Iterable<FragmentDBDTO> fragments = fragmentRepository.findAll();
+		Iterable<FragmentDBDTO> fragments = context.findAllFragmentsWithMarquees();
 		for (FragmentDBDTO fragmentDTO : fragments) {
 			Fragment fragment = context.inflateFragment(fragmentDTO);
 			fragment.publish(map);

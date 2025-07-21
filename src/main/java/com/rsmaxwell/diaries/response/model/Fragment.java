@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
@@ -35,6 +37,8 @@ import lombok.RequiredArgsConstructor;
 @NoArgsConstructor
 public class Fragment extends Publishable {
 
+	private static final Logger log = LogManager.getLogger(Fragment.class);
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "id", nullable = false, unique = true)
@@ -60,6 +64,9 @@ public class Fragment extends Publishable {
 	@Column(length = 4096)
 	private String text;
 
+	@Column(name = "version", nullable = false)
+	private long version;
+
 	public Fragment(FragmentDBDTO dto) {
 		this.id = dto.getId();
 		this.marquee = dto.getMarquee();
@@ -67,11 +74,12 @@ public class Fragment extends Publishable {
 		this.month = dto.getMonth();
 		this.day = dto.getDay();
 		this.sequence = dto.getSequence();
+		this.version = dto.getVersion();
 		this.text = dto.getText();
 	}
 
 	public FragmentDBDTO toDBDTO() {
-		return new FragmentDBDTO(this.id, this.marquee, this.year, this.month, this.day, this.sequence, this.text);
+		return new FragmentDBDTO(this.id, this.marquee, this.year, this.month, this.day, this.sequence, this.version, this.text);
 	}
 
 	public FragmentPublishDTO toPublishDTO() {
@@ -79,7 +87,7 @@ public class Fragment extends Publishable {
 		if (this.marquee != null) {
 			marqueeId = this.marquee.getId();
 		}
-		return new FragmentPublishDTO(this.id, marqueeId, this.year, this.month, this.day, this.sequence, this.text);
+		return new FragmentPublishDTO(this.id, marqueeId, this.year, this.month, this.day, this.sequence, this.version, this.text);
 	}
 
 	@Override
@@ -107,5 +115,22 @@ public class Fragment extends Publishable {
 		if (marquee != null) {
 			marquee.remove(client);
 		}
+	}
+
+	public boolean keyFieldsChanged(Fragment other) {
+		if (this.id.longValue() != other.id.longValue()) {
+			return true;
+		}
+		if (this.year.longValue() != other.year.longValue()) {
+			return true;
+		}
+		if (this.month.longValue() != other.month.longValue()) {
+			return true;
+		}
+		if (this.day.longValue() != other.day.longValue()) {
+			return true;
+		}
+
+		return false;
 	}
 }

@@ -26,5 +26,6 @@ public class FragmentPublishDTO extends Jsonable {
 	private Integer month;
 	private Integer day;
 	private BigDecimal sequence;
+	private Long version;
 	private String text;
 }
