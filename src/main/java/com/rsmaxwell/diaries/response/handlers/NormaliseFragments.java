@@ -33,7 +33,7 @@ public class NormaliseFragments extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("NormaliseDiaries.handleRequest");
+		log.info("NormaliseFragments.handleRequest");
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
@@ -75,7 +75,7 @@ public class NormaliseFragments extends RequestHandler {
 				BigDecimal currentSeq = fragmentDTO.getSequence();
 
 				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
-					log.info(String.format("fragment id:%d, already has correct sequence number: %d", fragmentDTO.getId(), sequence));
+					// log.info(String.format("fragment id:%d, already has correct sequence number: %s", fragmentDTO.getId(), sequence.toPlainString()));
 				} else {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("Updating fragment id: %d, sequence: %s -> %s", fragmentDTO.getId(), currentSeqStr, sequence.toPlainString()));
