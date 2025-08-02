@@ -44,4 +44,12 @@ public class Diary extends Base {
 		this.name = diaryDTO.getName();
 		this.sequence = diaryDTO.getSequence();
 	}
+
+	public boolean keyFieldsChanged(Diary other) {
+		if (this.id.longValue() != other.id.longValue()) {
+			return true;
+		}
+
+		return false;
+	}
 }

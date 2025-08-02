@@ -3,7 +3,6 @@ package com.rsmaxwell.diaries.response.handlers;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -45,21 +44,24 @@ public class UpdateDiary extends RequestHandler {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 
-		Diary diary;
+		Diary incomingDiary;
+		Diary originalDiary;
 		try {
 			Long id = Utilities.getLong(args, "id");
 			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
 			String name = Utilities.getString(args, "name");
+			Long version = Utilities.getLong(args, "version");
 
-			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(id);
-			if (optionalDiaryDTO.isEmpty()) {
-				return Response.internalError("Diary not found: id: " + id);
-			}
-			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-			diaryDTO.setSequence(sequence.setScale(4));
-			diaryDTO.setName(name);
+			//@formatter:off
+			DiaryDTO diaryDTO = DiaryDTO.builder()
+					.id(id)
+					.version(version)
+					.sequence(sequence)
+					.name(name)
+					.build();
+			//@formatter:on
 
-			diary = new Diary(diaryDTO);
+			incomingDiary = new Diary(diaryDTO);
 
 		} catch (Exception e) {
 			log.info("UpdateDiary.handleRequest: args: " + mapper.writeValueAsString(args));
@@ -72,27 +74,42 @@ public class UpdateDiary extends RequestHandler {
 
 		tx.begin();
 		try {
-			diaryRepository.update(diary);
+			// (1) get the original Diary
+			originalDiary = context.inflateDiary(incomingDiary.getId());
+
+			// (2) check the incoming version number
+			if (incomingDiary.getVersion() != originalDiary.getVersion()) {
+				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingDiary.getVersion(), originalDiary.getVersion()));
+			}
+
+			// (3) bump the version
+			Long version = incomingDiary.getVersion();
+			incomingDiary.setVersion(version + 1);
+
+			// (4) save to database
+			int count = diaryRepository.update(incomingDiary);
+			if (count != 1) {
+				log.info("UpdateDiary.handleRequest: number of records updated: {}", count);
+			}
 			tx.commit();
+
 		} catch (Exception e) {
 			tx.rollback();
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now update the Diary in the topic tree
-		DiaryDTO diaryDTO = new DiaryDTO(diary);
-		byte[] payload = mapper.writeValueAsBytes(diaryDTO);
-		String payloadStr = new String(payload);
-
+		// (5) Remove the original Diary from the TopicTree & add the incoming Diary
 		MqttAsyncClient client = context.getPublisherClient();
-		int qos = 1;
-		boolean retained = true;
-		log.info("diary: " + payloadStr);
+		if (originalDiary.keyFieldsChanged(incomingDiary)) {
+			log.info("UpdateDiary.handleRequest: removing the original diary from the TopicTree");
+			DiaryDTO dto = new DiaryDTO(originalDiary);
+			dto.remove(client);
+		}
 
-		String topic = String.format("diaries/%d", diary.getId());
-		log.info("  --> topic: " + topic);
-		client.publish(topic, payload, qos, retained).waitForCompletion();
+		log.info("UpdateDiary.handleRequest: publishing the incomming diary to the TopicTree");
+		DiaryDTO dto = new DiaryDTO(incomingDiary);
+		dto.publish(client);
 
-		return Response.success(diary.getId());
+		return Response.success(incomingDiary.getId());
 	}
 }

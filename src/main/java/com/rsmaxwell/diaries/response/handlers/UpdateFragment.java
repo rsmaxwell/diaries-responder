@@ -3,7 +3,6 @@ package com.rsmaxwell.diaries.response.handlers;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,13 +63,13 @@ public class UpdateFragment extends RequestHandler {
 			//@formatter:off
 			FragmentDBDTO fragmentDTO = FragmentDBDTO.builder()
 					.id(id)
+					.version(version)
 					.marquee(marquee)
 					.year(year)
 					.month(month)
 					.day(day)
 					.sequence(sequence)
 					.text(text)
-					.version(version)
 					.build();
 			//@formatter:on
 
@@ -88,12 +87,7 @@ public class UpdateFragment extends RequestHandler {
 		tx.begin();
 		try {
 			// (1) get the original Fragment
-			Optional<FragmentDBDTO> optionalOriginalFragmentDTO = fragmentRepository.findById(incomingFragment.getId());
-			if (optionalOriginalFragmentDTO.isEmpty()) {
-				throw new BadRequest(String.format("original Fragment id %d not found", incomingFragment.getId()));
-			}
-			FragmentDBDTO fragmentDTO = optionalOriginalFragmentDTO.get();
-			originalFragment = new Fragment(fragmentDTO);
+			originalFragment = context.inflateFragment(incomingFragment.getId());
 
 			// (2) check the incoming version number
 			if (incomingFragment.getVersion() != originalFragment.getVersion()) {

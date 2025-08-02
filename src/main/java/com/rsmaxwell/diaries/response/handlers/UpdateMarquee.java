@@ -9,8 +9,10 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
+import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
@@ -45,23 +47,33 @@ public class UpdateMarquee extends RequestHandler {
 
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
-		Marquee marquee;
+		Marquee incomingMarquee;
+		Marquee originalMarquee;
 		try {
 			Long id = Utilities.getLong(args, "id");
+			Long version = Utilities.getLong(args, "version");
 			Long pageId = Utilities.getLong(args, "pageId");
+			Long fragmentId = Utilities.getLong(args, "fragmentId");
 			Double x = Utilities.getDouble(args, "x");
 			Double y = Utilities.getDouble(args, "y");
 			Double width = Utilities.getDouble(args, "width");
 			Double height = Utilities.getDouble(args, "height");
 
-			Page page = context.inflatePage(pageId);
+			//@formatter:off
+			MarqueeDBDTO marqueeDTO = MarqueeDBDTO.builder()
+					.id(id)
+					.version(version)
+					.pageId(pageId)
+					.x(x)
+					.y(y)
+					.width(width)
+					.height(height)
+					.build();
+			//@formatter:on
 
-			marquee = context.inflateMarquee(id);
-			marquee.setPage(page);
-			marquee.setX(x);
-			marquee.setY(y);
-			marquee.setWidth(width);
-			marquee.setHeight(height);
+			Page incomingPage = context.inflatePage(pageId);
+			Fragment incomingFragment = context.inflateFragment(fragmentId);
+			incomingMarquee = new Marquee(incomingPage, incomingFragment, marqueeDTO);
 
 		} catch (Exception e) {
 			log.info("UpdateMarquee.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
@@ -74,23 +86,49 @@ public class UpdateMarquee extends RequestHandler {
 
 		tx.begin();
 		try {
-			int count = marqueeRepository.update(marquee);
+			// (1) get the original Marquee
+			originalMarquee = context.inflateMarquee(incomingMarquee.getId());
+
+			// (2) check the incoming version number
+			if (incomingMarquee.getVersion() != originalMarquee.getVersion()) {
+				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingMarquee.getVersion(), originalMarquee.getVersion()));
+			}
+
+			// (3) bump the version
+			Long version = incomingMarquee.getVersion();
+			incomingMarquee.setVersion(version + 1);
+
+			// (4) save to database
+			int count = marqueeRepository.update(incomingMarquee);
 			if (count != 1) {
 				log.info("UpdateMarquee.handleRequest: number of records updated: {}", count);
 			}
 			tx.commit();
+
+		} catch (BadRequest e) {
+			tx.rollback();
+			return Response.badRequest(e.getMessage());
 		} catch (Exception e) {
 			tx.rollback();
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now publish the Marquee to the topic tree
+		// (5) Remove the original Marquee from the TopicTree & add the incoming Marquee
 		MqttAsyncClient client = context.getPublisherClient();
-		Page page = marquee.getPage();
-		Diary diary = page.getDiary();
-		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
-		marqueePublishDTO.publish(client, diary.getId());
+		if (originalMarquee.keyFieldsChanged(incomingMarquee)) {
+			log.info("UpdateMarquee.handleRequest: removing the original marquee from the TopicTree");
+			Page page = originalMarquee.getPage();
+			Diary diary = page.getDiary();
+			MarqueePublishDTO dto = new MarqueePublishDTO(originalMarquee);
+			dto.remove(client, diary.getId());
+		}
 
-		return Response.success(marquee.getId());
+		// Now publish the Marquee to the topic tree
+		Page page = incomingMarquee.getPage();
+		Diary diary = page.getDiary();
+		MarqueePublishDTO dto = new MarqueePublishDTO(incomingMarquee);
+		dto.publish(client, diary.getId());
+
+		return Response.success(incomingMarquee.getId());
 	}
 }

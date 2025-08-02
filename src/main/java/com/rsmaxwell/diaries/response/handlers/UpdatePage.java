@@ -3,7 +3,6 @@ package com.rsmaxwell.diaries.response.handlers;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,9 +10,7 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
@@ -49,29 +46,24 @@ public class UpdatePage extends RequestHandler {
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
 
-		Diary diary;
-		Page page;
+		Page incomingPage;
+		Page originalPage;
 		try {
 			Long id = Utilities.getLong(args, "id");
+			Long version = Utilities.getLong(args, "version");
 			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
 			String name = Utilities.getString(args, "name");
 
-			Optional<PageDTO> optionalPageDTO = pageRepository.findById(id);
-			if (optionalPageDTO.isEmpty()) {
-				return Response.internalError("Page not found: id: " + id);
-			}
-			PageDTO pageDTO = optionalPageDTO.get();
-			pageDTO.setSequence(sequence.setScale(4));
-			pageDTO.setName(name);
+			//@formatter:off
+			PageDTO pageDTO = PageDTO.builder()
+					.id(id)
+					.version(version)
+					.sequence(sequence)
+					.name(name)
+					.build();
+			//@formatter:on
 
-			Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-			if (optionalDiaryDTO.isEmpty()) {
-				return Response.internalError("Diary not found: id: " + pageDTO.getDiaryId());
-			}
-			DiaryDTO diaryDTO = optionalDiaryDTO.get();
-
-			diary = new Diary(diaryDTO);
-			page = new Page(diary, pageDTO);
+			incomingPage = context.inflatePage(id);
 
 		} catch (Exception e) {
 			log.info("UpdatePage.handleRequest: args: " + mapper.writeValueAsString(args));
@@ -84,27 +76,45 @@ public class UpdatePage extends RequestHandler {
 
 		tx.begin();
 		try {
-			pageRepository.update(page);
+			// (1) get the original Page
+			originalPage = context.inflatePage(incomingPage.getId());
+
+			// (2) check the incoming version number
+			if (incomingPage.getVersion() != originalPage.getVersion()) {
+				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingPage.getVersion(), originalPage.getVersion()));
+			}
+
+			// (3) bump the version
+			Long version = incomingPage.getVersion();
+			incomingPage.setVersion(version + 1);
+
+			// (4) save to database
+			int count = pageRepository.update(incomingPage);
+			if (count != 1) {
+				log.info("UpdatePage.handleRequest: number of records updated: {}", count);
+			}
 			tx.commit();
+
+		} catch (BadRequest e) {
+			tx.rollback();
+			return Response.badRequest(e.getMessage());
 		} catch (Exception e) {
 			tx.rollback();
 			return Response.internalError(e.getMessage());
 		}
 
-		// Now update the Page in the topic tree
-		PageDTO pageDTO = new PageDTO(page);
-		byte[] payload = mapper.writeValueAsBytes(pageDTO);
-		String payloadStr = new String(payload);
-
+		// (5) Remove the original page from the TopicTree & add the incoming Page
 		MqttAsyncClient client = context.getPublisherClient();
-		int qos = 1;
-		boolean retained = true;
-		log.info("page: " + payloadStr);
+		if (originalPage.keyFieldsChanged(incomingPage)) {
+			log.info("Updatepage.handleRequest: removing the original page from the TopicTree");
+			PageDTO dto = new PageDTO(originalPage);
+			dto.remove(client);
+		}
 
-		String topic = String.format("diaries/%s/%s", diary.getId(), page.getId());
-		log.info("  --> topic: " + topic);
-		client.publish(topic, payload, qos, retained).waitForCompletion();
+		// Now update the Page in the topic tree
+		PageDTO dto = new PageDTO(incomingPage);
+		dto.publish(client);
 
-		return Response.success(page.getId());
+		return Response.success(incomingPage.getId());
 	}
 }

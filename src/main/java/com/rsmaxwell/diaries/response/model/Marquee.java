@@ -56,4 +56,12 @@ public class Marquee extends Base {
 		this.height = dto.getHeight();
 		this.version = dto.getVersion();
 	}
+
+	public boolean keyFieldsChanged(Marquee other) {
+		if (this.id.longValue() != other.id.longValue()) {
+			return true;
+		}
+
+		return false;
+	}
 }

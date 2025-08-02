@@ -69,4 +69,12 @@ public class Page extends Base {
 		this.height = other.height;
 		this.version = other.version;
 	}
+
+	public boolean keyFieldsChanged(Page other) {
+		if (this.id.longValue() != other.id.longValue()) {
+			return true;
+		}
+
+		return false;
+	}
 }
