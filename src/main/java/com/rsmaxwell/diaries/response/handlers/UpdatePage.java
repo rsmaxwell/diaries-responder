@@ -92,7 +92,7 @@ public class UpdatePage extends RequestHandler {
 		}
 
 		// Now update the Page in the topic tree
-		PageDTO pageDTO = page.toDTO();
+		PageDTO pageDTO = new PageDTO(page);
 		byte[] payload = mapper.writeValueAsBytes(pageDTO);
 		String payloadStr = new String(payload);
 

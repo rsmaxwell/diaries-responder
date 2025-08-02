@@ -12,6 +12,7 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
@@ -103,7 +104,8 @@ public class NormaliseFragments extends RequestHandler {
 					fragment.getYear(), fragment.getMonth(), fragment.getDay(), fragment.getId(),
 					fragment.getSequence().toPlainString()));
 			// @formatter:on
-			fragment.publish(client);
+			FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+			fragmentPublishDTO.publish(client);
 		}
 
 		return Response.success(updates.size());

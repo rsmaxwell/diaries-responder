@@ -47,6 +47,7 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		list.add("extension");
 		list.add("width");
 		list.add("height");
+		list.add("version");
 		return list;
 	}
 
@@ -59,6 +60,7 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		list.add(entity.getExtension());
 		list.add(entity.getWidth());
 		list.add(entity.getHeight());
+		list.add(entity.getVersion());
 		return list;
 	}
 
@@ -71,7 +73,20 @@ public class PageRepositoryImpl extends AbstractCrudRepository<Page, PageDTO, Lo
 		String extension = getStringFromSqlResult(result, 4, null);
 		Integer width = getIntegerFromSqlResult(result, 5, null);
 		Integer height = getIntegerFromSqlResult(result, 6, null);
-		return new PageDTO(id, diaryId, name, sequence, extension, width, height);
+		Long version = getLongFromSqlResult(result, 7, null);
+
+		//@formatter:off
+		return PageDTO.builder()
+				.id(id)
+				.diaryId(diaryId)
+				.name(name)
+				.sequence(sequence)
+				.extension(extension)
+				.width(width)
+				.height(height)
+				.version(version)
+				.build();
+		//@formatter:on
 	}
 
 	@Override

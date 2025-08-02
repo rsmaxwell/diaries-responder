@@ -82,8 +82,19 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		Integer countryCode = getIntegerFromSqlResult(result, 7, 0);
 		Long nationalNumber = getLongFromSqlResult(result, 8, 0L);
 
-		// String phone = phoneNumberFromDTO(countryCode, nationalNumber);
-		return new PersonDTO(id, username, passwordHash, firstName, lastName, knownas, email, countryCode, nationalNumber);
+		//@formatter:off
+		return PersonDTO.builder()
+				.id(id)
+				.username(username)
+				.passwordHash(passwordHash)
+				.firstName(firstName)
+				.lastName(lastName)
+				.knownas(knownas)
+				.email(email)
+				.countryCode(countryCode)
+				.nationalNumber(nationalNumber)
+				.build();
+		//@formatter:on
 	}
 
 	public String phoneNumberFromDTO(Integer countryCode, Long nationalNumber) {
@@ -107,7 +118,19 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		int countryCode = ((Number) result[7]).intValue();
 		long nationalNumber = ((Number) result[8]).longValue();
 
-		return new PersonDTO(id, username, passwordHash, firstName, lastName, knownas, email, countryCode, nationalNumber);
+		//@formatter:off
+		return PersonDTO.builder()
+				.id(id)
+				.username(username)
+				.passwordHash(passwordHash)
+				.firstName(firstName)
+				.lastName(lastName)
+				.knownas(knownas)
+				.email(email)
+				.countryCode(countryCode)
+				.nationalNumber(nationalNumber)
+				.build();
+		//@formatter:on
 	}
 
 	@Override

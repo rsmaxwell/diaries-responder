@@ -12,6 +12,7 @@ import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.utilities.SqlBuilder;
 import com.rsmaxwell.diaries.response.utilities.WhereBuilder;
 
 import jakarta.persistence.EntityManager;
@@ -52,8 +53,8 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		list.add("month");
 		list.add("day");
 		list.add("sequence");
-		list.add("version");
 		list.add("text");
+		list.add("version");
 		return list;
 	}
 
@@ -76,13 +77,25 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		Integer month = getIntegerFromSqlResult(result, 2, null);
 		Integer day = getIntegerFromSqlResult(result, 3, null);
 		BigDecimal sequence = getBigDecimalFromSqlResult(result, 4, null);
-		Long version = getLongFromSqlResult(result, 5, null);
-		String text = getStringFromSqlResult(result, 6, null);
-		return new FragmentDBDTO(id, null, year, month, day, sequence, version, text);
+		String text = getStringFromSqlResult(result, 5, null);
+		Long version = getLongFromSqlResult(result, 6, null);
+
+		//@formatter:off
+		return FragmentDBDTO.builder()
+				.id(id)
+				.marquee(null)
+				.year(year)
+				.month(month)
+				.day(day)
+				.sequence(sequence)
+				.text(text)
+				.version(version)
+				.build();
+		//@formatter:on
 	}
 
 	@Override
-	public Iterable<FragmentDBDTO> findByDate(Integer year, Integer month, Integer day) {
+	public Iterable<FragmentDBDTO> findAllByDate(Integer year, Integer month, Integer day) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
@@ -129,7 +142,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	}
 
 	@Override
-	public Optional<FragmentDBDTO> findByMarqueeId(Long id) {
+	public Iterable<FragmentDBDTO> findAllByMarquee(Long id) {
 
 		// @formatter:off
 		String where = new WhereBuilder()
@@ -142,7 +155,40 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 			list.add(dto);
 		}
 
-		return singleItem(list);
+		return list;
 
+	}
+
+	@Override
+	public Optional<FragmentDBDTO> findByMarquee(Long id) {
+
+		List<FragmentDBDTO> list = new ArrayList<FragmentDBDTO>();
+		for (FragmentDBDTO dto : findAllByMarquee(id)) {
+			list.add(dto);
+		}
+
+		return singleItem(list);
+	}
+
+	@Override
+	public Iterable<FragmentDBDTO> findAllWithoutMarquee() {
+
+		// @formatter:off		
+		String sql = SqlBuilder.create()
+			    .select("f.id, f.year, f.month, f.day, f.sequence, f.text, f.version")
+			    .from("fragment f")
+			    .leftJoin("marquee m").on("f.id = m.fragment_id")
+			    .whereIsNull("m.fragment_id")
+			    .orderBy("f.year, f.month, f.day, f.sequence, f.id")
+			    .build();
+		// @formatter:on
+
+		List<FragmentDBDTO> list = new ArrayList<FragmentDBDTO>();
+		for (Object[] result : getResultList(sql.toString())) {
+			FragmentDBDTO dto = newDTO(result);
+			list.add(dto);
+		}
+
+		return list;
 	}
 }

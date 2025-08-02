@@ -64,6 +64,7 @@ public class NormaliseDiaries extends RequestHandler {
 					Diary diary = new Diary(diaryDTO);
 
 					diary.setSequence(sequence);
+					diary.incrementVersion();
 					diaryRepository.update(diary);
 					updates.add(diary);
 				}
@@ -80,7 +81,8 @@ public class NormaliseDiaries extends RequestHandler {
 		// Publish the updates
 		for (Diary diary : updates) {
 			log.info(String.format("Publishing diary id:%d, name:%s --> sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
-			diary.publish(client);
+			DiaryDTO dto = new DiaryDTO(diary);
+			dto.publish(client);
 		}
 
 		return Response.success(updates.size());

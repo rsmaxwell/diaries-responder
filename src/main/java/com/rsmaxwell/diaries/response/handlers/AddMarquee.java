@@ -11,6 +11,8 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
@@ -68,8 +70,31 @@ public class AddMarquee extends RequestHandler {
 			Long version = 0L;
 			String text = "Hello World!";
 
-			marquee = new Marquee(id, page, null, x, y, width, height);
-			FragmentDBDTO fragmentDTO = new FragmentDBDTO(id, null, year, month, day, sequence, version, text);
+			//@formatter:off
+			marquee = Marquee.builder()
+					.id(id)
+					.page(page)
+					.fragment(null)
+					.x(x)
+					.y(y)
+					.width(width)
+					.height(height)
+					.version(version)
+					.build();
+			//@formatter:on
+
+			//@formatter:off
+			FragmentDBDTO fragmentDTO = FragmentDBDTO.builder()
+					.id(id) 
+					.marquee(null)
+					.year(year)
+					.month(month)
+					.day(day)
+					.sequence(sequence)
+					.text(text)
+					.version(version)
+					.build();
+			//@formatter:on
 			fragment = new Fragment(fragmentDTO);
 
 			fragment.setMarquee(marquee);
@@ -92,8 +117,11 @@ public class AddMarquee extends RequestHandler {
 
 		// Now publish the Fragment (and its marquee) to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		fragment.publish(client);
-		marquee.publish(client);
+		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+		fragmentPublishDTO.publish(client);
+
+		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
+		marqueePublishDTO.publish(client, page.getDiary().getId());
 
 		return Response.success(marquee.getId());
 	}

@@ -1,17 +1,8 @@
 package com.rsmaxwell.diaries.response.model;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
-import com.rsmaxwell.diaries.response.utilities.Rectangle;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
@@ -21,21 +12,18 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
+import lombok.ToString;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "marquee")
 @Data
-@EqualsAndHashCode(callSuper = false)
-@AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
-public class Marquee extends Publishable {
-
-	// private static final Logger log = LogManager.getLogger(Marquee.class);
-
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "id", nullable = false, unique = true)
-	private Long id;
+@AllArgsConstructor
+public class Marquee extends Base {
 
 	@NonNull
 	@ManyToOne
@@ -58,15 +46,6 @@ public class Marquee extends Publishable {
 	@NonNull
 	private Double height;
 
-	public MarqueeDBDTO toDBDTO() {
-		return new MarqueeDBDTO(this.id, this.getPage().getId(), this.getFragment().getId(), this.x, this.y, this.width, this.height);
-	}
-
-	public MarqueePublishDTO toPublishDTO() {
-		Rectangle rectangle = new Rectangle(this.x, this.y, this.width, this.height);
-		return new MarqueePublishDTO(this.id, this.getPage().getId(), this.getFragment().getId(), rectangle);
-	}
-
 	public Marquee(Page page, Fragment fragment, MarqueeDBDTO dto) {
 		this.id = dto.getId();
 		this.page = page;
@@ -75,19 +54,6 @@ public class Marquee extends Publishable {
 		this.y = dto.getY();
 		this.width = dto.getWidth();
 		this.height = dto.getHeight();
-	}
-
-	@Override
-	List<String> getTopics() {
-		Diary diary = page.getDiary();
-		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("diaries/%d/%d/%d", diary.getId(), page.getId(), id));
-		topics.add(String.format("marquees/%d", id));
-		return topics;
-	}
-
-	@Override
-	String getPayload() {
-		return this.toPublishDTO().toJson();
+		this.version = dto.getVersion();
 	}
 }

@@ -9,6 +9,8 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
+import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
@@ -84,7 +86,10 @@ public class UpdateMarquee extends RequestHandler {
 
 		// Now publish the Marquee to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		marquee.publish(client);
+		Page page = marquee.getPage();
+		Diary diary = page.getDiary();
+		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
+		marqueePublishDTO.publish(client, diary.getId());
 
 		return Response.success(marquee.getId());
 	}

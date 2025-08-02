@@ -1,13 +1,17 @@
 package com.rsmaxwell.diaries.response.utilities;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
 import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
@@ -37,6 +41,42 @@ public class DiaryContext {
 	private String secret;
 	private DiariesConfig diaries;
 	private MqttAsyncClient publisherClient;
+
+	public Map<String, String> loadFromDatabase() throws Exception {
+		ConcurrentHashMap<String, String> map = new ConcurrentHashMap<>();
+
+		// Publish the diaries and and their child pages, marquees and fragments
+		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
+		for (DiaryDTO diaryDTO : diaries) {
+			diaryDTO.publish(map);
+
+			Iterable<PageDTO> pages = pageRepository.findAllByDiary(diaryDTO.getId());
+			for (PageDTO pageDTO : pages) {
+				pageDTO.publish(map);
+
+				Iterable<MarqueeDBDTO> marquees = marqueeRepository.findAllByPage(pageDTO.getId());
+				for (MarqueeDBDTO marqueeDBDTO : marquees) {
+					Marquee marquee = inflateMarquee(marqueeDBDTO);
+					MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
+					marqueePublishDTO.publish(map, diaryDTO.getId());
+
+					Fragment fragment = marquee.getFragment();
+					FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+					fragmentPublishDTO.publish(map);
+				}
+			}
+		}
+
+		// And also publish those fragments which do NOT have an associated marquee/page
+		Iterable<FragmentDBDTO> fragments = fragmentRepository.findAllWithoutMarquee();
+		for (FragmentDBDTO fragmentDTO : fragments) {
+			Fragment fragment = inflateFragment(fragmentDTO);
+			FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+			fragmentPublishDTO.publish(map);
+		}
+
+		return map;
+	}
 
 	public Fragment save(Fragment fragment) throws Exception {
 
@@ -92,7 +132,7 @@ public class DiaryContext {
 
 	public Iterable<FragmentDBDTO> findFragmentsWithMarqueesByDate(Integer year, Integer month, Integer day) throws Exception {
 
-		Iterable<FragmentDBDTO> fragments = fragmentRepository.findByDate(year, month, day);
+		Iterable<FragmentDBDTO> fragments = fragmentRepository.findAllByDate(year, month, day);
 		for (FragmentDBDTO fragmentDTO : fragments) {
 
 			Optional<MarqueeDBDTO> optional = marqueeRepository.findByFragmentId(fragmentDTO.getId());

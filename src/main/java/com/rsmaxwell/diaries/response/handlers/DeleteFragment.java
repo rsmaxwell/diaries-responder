@@ -11,7 +11,12 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
+import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
+import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -59,8 +64,14 @@ public class DeleteFragment extends RequestHandler {
 
 		// Then remove the fragment from the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		fragment.remove(client);
-		fragment.getMarquee().remove(client);
+		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+		fragmentPublishDTO.remove(client);
+
+		Marquee marquee = fragment.getMarquee();
+		Page page = marquee.getPage();
+		Diary diary = page.getDiary();
+		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
+		marqueePublishDTO.remove(client, diary.getId());
 
 		return Response.success(fragment.getId());
 	}

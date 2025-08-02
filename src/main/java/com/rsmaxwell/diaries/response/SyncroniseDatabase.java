@@ -224,9 +224,22 @@ public class SyncroniseDatabase {
 			String pageName = MyFileUtilities.getFileName(fileName);
 			String pageExtension = MyFileUtilities.getFileExtension(fileName);
 			BigDecimal sequence = new BigDecimal(1);
+			Long version = 0L;
 
 			ImageInfo info = getImageInfo(imageFile);
-			PageDTO fsPageDTO = new PageDTO(0L, diaryDTO.getId(), pageName, sequence, pageExtension, info.getWidth(), info.getHeight());
+
+			//@formatter:off
+			PageDTO fsPageDTO = PageDTO.builder()
+					.id(0L)
+					.diaryId(diaryDTO.getId())
+					.name(pageName)
+					.sequence(sequence)
+					.extension(pageExtension)
+					.width(info.getWidth())
+				    .height(info.getHeight())
+				    .version(version)
+				    .build();
+			//@formatter:on
 
 			Optional<DiaryDTO> optionalDiary2 = diaryRepository.findById(diaryDTO.getId());
 			if (optionalDiary2.isEmpty()) {
@@ -242,7 +255,7 @@ public class SyncroniseDatabase {
 			} else {
 				PageDTO dbPageDTO = optionalPage.get();
 
-				if (fsPageDTO.equalsExcludingId(dbPageDTO)) {
+				if (fsPageDTO.equalsExcludingIdAndVersion(dbPageDTO)) {
 					log.info(String.format("DbPage matches the filesystemPage. Nothing to do: '%s/%s'", diaryName, pageName));
 				} else {
 					log.info(String.format("DbPage does not match the filesystemPage. Updating the dbPage: '%s/%s'", diaryName, pageName));

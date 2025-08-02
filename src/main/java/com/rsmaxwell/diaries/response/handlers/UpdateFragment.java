@@ -12,6 +12,7 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
@@ -59,7 +60,20 @@ public class UpdateFragment extends RequestHandler {
 			String text = Utilities.getString(args, "text");
 
 			Marquee marquee = context.inflateMarquee(marqueeId);
-			FragmentDBDTO fragmentDTO = new FragmentDBDTO(id, marquee, year, month, day, sequence, version, text);
+
+			//@formatter:off
+			FragmentDBDTO fragmentDTO = FragmentDBDTO.builder()
+					.id(id)
+					.marquee(marquee)
+					.year(year)
+					.month(month)
+					.day(day)
+					.sequence(sequence)
+					.text(text)
+					.version(version)
+					.build();
+			//@formatter:on
+
 			incomingFragment = new Fragment(fragmentDTO);
 
 		} catch (Exception e) {
@@ -109,11 +123,13 @@ public class UpdateFragment extends RequestHandler {
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalFragment.keyFieldsChanged(incomingFragment)) {
 			log.info("UpdateFragment.handleRequest: removing the original fragment from the TopicTree");
-			originalFragment.remove(client);
+			FragmentPublishDTO dto = new FragmentPublishDTO(originalFragment);
+			dto.remove(client);
 		}
 
 		log.info("UpdateFragment.handleRequest: publishing the incomming fragment to the TopicTree");
-		incomingFragment.publish(client);
+		FragmentPublishDTO dto = new FragmentPublishDTO(incomingFragment);
+		dto.publish(client);
 
 		return Response.success(incomingFragment.getId());
 	}

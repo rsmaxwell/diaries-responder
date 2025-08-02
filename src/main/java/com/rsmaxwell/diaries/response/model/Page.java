@@ -1,16 +1,11 @@
 package com.rsmaxwell.diaries.response.model;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -20,20 +15,18 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.ToString;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "page", uniqueConstraints = { @UniqueConstraint(columnNames = { "diary_id", "name" }) })
 @Data
-@EqualsAndHashCode(callSuper = false)
-@AllArgsConstructor
-@RequiredArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
-public class Page extends Publishable {
-
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+@AllArgsConstructor
+public class Page extends Base {
 
 	@NonNull
 	@ManyToOne
@@ -64,6 +57,7 @@ public class Page extends Publishable {
 		this.extension = dto.getExtension();
 		this.width = dto.getWidth();
 		this.height = dto.getHeight();
+		this.version = dto.getVersion();
 	}
 
 	public void updateFrom(Page other) {
@@ -73,32 +67,6 @@ public class Page extends Publishable {
 		this.extension = other.extension;
 		this.width = other.width;
 		this.height = other.height;
-	}
-
-	public PageDTO toDTO() {
-		// @formatter:off
-		return new PageDTO(
-				this.id,
-				this.diary.getId(),
-				this.name,
-				this.sequence,
-				this.extension,
-				this.width,
-				this.height				
-				);
-		// @formatter:on
-	}
-
-	@Override
-	List<String> getTopics() {
-		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("diaries/%d/%d", diary.getId(), this.getId()));
-		topics.add(String.format("pages/%d", this.getId()));
-		return topics;
-	}
-
-	@Override
-	String getPayload() {
-		return this.toDTO().toJson();
+		this.version = other.version;
 	}
 }

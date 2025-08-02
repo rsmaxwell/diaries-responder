@@ -43,6 +43,7 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 		List<String> list = new ArrayList<String>();
 		list.add("name");
 		list.add("sequence");
+		list.add("version");
 		return list;
 	}
 
@@ -51,6 +52,7 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 		List<Object> list = new ArrayList<Object>();
 		list.add(entity.getName());
 		list.add(entity.getSequence());
+		list.add(entity.getVersion());
 		return list;
 	}
 
@@ -59,7 +61,16 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 		Long id = getLongFromSqlResult(result, 0, null);
 		String name = getStringFromSqlResult(result, 1, null);
 		BigDecimal sequence = getBigDecimalFromSqlResult(result, 2, null);
-		return new DiaryDTO(id, name, sequence);
+		Long version = getLongFromSqlResult(result, 3, null);
+
+		//@formatter:off
+		return DiaryDTO.builder()
+				.id(id)
+				.name(name)
+				.sequence(sequence)
+				.version(version)
+				.build();
+		//@formatter:on		
 	}
 
 	@Override

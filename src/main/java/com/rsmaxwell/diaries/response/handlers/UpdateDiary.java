@@ -80,7 +80,7 @@ public class UpdateDiary extends RequestHandler {
 		}
 
 		// Now update the Diary in the topic tree
-		DiaryDTO diaryDTO = diary.toDTO();
+		DiaryDTO diaryDTO = new DiaryDTO(diary);
 		byte[] payload = mapper.writeValueAsBytes(diaryDTO);
 		String payloadStr = new String(payload);
 

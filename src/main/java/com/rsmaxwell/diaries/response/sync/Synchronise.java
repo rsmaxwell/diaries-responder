@@ -25,15 +25,13 @@ import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
+import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
-import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 
@@ -62,6 +60,7 @@ public class Synchronise {
 		connOpts_pub.setPassword(user.getPassword().getBytes());
 		connOpts_pub.setCleanStart(true);
 		connOpts_pub.setAutomaticReconnect(true);
+		connOpts_pub.setReceiveMaximum(20);
 		client_pub.connect(connOpts_pub).waitForCompletion();
 
 		// Setup the Subscribe Client
@@ -86,10 +85,10 @@ public class Synchronise {
 			MqttSubscription sub = new MqttSubscription(topic, 1);
 			log.info(String.format("SUBSCRIBED %s", sub));
 			client_sub.subscribe(sub).waitForCompletion();
-			sync.waitForMessages();
+			// sync.waitForMessages();
 		}
 
-		Map<String, String> databaseMap = loadFromDatabase(context);
+		Map<String, String> databaseMap = context.loadFromDatabase();
 
 		log.info("sizeof(topicTreeMap) = {}", topicTreeMap.size());
 		log.info("sizeof(databaseMap) = {}", databaseMap.size());
@@ -164,7 +163,8 @@ public class Synchronise {
 		// Publish the updated diaries
 		for (Diary diary : updatedDiaries) {
 			log.info(String.format("publishing diary id: %d, name: %s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
-			diary.publish(client);
+			DiaryDTO diaryDTO = new DiaryDTO(diary);
+			diaryDTO.publish(client);
 		}
 	}
 
@@ -229,7 +229,8 @@ public class Synchronise {
 
 			// Publish the updated pages
 			for (Page page : updatedPages) {
-				page.publish(client);
+				PageDTO pageDTO = new PageDTO(page);
+				pageDTO.publish(client);
 			}
 		}
 	}
@@ -289,44 +290,10 @@ public class Synchronise {
 
 			// Publish the updated fragments
 			for (Fragment f : updatedFragments) {
-				f.publish(client);
+				FragmentPublishDTO dto = new FragmentPublishDTO(f);
+				dto.publish(client);
 			}
 		}
-	}
-
-	private Map<String, String> loadFromDatabase(DiaryContext context) throws Exception {
-		ConcurrentHashMap<String, String> map = new ConcurrentHashMap<>();
-
-		DiaryRepository diaryRepository = context.getDiaryRepository();
-		PageRepository pageRepository = context.getPageRepository();
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
-
-		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
-		for (DiaryDTO diaryDTO : diaries) {
-			Diary diary = new Diary(diaryDTO);
-			diary.publish(map);
-		}
-
-		Iterable<PageDTO> pages = pageRepository.findAll();
-		for (PageDTO pageDTO : pages) {
-			Page page = context.inflatePage(pageDTO);
-			page.publish(map);
-		}
-
-		Iterable<FragmentDBDTO> fragments = context.findAllFragmentsWithMarquees();
-		for (FragmentDBDTO fragmentDTO : fragments) {
-			Fragment fragment = context.inflateFragment(fragmentDTO);
-			fragment.publish(map);
-		}
-
-		Iterable<MarqueeDBDTO> marquees = marqueeRepository.findAll();
-		for (MarqueeDBDTO marqueeDTO : marquees) {
-			Marquee marquee = context.inflateMarquee(marqueeDTO);
-			marquee.publish(map);
-		}
-
-		return map;
 	}
 
 	private void addNewEntries(MqttAsyncClient client, Map<String, String> topicTreeMap, Map<String, String> databaseMap) throws Exception {

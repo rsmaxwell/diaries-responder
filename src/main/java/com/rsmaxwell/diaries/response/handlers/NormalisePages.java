@@ -80,7 +80,8 @@ public class NormalisePages extends RequestHandler {
 		// Publish the updates
 		for (Page page : updates) {
 			log.info(String.format("Publishing page id:%d, name:%s --> sequence: %s", page.getId(), page.getName(), page.getSequence().toPlainString()));
-			page.publish(client);
+			PageDTO dto = new PageDTO(page);
+			dto.publish(client);
 		}
 
 		return Response.success(updates.size());
