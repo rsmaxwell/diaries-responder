@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -34,7 +33,7 @@ public class UpdateFragment extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("UpdateFragment.handleRequest");
+		log.info("UpdateFragment.handleRequest: args: " + mapper.writeValueAsString(args));
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
@@ -46,25 +45,31 @@ public class UpdateFragment extends RequestHandler {
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
+
 		Fragment incomingFragment;
 		Fragment originalFragment;
+
+		tx.begin();
 		try {
 			Long id = Utilities.getLong(args, "id");
 			Integer year = Utilities.getInteger(args, "year");
 			Integer month = Utilities.getInteger(args, "month");
 			Integer day = Utilities.getInteger(args, "day");
-			Long marqueeId = Utilities.getLong(args, "marqueeId");
 			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
 			Long version = Utilities.getLong(args, "version");
 			String text = Utilities.getString(args, "text");
 
-			Marquee marquee = context.inflateMarquee(marqueeId);
+			// (1) get the original Fragment
+			originalFragment = context.inflateFragment(id);
+
+			// (2) get the incoming Fragment
 
 			//@formatter:off
 			FragmentDBDTO fragmentDTO = FragmentDBDTO.builder()
 					.id(id)
 					.version(version)
-					.marquee(marquee)
 					.year(year)
 					.month(month)
 					.day(day)
@@ -75,28 +80,8 @@ public class UpdateFragment extends RequestHandler {
 
 			incomingFragment = new Fragment(fragmentDTO);
 
-		} catch (Exception e) {
-			log.info("UpdateFragment.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
-			throw new BadRequest(e.getMessage(), e);
-		}
-
-		// First update the fragment in the database
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		tx.begin();
-		try {
-			// (1) get the original Fragment
-			originalFragment = context.inflateFragment(incomingFragment.getId());
-
-			// (2) check the incoming version number
-			if (incomingFragment.getVersion() != originalFragment.getVersion()) {
-				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingFragment.getVersion(), originalFragment.getVersion()));
-			}
-
-			// (3) bump the version
-			Long version = incomingFragment.getVersion();
-			incomingFragment.setVersion(version + 1);
+			// (3) check and bump the version
+			incomingFragment.checkAndIncrementVersion(originalFragment);
 
 			// (4) save to database
 			int count = fragmentRepository.update(incomingFragment);
@@ -113,7 +98,7 @@ public class UpdateFragment extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// (5) Remove the original Fragment from the TopicTree & add the incoming Fragment
+		// (5) Remove the original Fragment from the TopicTree
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalFragment.keyFieldsChanged(incomingFragment)) {
 			log.info("UpdateFragment.handleRequest: removing the original fragment from the TopicTree");
@@ -121,6 +106,7 @@ public class UpdateFragment extends RequestHandler {
 			dto.remove(client);
 		}
 
+		// (6) publish the Fragment to the topic tree
 		log.info("UpdateFragment.handleRequest: publishing the incomming fragment to the TopicTree");
 		FragmentPublishDTO dto = new FragmentPublishDTO(incomingFragment);
 		dto.publish(client);

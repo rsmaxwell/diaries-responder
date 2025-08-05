@@ -34,15 +34,16 @@ public class Diary extends Base {
 
 	public Diary(String name) {
 		this.id = 0L;
-		this.name = name;
 		this.sequence = new BigDecimal(1);
 		this.version = 0L;
+		this.name = name;
 	}
 
 	public Diary(DiaryDTO diaryDTO) {
 		this.id = diaryDTO.getId();
-		this.name = diaryDTO.getName();
+		this.version = diaryDTO.getVersion();
 		this.sequence = diaryDTO.getSequence();
+		this.name = diaryDTO.getName();
 	}
 
 	public boolean keyFieldsChanged(Diary other) {

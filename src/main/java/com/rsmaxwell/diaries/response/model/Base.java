@@ -1,5 +1,7 @@
 package com.rsmaxwell.diaries.response.model;
 
+import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -25,8 +27,15 @@ public abstract class Base {
 	@Column(name = "version", nullable = false, columnDefinition = "bigint DEFAULT 0")
 	protected Long version;
 
-	public void incrementVersion() {
-		// TODO Auto-generated method stub
+	public void checkAndIncrementVersion(Base other) throws BadRequest {
+		if (version != other.version) {
+			throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", version, other.version));
+		}
 
+		version += 1;
+	}
+
+	public void incrementVersion() {
+		version += 1;
 	}
 }

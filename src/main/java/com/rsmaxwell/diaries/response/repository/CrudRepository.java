@@ -23,4 +23,6 @@ public interface CrudRepository<T, DTO, ID> {
 	<S extends T> ID save(S entity) throws Exception;
 
 	<S extends T> int update(S entity) throws Exception;
+
+	int deleteById(ID id);
 }

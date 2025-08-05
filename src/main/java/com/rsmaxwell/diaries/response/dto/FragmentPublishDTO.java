@@ -26,7 +26,6 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 
 	private static final ObjectMapper objectMapper = new ObjectMapper();
 
-	private Long marqueeId;
 	private Integer year;
 	private Integer month;
 	private Integer day;
@@ -40,7 +39,6 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 		this.id = fragment.getId();
 		this.version = fragment.getVersion();
 		this.sequence = fragment.getSequence();
-		this.marqueeId = fragment.getMarquee().getId();
 		this.year = fragment.getYear();
 		this.month = fragment.getMonth();
 		this.day = fragment.getDay();

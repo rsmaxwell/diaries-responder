@@ -11,8 +11,8 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
+import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Page;
-import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -33,7 +33,7 @@ public class UpdatePage extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("UpdatePage.handleRequest");
+		log.info("UpdatePage.handleRequest: args: " + mapper.writeValueAsString(args));
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
@@ -43,50 +43,48 @@ public class UpdatePage extends RequestHandler {
 		}
 		log.info("UpdatePage.handleRequest: Authorization.check: OK!");
 
-		DiaryRepository diaryRepository = context.getDiaryRepository();
 		PageRepository pageRepository = context.getPageRepository();
+
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
 
 		Page incomingPage;
 		Page originalPage;
+
+		tx.begin();
 		try {
 			Long id = Utilities.getLong(args, "id");
 			Long version = Utilities.getLong(args, "version");
 			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
+			Long diaryId = Utilities.getLong(args, "diaryId");
 			String name = Utilities.getString(args, "name");
+			String extension = Utilities.getString(args, "extension");
+			Integer width = Utilities.getInteger(args, "width");
+			Integer height = Utilities.getInteger(args, "height");
+
+			// (1) get the original Page
+			originalPage = context.inflatePage(id);
+
+			// (2) get the incoming Page
 
 			//@formatter:off
 			PageDTO pageDTO = PageDTO.builder()
 					.id(id)
 					.version(version)
 					.sequence(sequence)
+					.diaryId(diaryId)
 					.name(name)
+					.extension(extension)
+					.width(width)
+					.height(height)
 					.build();
 			//@formatter:on
 
-			incomingPage = context.inflatePage(id);
+			Diary incomingDiary = context.inflateDiary(diaryId);
+			incomingPage = new Page(incomingDiary, pageDTO);
 
-		} catch (Exception e) {
-			log.info("UpdatePage.handleRequest: args: " + mapper.writeValueAsString(args));
-			throw new BadRequest(e.getMessage(), e);
-		}
-
-		// First update the Page in the database
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		tx.begin();
-		try {
-			// (1) get the original Page
-			originalPage = context.inflatePage(incomingPage.getId());
-
-			// (2) check the incoming version number
-			if (incomingPage.getVersion() != originalPage.getVersion()) {
-				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingPage.getVersion(), originalPage.getVersion()));
-			}
-
-			// (3) bump the version
-			Long version = incomingPage.getVersion();
-			incomingPage.setVersion(version + 1);
+			// (3) check and bump the version
+			incomingPage.checkAndIncrementVersion(originalPage);
 
 			// (4) save to database
 			int count = pageRepository.update(incomingPage);
@@ -103,7 +101,7 @@ public class UpdatePage extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// (5) Remove the original page from the TopicTree & add the incoming Page
+		// (5) Remove the original page from the TopicTree
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalPage.keyFieldsChanged(incomingPage)) {
 			log.info("Updatepage.handleRequest: removing the original page from the TopicTree");
@@ -111,7 +109,7 @@ public class UpdatePage extends RequestHandler {
 			dto.remove(client);
 		}
 
-		// Now update the Page in the topic tree
+		// (6) publish the Page to the topic tree
 		PageDTO dto = new PageDTO(incomingPage);
 		dto.publish(client);
 

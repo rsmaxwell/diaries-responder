@@ -2,7 +2,6 @@ package com.rsmaxwell.diaries.response.handlers;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,12 +10,7 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.Marquee;
-import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -50,12 +44,7 @@ public class DeleteMarquee extends RequestHandler {
 		try {
 			Long id = Utilities.getLong(args, "id");
 
-			Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findById(id);
-			if (optionalMarqueeDTO.isEmpty()) {
-				return Response.internalError("Marquee not found: id: " + id);
-			}
-			MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
-			fragment = context.inflateFragment(marqueeDTO.getFragmentId());
+			fragment = context.inflateFragment(id);
 
 		} catch (Exception e) {
 			log.info("DeleteMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
@@ -69,14 +58,6 @@ public class DeleteMarquee extends RequestHandler {
 		MqttAsyncClient client = context.getPublisherClient();
 		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
 		fragmentPublishDTO.remove(client);
-
-		Marquee marquee = fragment.getMarquee();
-		if (marquee != null) {
-			Page page = marquee.getPage();
-			Diary diary = page.getDiary();
-			MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
-			marqueePublishDTO.remove(client, diary.getId());
-		}
 
 		return Response.success(fragment.getId());
 	}

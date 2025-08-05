@@ -85,97 +85,9 @@ public class DiaryContext {
 			tx.begin();
 			this.fragmentRepository.save(fragment); // this also updates fragment.id
 
-			Marquee marquee = fragment.getMarquee();
-			if (marquee != null) {
-				marqueeRepository.save(marquee); // this also updates marquee.id
-			}
-
 			tx.commit();
 			return fragment;
 
-		} catch (Exception e) {
-			tx.rollback();
-			throw e;
-		}
-	}
-
-	public Optional<FragmentDBDTO> findFragmentWithMarqueeById(Long id) throws Exception {
-
-		Optional<FragmentDBDTO> optionalFragment = fragmentRepository.findById(id);
-		if (optionalFragment.isPresent()) {
-			FragmentDBDTO fragmentDTO = optionalFragment.get();
-
-			Optional<MarqueeDBDTO> optionalMarquee = marqueeRepository.findByFragmentId(fragmentDTO.getId());
-			if (optionalMarquee.isPresent()) {
-				MarqueeDBDTO marqueeDTO = optionalMarquee.get();
-				Marquee marquee = inflateMarquee(marqueeDTO);
-				fragmentDTO.setMarquee(marquee);
-			}
-		}
-		return optionalFragment;
-	}
-
-	public Iterable<FragmentDBDTO> findAllFragmentsWithMarquees() throws Exception {
-
-		Iterable<FragmentDBDTO> fragments = fragmentRepository.findAll();
-		for (FragmentDBDTO fragmentDTO : fragments) {
-
-			Optional<MarqueeDBDTO> optional = marqueeRepository.findByFragmentId(fragmentDTO.getId());
-			if (optional.isPresent()) {
-				MarqueeDBDTO marqueeDTO = optional.get();
-				Marquee marquee = inflateMarquee(marqueeDTO);
-				fragmentDTO.setMarquee(marquee);
-			}
-		}
-		return fragments;
-	}
-
-	public Iterable<FragmentDBDTO> findFragmentsWithMarqueesByDate(Integer year, Integer month, Integer day) throws Exception {
-
-		Iterable<FragmentDBDTO> fragments = fragmentRepository.findAllByDate(year, month, day);
-		for (FragmentDBDTO fragmentDTO : fragments) {
-
-			Optional<MarqueeDBDTO> optional = marqueeRepository.findByFragmentId(fragmentDTO.getId());
-			if (optional.isPresent()) {
-				MarqueeDBDTO marqueeDTO = optional.get();
-				Marquee marquee = inflateMarquee(marqueeDTO);
-				fragmentDTO.setMarquee(marquee);
-			}
-		}
-		return fragments;
-	}
-
-	public Fragment toFragment(FragmentDBDTO fragmentDTO) throws Exception {
-		Fragment fragment = new Fragment(fragmentDTO);
-		return fragment;
-	}
-
-	public Page toPage(PageDTO pageDTO) throws Exception {
-
-		Optional<DiaryDTO> optionalDiaryDTO = diaryRepository.findById(pageDTO.getDiaryId());
-		if (optionalDiaryDTO.isEmpty()) {
-			throw new Exception("Diary not found: id: " + pageDTO.getDiaryId());
-		}
-		DiaryDTO diaryDTO = optionalDiaryDTO.get();
-
-		Diary diary = new Diary(diaryDTO);
-		Page page = new Page(diary, pageDTO);
-
-		return page;
-	}
-
-	public void deleteFragment(Fragment fragment) {
-
-		EntityTransaction tx = entityManager.getTransaction();
-		try {
-			tx.begin();
-			Marquee marquee = fragment.getMarquee();
-			if (marquee != null) {
-				marqueeRepository.delete(marquee);
-			}
-
-			fragmentRepository.delete(fragment);
-			tx.commit();
 		} catch (Exception e) {
 			tx.rollback();
 			throw e;
@@ -206,11 +118,12 @@ public class DiaryContext {
 	}
 
 	public Fragment inflateFragment(Long fragmentId) throws Exception {
-		Optional<FragmentDBDTO> optionalFragmentDTO = findFragmentWithMarqueeById(fragmentId);
+		Optional<FragmentDBDTO> optionalFragmentDTO = fragmentRepository.findById(fragmentId);
 		if (optionalFragmentDTO.isEmpty()) {
 			throw new Exception("Fragment not found: id: " + fragmentId);
 		}
-		return inflateFragment(optionalFragmentDTO.get());
+		FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
+		return new Fragment(fragmentDTO);
 	}
 
 	public Fragment inflateFragment(FragmentDBDTO fragmentDTO) throws Exception {
@@ -235,10 +148,15 @@ public class DiaryContext {
 
 		Page page = inflatePage(marqueeDTO.getPageId());
 		Fragment fragment = new Fragment(fragmentDTO);
-		Marquee marquee = new Marquee(page, fragment, marqueeDTO);
+		return new Marquee(page, fragment, marqueeDTO);
+	}
 
-		fragment.setMarquee(marquee);
+	public Integer deleteFragment(Fragment fragment) {
 
-		return marquee;
+		for (MarqueeDBDTO marqueeDTO : marqueeRepository.findAllByFragment(fragment)) {
+			marqueeRepository.deleteById(marqueeDTO.getId());
+		}
+
+		return fragmentRepository.delete(fragment);
 	}
 }

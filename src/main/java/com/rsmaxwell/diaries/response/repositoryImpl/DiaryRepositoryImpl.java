@@ -41,34 +41,34 @@ public class DiaryRepositoryImpl extends AbstractCrudRepository<Diary, DiaryDTO,
 	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
-		list.add("name");
-		list.add("sequence");
 		list.add("version");
+		list.add("sequence");
+		list.add("name");
 		return list;
 	}
 
 	@Override
 	public <S extends Diary> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
-		list.add(entity.getName());
-		list.add(entity.getSequence());
 		list.add(entity.getVersion());
+		list.add(entity.getSequence());
+		list.add(entity.getName());
 		return list;
 	}
 
 	@Override
 	public DiaryDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
-		String name = getStringFromSqlResult(result, 1, null);
+		Long version = getLongFromSqlResult(result, 1, null);
 		BigDecimal sequence = getBigDecimalFromSqlResult(result, 2, null);
-		Long version = getLongFromSqlResult(result, 3, null);
+		String name = getStringFromSqlResult(result, 3, null);
 
 		//@formatter:off
 		return DiaryDTO.builder()
 				.id(id)
-				.name(name)
-				.sequence(sequence)
 				.version(version)
+				.sequence(sequence)
+				.name(name)
 				.build();
 		//@formatter:on		
 	}

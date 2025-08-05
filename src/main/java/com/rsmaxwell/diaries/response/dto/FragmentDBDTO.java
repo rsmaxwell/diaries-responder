@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.model.Base;
-import com.rsmaxwell.diaries.response.model.Marquee;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,7 +29,6 @@ public class FragmentDBDTO extends Base implements Jsonable {
 
 	private static final ObjectMapper objectMapper = new ObjectMapper();
 
-	private Marquee marquee;
 	private Integer year;
 	private Integer month;
 	private Integer day;

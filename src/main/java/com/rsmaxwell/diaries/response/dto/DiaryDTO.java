@@ -38,9 +38,9 @@ public class DiaryDTO extends Base implements Jsonable {
 
 	public DiaryDTO(Diary diary) {
 		this.id = diary.getId();
-		this.name = diary.getName();
-		this.sequence = diary.getSequence();
 		this.version = diary.getVersion();
+		this.sequence = diary.getSequence();
+		this.name = diary.getName();
 	}
 
 	@Override

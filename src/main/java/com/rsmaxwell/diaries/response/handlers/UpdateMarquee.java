@@ -35,7 +35,7 @@ public class UpdateMarquee extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("UpdateMarquee.handleRequest");
+		log.info("UpdateMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
@@ -49,7 +49,14 @@ public class UpdateMarquee extends RequestHandler {
 
 		Marquee incomingMarquee;
 		Marquee originalMarquee;
+
+		// First update the marquee in the database
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
+
+		tx.begin();
 		try {
+
 			Long id = Utilities.getLong(args, "id");
 			Long version = Utilities.getLong(args, "version");
 			Long pageId = Utilities.getLong(args, "pageId");
@@ -58,6 +65,11 @@ public class UpdateMarquee extends RequestHandler {
 			Double y = Utilities.getDouble(args, "y");
 			Double width = Utilities.getDouble(args, "width");
 			Double height = Utilities.getDouble(args, "height");
+
+			// (1) get the original Marquee
+			originalMarquee = context.inflateMarquee(id);
+
+			// (2) get the incoming Marquee
 
 			//@formatter:off
 			MarqueeDBDTO marqueeDTO = MarqueeDBDTO.builder()
@@ -75,28 +87,8 @@ public class UpdateMarquee extends RequestHandler {
 			Fragment incomingFragment = context.inflateFragment(fragmentId);
 			incomingMarquee = new Marquee(incomingPage, incomingFragment, marqueeDTO);
 
-		} catch (Exception e) {
-			log.info("UpdateMarquee.handleRequest: Exception: args: " + mapper.writeValueAsString(args));
-			throw new BadRequest(e.getMessage(), e);
-		}
-
-		// First update the marquee in the database
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		tx.begin();
-		try {
-			// (1) get the original Marquee
-			originalMarquee = context.inflateMarquee(incomingMarquee.getId());
-
-			// (2) check the incoming version number
-			if (incomingMarquee.getVersion() != originalMarquee.getVersion()) {
-				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingMarquee.getVersion(), originalMarquee.getVersion()));
-			}
-
-			// (3) bump the version
-			Long version = incomingMarquee.getVersion();
-			incomingMarquee.setVersion(version + 1);
+			// (3) check and bump the version
+			incomingMarquee.checkAndIncrementVersion(originalMarquee);
 
 			// (4) save to database
 			int count = marqueeRepository.update(incomingMarquee);
@@ -113,7 +105,7 @@ public class UpdateMarquee extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// (5) Remove the original Marquee from the TopicTree & add the incoming Marquee
+		// (5) Remove the original Marquee from the TopicTree
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalMarquee.keyFieldsChanged(incomingMarquee)) {
 			log.info("UpdateMarquee.handleRequest: removing the original marquee from the TopicTree");
@@ -123,7 +115,7 @@ public class UpdateMarquee extends RequestHandler {
 			dto.remove(client, diary.getId());
 		}
 
-		// Now publish the Marquee to the topic tree
+		// (6) publish the Marquee to the topic tree
 		Page page = incomingMarquee.getPage();
 		Diary diary = page.getDiary();
 		MarqueePublishDTO dto = new MarqueePublishDTO(incomingMarquee);

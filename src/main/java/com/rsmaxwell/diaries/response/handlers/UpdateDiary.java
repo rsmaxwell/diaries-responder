@@ -18,7 +18,6 @@ import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
 import jakarta.persistence.EntityManager;
@@ -32,7 +31,7 @@ public class UpdateDiary extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("UpdateDiary.handleRequest");
+		log.info("UpdateDiary.handleRequest: args: " + mapper.writeValueAsString(args));
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
@@ -44,13 +43,23 @@ public class UpdateDiary extends RequestHandler {
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
 
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
+
 		Diary incomingDiary;
 		Diary originalDiary;
+
+		tx.begin();
 		try {
 			Long id = Utilities.getLong(args, "id");
+			Long version = Utilities.getLong(args, "version");
 			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
 			String name = Utilities.getString(args, "name");
-			Long version = Utilities.getLong(args, "version");
+
+			// (1) get the original Diary
+			originalDiary = context.inflateDiary(id);
+
+			// (2) get the incoming Diary
 
 			//@formatter:off
 			DiaryDTO diaryDTO = DiaryDTO.builder()
@@ -63,28 +72,8 @@ public class UpdateDiary extends RequestHandler {
 
 			incomingDiary = new Diary(diaryDTO);
 
-		} catch (Exception e) {
-			log.info("UpdateDiary.handleRequest: args: " + mapper.writeValueAsString(args));
-			throw new BadRequest(e.getMessage(), e);
-		}
-
-		// First update the Diary in the database
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		tx.begin();
-		try {
-			// (1) get the original Diary
-			originalDiary = context.inflateDiary(incomingDiary.getId());
-
-			// (2) check the incoming version number
-			if (incomingDiary.getVersion() != originalDiary.getVersion()) {
-				throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", incomingDiary.getVersion(), originalDiary.getVersion()));
-			}
-
-			// (3) bump the version
-			Long version = incomingDiary.getVersion();
-			incomingDiary.setVersion(version + 1);
+			// (3) check and bump the version
+			incomingDiary.checkAndIncrementVersion(originalDiary);
 
 			// (4) save to database
 			int count = diaryRepository.update(incomingDiary);
@@ -98,7 +87,7 @@ public class UpdateDiary extends RequestHandler {
 			return Response.internalError(e.getMessage());
 		}
 
-		// (5) Remove the original Diary from the TopicTree & add the incoming Diary
+		// (5) Remove the original Diary from the TopicTree
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalDiary.keyFieldsChanged(incomingDiary)) {
 			log.info("UpdateDiary.handleRequest: removing the original diary from the TopicTree");
@@ -106,6 +95,7 @@ public class UpdateDiary extends RequestHandler {
 			dto.remove(client);
 		}
 
+		// (6) publish the Diary to the topic tree
 		log.info("UpdateDiary.handleRequest: publishing the incomming diary to the TopicTree");
 		DiaryDTO dto = new DiaryDTO(incomingDiary);
 		dto.publish(client);

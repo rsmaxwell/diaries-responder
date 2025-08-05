@@ -24,6 +24,10 @@ public final class SqlBuilder {
 		return this;
 	}
 
+	public JoinBuilder innerJoin(String tableAlias) {
+		return new JoinBuilder(this, "JOIN ", tableAlias);
+	}
+
 	public JoinBuilder leftJoin(String tableAlias) {
 		return new JoinBuilder(this, "LEFT JOIN ", tableAlias);
 	}
@@ -35,6 +39,19 @@ public final class SqlBuilder {
 
 	public SqlBuilder whereIsNull(String column) {
 		where.add(column + " IS NULL");
+		return this;
+	}
+
+	public SqlBuilder whereEquals(String column, String valueExpression) {
+		where.add(column + " = " + valueExpression);
+		return this;
+	}
+
+	/** Convenience for matching a fragment date assuming alias f */
+	public SqlBuilder whereFragmentDate(int year, int month, int day) {
+		where.add("f.year = " + year);
+		where.add("f.month = " + month);
+		where.add("f.day = " + day);
 		return this;
 	}
 

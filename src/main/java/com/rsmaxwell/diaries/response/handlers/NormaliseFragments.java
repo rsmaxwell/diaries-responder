@@ -72,7 +72,7 @@ public class NormaliseFragments extends RequestHandler {
 
 		tx.begin();
 		try {
-			for (FragmentDBDTO fragmentDTO : context.findFragmentsWithMarqueesByDate(year, month, day)) {
+			for (FragmentDBDTO fragmentDTO : fragmentRepository.findAllByDate(year, month, day)) {
 				BigDecimal currentSeq = fragmentDTO.getSequence();
 
 				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
@@ -81,9 +81,10 @@ public class NormaliseFragments extends RequestHandler {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("Updating fragment id: %d, sequence: %s -> %s", fragmentDTO.getId(), currentSeqStr, sequence.toPlainString()));
 
-					Fragment fragment = context.toFragment(fragmentDTO);
+					Fragment fragment = new Fragment(fragmentDTO);
 
 					fragment.setSequence(sequence);
+					fragment.incrementVersion();
 					fragmentRepository.update(fragment);
 					updates.add(fragment);
 				}

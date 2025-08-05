@@ -4,11 +4,8 @@ import java.math.BigDecimal;
 
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,9 +24,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Fragment extends Base {
-
-	@OneToOne(mappedBy = "fragment", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY, optional = true)
-	private Marquee marquee;
 
 	@NonNull
 	private Integer year;
@@ -52,7 +46,6 @@ public class Fragment extends Base {
 		this.id = dto.getId();
 		this.version = dto.getVersion();
 		this.sequence = dto.getSequence();
-		this.marquee = dto.getMarquee();
 		this.year = dto.getYear();
 		this.month = dto.getMonth();
 		this.day = dto.getDay();

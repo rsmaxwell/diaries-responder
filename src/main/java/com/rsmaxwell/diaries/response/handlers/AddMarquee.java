@@ -86,7 +86,6 @@ public class AddMarquee extends RequestHandler {
 			//@formatter:off
 			FragmentDBDTO fragmentDTO = FragmentDBDTO.builder()
 					.id(id) 
-					.marquee(null)
 					.year(year)
 					.month(month)
 					.day(day)
@@ -97,7 +96,6 @@ public class AddMarquee extends RequestHandler {
 			//@formatter:on
 			fragment = new Fragment(fragmentDTO);
 
-			fragment.setMarquee(marquee);
 			marquee.setFragment(fragment);
 
 			log.info("fragmentDTO: " + mapper.writeValueAsString(fragmentDTO));

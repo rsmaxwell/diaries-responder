@@ -2,7 +2,6 @@ package com.rsmaxwell.diaries.response.handlers;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,13 +9,8 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
-import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
-import com.rsmaxwell.diaries.response.model.Marquee;
-import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -33,7 +27,7 @@ public class DeleteFragment extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("DeleteFragment.handleRequest");
+		log.info("DeleteFragment.handleRequest: args: " + mapper.writeValueAsString(args));
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
@@ -47,12 +41,7 @@ public class DeleteFragment extends RequestHandler {
 		try {
 			Long id = Utilities.getLong(args, "id");
 
-			Optional<FragmentDBDTO> optionalFragmentDTO = context.findFragmentWithMarqueeById(id);
-			if (optionalFragmentDTO.isEmpty()) {
-				return Response.internalError("Fragment not found: id: " + id);
-			}
-			FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
-			fragment = new Fragment(fragmentDTO);
+			fragment = context.inflateFragment(id);
 
 		} catch (Exception e) {
 			log.info("DeleteFragment.handleRequest: args: " + mapper.writeValueAsString(args));
@@ -66,12 +55,6 @@ public class DeleteFragment extends RequestHandler {
 		MqttAsyncClient client = context.getPublisherClient();
 		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
 		fragmentPublishDTO.remove(client);
-
-		Marquee marquee = fragment.getMarquee();
-		Page page = marquee.getPage();
-		Diary diary = page.getDiary();
-		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
-		marqueePublishDTO.remove(client, diary.getId());
 
 		return Response.success(fragment.getId());
 	}

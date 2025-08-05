@@ -3,7 +3,6 @@ package com.rsmaxwell.diaries.response.repositoryImpl;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,23 +48,23 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public List<String> getFields() {
 		List<String> list = new ArrayList<String>();
+		list.add("version");
+		list.add("sequence");
 		list.add("year");
 		list.add("month");
 		list.add("day");
-		list.add("sequence");
 		list.add("text");
-		list.add("version");
 		return list;
 	}
 
 	@Override
 	public <S extends Fragment> List<Object> getValues(S entity) {
 		List<Object> list = new ArrayList<Object>();
+		list.add(entity.getVersion());
+		list.add(entity.getSequence());
 		list.add(entity.getYear());
 		list.add(entity.getMonth());
 		list.add(entity.getDay());
-		list.add(entity.getSequence());
-		list.add(entity.getVersion());
 		list.add(entity.getText());
 		return list;
 	}
@@ -73,17 +72,16 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	@Override
 	public FragmentDBDTO newDTO(Object[] result) {
 		Long id = getLongFromSqlResult(result, 0, null);
-		Integer year = getIntegerFromSqlResult(result, 1, null);
-		Integer month = getIntegerFromSqlResult(result, 2, null);
-		Integer day = getIntegerFromSqlResult(result, 3, null);
-		BigDecimal sequence = getBigDecimalFromSqlResult(result, 4, null);
-		String text = getStringFromSqlResult(result, 5, null);
-		Long version = getLongFromSqlResult(result, 6, null);
+		Long version = getLongFromSqlResult(result, 1, null);
+		BigDecimal sequence = getBigDecimalFromSqlResult(result, 2, null);
+		Integer year = getIntegerFromSqlResult(result, 3, null);
+		Integer month = getIntegerFromSqlResult(result, 4, null);
+		Integer day = getIntegerFromSqlResult(result, 5, null);
+		String text = getStringFromSqlResult(result, 6, null);
 
 		//@formatter:off
 		return FragmentDBDTO.builder()
 				.id(id)
-				.marquee(null)
 				.year(year)
 				.month(month)
 				.day(day)
@@ -142,35 +140,6 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 	}
 
 	@Override
-	public Iterable<FragmentDBDTO> findAllByMarquee(Long id) {
-
-		// @formatter:off
-		String where = new WhereBuilder()
-				.add("marquee_id", id)
-				.build();
-		// @formatter:on
-
-		List<FragmentDBDTO> list = new ArrayList<FragmentDBDTO>();
-		for (FragmentDBDTO dto : find(where)) {
-			list.add(dto);
-		}
-
-		return list;
-
-	}
-
-	@Override
-	public Optional<FragmentDBDTO> findByMarquee(Long id) {
-
-		List<FragmentDBDTO> list = new ArrayList<FragmentDBDTO>();
-		for (FragmentDBDTO dto : findAllByMarquee(id)) {
-			list.add(dto);
-		}
-
-		return singleItem(list);
-	}
-
-	@Override
 	public Iterable<FragmentDBDTO> findAllWithoutMarquee() {
 
 		// @formatter:off		
@@ -180,6 +149,26 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 			    .leftJoin("marquee m").on("f.id = m.fragment_id")
 			    .whereIsNull("m.fragment_id")
 			    .orderBy("f.year, f.month, f.day, f.sequence, f.id")
+			    .build();
+		// @formatter:on
+
+		List<FragmentDBDTO> list = new ArrayList<FragmentDBDTO>();
+		for (Object[] result : getResultList(sql.toString())) {
+			FragmentDBDTO dto = newDTO(result);
+			list.add(dto);
+		}
+
+		return list;
+	}
+
+	public Iterable<FragmentDBDTO> findAllMarqueesByFragmentDate(Integer year, Integer month, Integer day) throws Exception {
+
+		// @formatter:off		
+		String sql = SqlBuilder.create()
+			    .select("m.*")
+			    .from("marquee m")
+			    .innerJoin("fragment f").on("m.fragment_id = f.id")
+			    .whereFragmentDate(year, month, day)
 			    .build();
 		// @formatter:on
 

@@ -11,6 +11,7 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.rsmaxwell.diaries.response.dto.PageDTO;
+import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
@@ -61,9 +62,11 @@ public class NormalisePages extends RequestHandler {
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("Updating page id: %d, name: %s, sequence: %s --> %s", pageDTO.getId(), pageDTO.getName(), currentSeqStr, sequence.toPlainString()));
 
-					Page page = context.toPage(pageDTO);
+					Diary diary = context.inflateDiary(pageDTO.getDiaryId());
+					Page page = new Page(diary, pageDTO);
 
 					page.setSequence(sequence);
+					page.incrementVersion();
 					pageRepository.update(page);
 					updates.add(page);
 				}
