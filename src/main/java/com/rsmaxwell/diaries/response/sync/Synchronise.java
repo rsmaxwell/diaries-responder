@@ -251,7 +251,7 @@ public class Synchronise {
 		Integer lastDay = 0;
 
 		for (FragmentDBDTO fragmentDTO : fragmentRepository.findAll()) {
-			Fragment fragment = new Fragment(fragmentDTO);
+			Fragment fragment = new Fragment(fragmentDTO, 0L);
 
 			List<Fragment> updatedFragments = new ArrayList<>();
 

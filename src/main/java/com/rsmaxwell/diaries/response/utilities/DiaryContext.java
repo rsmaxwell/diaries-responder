@@ -123,11 +123,11 @@ public class DiaryContext {
 			throw new Exception("Fragment not found: id: " + fragmentId);
 		}
 		FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
-		return new Fragment(fragmentDTO);
+		return new Fragment(fragmentDTO, 0L);
 	}
 
 	public Fragment inflateFragment(FragmentDBDTO fragmentDTO) throws Exception {
-		return new Fragment(fragmentDTO);
+		return new Fragment(fragmentDTO, 0L);
 	}
 
 	public Marquee inflateMarquee(Long marqueeId) throws Exception {
@@ -147,7 +147,7 @@ public class DiaryContext {
 		FragmentDBDTO fragmentDTO = optionalFragmentDTO.get();
 
 		Page page = inflatePage(marqueeDTO.getPageId());
-		Fragment fragment = new Fragment(fragmentDTO);
+		Fragment fragment = new Fragment(fragmentDTO, 0L);
 		return new Marquee(page, fragment, marqueeDTO);
 	}
 

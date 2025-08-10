@@ -94,7 +94,7 @@ public class AddMarquee extends RequestHandler {
 					.version(version)
 					.build();
 			//@formatter:on
-			fragment = new Fragment(fragmentDTO);
+			fragment = new Fragment(fragmentDTO, id);
 
 			marquee.setFragment(fragment);
 
@@ -107,7 +107,7 @@ public class AddMarquee extends RequestHandler {
 
 		// First add the new Fragment to the database
 		try {
-			context.save(fragment); // This saves both the fragment and the marquee to the database
+			Fragment savedFragment = context.save(fragment); // This saves both the fragment and the marquee to the database
 		} catch (Exception e) {
 			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
 			return Response.internalError(e.getMessage());

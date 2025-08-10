@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,8 +14,10 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -46,6 +49,7 @@ public class NormaliseFragments extends RequestHandler {
 
 		MqttAsyncClient client = context.getPublisherClient();
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		log.info("NormaliseFragments.handleRequest: get the date arguments");
 
@@ -78,10 +82,16 @@ public class NormaliseFragments extends RequestHandler {
 				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
 					// log.info(String.format("fragment id:%d, already has correct sequence number: %s", fragmentDTO.getId(), sequence.toPlainString()));
 				} else {
+					Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragmentDTO.getId());
+					MarqueeDBDTO marqueeDTO = null;
+					if (optionalMarqueeDTO.isPresent()) {
+						marqueeDTO = optionalMarqueeDTO.get();
+					}
+
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("Updating fragment id: %d, sequence: %s -> %s", fragmentDTO.getId(), currentSeqStr, sequence.toPlainString()));
 
-					Fragment fragment = new Fragment(fragmentDTO);
+					Fragment fragment = new Fragment(fragmentDTO, marqueeDTO.getId());
 
 					fragment.setSequence(sequence);
 					fragment.incrementVersion();

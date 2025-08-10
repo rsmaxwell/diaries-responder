@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.model.Base;
@@ -17,10 +16,15 @@ import com.rsmaxwell.diaries.response.model.Fragment;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
+import lombok.experimental.SuperBuilder;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@EqualsAndHashCode(callSuper = false)
 @Data
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+@SuperBuilder
+@NoArgsConstructor
 @AllArgsConstructor
 public class FragmentPublishDTO extends Base implements Jsonable {
 
@@ -31,6 +35,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	private Integer day;
 	private BigDecimal sequence;
 	private String text;
+	private Long marqueeId;
 
 	@JsonIgnore
 	private final Publisher publisher = new Publisher();
@@ -43,6 +48,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 		this.month = fragment.getMonth();
 		this.day = fragment.getDay();
 		this.text = fragment.getText();
+		this.marqueeId = fragment.getMarqueeId();
 	}
 
 	@Override

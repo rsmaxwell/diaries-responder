@@ -8,6 +8,7 @@ import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
 import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
+import com.rsmaxwell.diaries.response.utilities.SqlBuilder;
 import com.rsmaxwell.diaries.response.utilities.WhereBuilder;
 
 import jakarta.persistence.EntityManager;
@@ -128,5 +129,33 @@ public class MarqueeRepositoryImpl extends AbstractCrudRepository<Marquee, Marqu
 		// @formatter:on
 
 		return find(where);
+	}
+
+	@Override
+	public Optional<MarqueeDBDTO> findByFragment(Long id) {
+
+		// @formatter:off
+		String sql = new SqlBuilder()
+			    .select("f.id")
+			    .select("f.year")
+			    .select("f.month")
+			    .select("f.day")
+			    .select("f.sequence")
+			    .select("f.text")
+			    .select("f.version")
+			    .selectWithAlias("m.id", "marqueeId")
+			    .from("fragment f")
+			    .join("marquee m", "f.id = m.fragment_id")
+			    .orderBy("f.year, f.month, f.day, f.sequence, f.id")
+			    .build();
+		// @formatter:on
+
+		List<MarqueeDBDTO> list = new ArrayList<MarqueeDBDTO>();
+		for (Object[] result : getResultList(sql.toString())) {
+			MarqueeDBDTO dto = newDTO(result);
+			list.add(dto);
+		}
+
+		return singleItem(list);
 	}
 }

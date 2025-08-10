@@ -19,8 +19,18 @@ public final class SqlBuilder {
 		return this;
 	}
 
+	public SqlBuilder selectWithAlias(String column, String alias) {
+		select.add(column + " AS " + alias);
+		return this;
+	}
+
 	public SqlBuilder from(String table) {
 		this.from = table;
+		return this;
+	}
+
+	public SqlBuilder join(String table, String condition) {
+		joins.add("JOIN " + table + " ON " + condition);
 		return this;
 	}
 

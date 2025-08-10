@@ -54,12 +54,13 @@ public class UpdateFragment extends RequestHandler {
 		tx.begin();
 		try {
 			Long id = Utilities.getLong(args, "id");
+			Long version = Utilities.getLong(args, "version");
+			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
 			Integer year = Utilities.getInteger(args, "year");
 			Integer month = Utilities.getInteger(args, "month");
 			Integer day = Utilities.getInteger(args, "day");
-			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
-			Long version = Utilities.getLong(args, "version");
 			String text = Utilities.getString(args, "text");
+			Long marqueeId = Utilities.getLongOrNull(args, "marqueeId");
 
 			// (1) get the original Fragment
 			originalFragment = context.inflateFragment(id);
@@ -67,7 +68,7 @@ public class UpdateFragment extends RequestHandler {
 			// (2) get the incoming Fragment
 
 			//@formatter:off
-			FragmentDBDTO fragmentDTO = FragmentDBDTO.builder()
+			FragmentDBDTO fragmentDBDTO = FragmentDBDTO.builder()
 					.id(id)
 					.version(version)
 					.year(year)
@@ -76,9 +77,9 @@ public class UpdateFragment extends RequestHandler {
 					.sequence(sequence)
 					.text(text)
 					.build();
-			//@formatter:on
+			//@formatter:on		
 
-			incomingFragment = new Fragment(fragmentDTO);
+			incomingFragment = new Fragment(fragmentDBDTO, marqueeId);
 
 			// (3) check and bump the version
 			incomingFragment.checkAndIncrementVersion(originalFragment);
@@ -99,6 +100,7 @@ public class UpdateFragment extends RequestHandler {
 		}
 
 		// (5) Remove the original Fragment from the TopicTree
+
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalFragment.keyFieldsChanged(incomingFragment)) {
 			log.info("UpdateFragment.handleRequest: removing the original fragment from the TopicTree");
