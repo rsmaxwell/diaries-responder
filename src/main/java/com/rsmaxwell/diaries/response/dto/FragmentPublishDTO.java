@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -28,6 +30,7 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class FragmentPublishDTO extends Base implements Jsonable {
 
+	private static final Logger log = LogManager.getLogger(FragmentPublishDTO.class);
 	private static final ObjectMapper objectMapper = new ObjectMapper();
 
 	private Integer year;
@@ -76,6 +79,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 
 	public void publish(MqttAsyncClient client) throws Exception {
 		for (String topic : getTopics()) {
+			log.info(String.format("publishing to topic: %s --> %s", topic, toJson()));
 			publisher.publish(client, topic, toJson().getBytes());
 		}
 	}

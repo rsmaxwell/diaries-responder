@@ -109,7 +109,7 @@ public class UpdateFragment extends RequestHandler {
 		}
 
 		// (6) publish the Fragment to the topic tree
-		log.info("UpdateFragment.handleRequest: publishing the incomming fragment to the TopicTree");
+		log.info("UpdateFragment.handleRequest: publishing the incoming fragment to the TopicTree");
 		FragmentPublishDTO dto = new FragmentPublishDTO(incomingFragment);
 		dto.publish(client);
 
