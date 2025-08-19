@@ -16,6 +16,7 @@ import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
 import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
@@ -82,16 +83,10 @@ public class NormaliseFragments extends RequestHandler {
 				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
 					// log.info(String.format("fragment id:%d, already has correct sequence number: %s", fragmentDTO.getId(), sequence.toPlainString()));
 				} else {
-					Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragmentDTO.getId());
-					MarqueeDBDTO marqueeDTO = null;
-					if (optionalMarqueeDTO.isPresent()) {
-						marqueeDTO = optionalMarqueeDTO.get();
-					}
-
 					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
 					log.info(String.format("Updating fragment id: %d, sequence: %s -> %s", fragmentDTO.getId(), currentSeqStr, sequence.toPlainString()));
 
-					Fragment fragment = new Fragment(fragmentDTO, marqueeDTO.getId());
+					Fragment fragment = context.inflateFragment(fragmentDTO);
 
 					fragment.setSequence(sequence);
 					fragment.incrementVersion();
@@ -115,7 +110,16 @@ public class NormaliseFragments extends RequestHandler {
 					fragment.getYear(), fragment.getMonth(), fragment.getDay(), fragment.getId(),
 					fragment.getSequence().toPlainString()));
 			// @formatter:on
-			FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+
+			Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragmentId(fragment.getId());
+			MarqueeDBDTO marqueeDTO = null;
+			if (optionalMarqueeDTO.isPresent()) {
+				marqueeDTO = optionalMarqueeDTO.get();
+			}
+
+			Marquee marquee = context.inflateMarquee(marqueeDTO);
+			FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment, marquee);
+
 			fragmentPublishDTO.publish(client);
 		}
 

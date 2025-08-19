@@ -132,22 +132,18 @@ public class MarqueeRepositoryImpl extends AbstractCrudRepository<Marquee, Marqu
 	}
 
 	@Override
-	public Optional<MarqueeDBDTO> findByFragment(Long id) {
+	public Optional<MarqueeDBDTO> findByFragment(Fragment fragment) {
 
-		// @formatter:off
-		String sql = new SqlBuilder()
-			    .select("f.id")
-			    .select("f.year")
-			    .select("f.month")
-			    .select("f.day")
-			    .select("f.sequence")
-			    .select("f.text")
-			    .select("f.version")
-			    .selectWithAlias("m.id", "marqueeId")
-			    .from("fragment f")
-			    .join("marquee m", "f.id = m.fragment_id")
-			    .orderBy("f.year, f.month, f.day, f.sequence, f.id")
-			    .build();
+		SqlBuilder builder = new SqlBuilder();
+		builder.select(getKeyField());
+		for (String field : getFields()) {
+			builder.select(field);
+		}
+		// @formatter:off		
+		String sql = builder
+				.from("marquee")
+				.where("fragment_id = " + fragment.getId())
+				.build();
 		// @formatter:on
 
 		List<MarqueeDBDTO> list = new ArrayList<MarqueeDBDTO>();

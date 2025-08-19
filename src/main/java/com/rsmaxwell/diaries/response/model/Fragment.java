@@ -43,9 +43,7 @@ public class Fragment extends Base {
 	@Column(length = 4096)
 	private String text;
 
-	private Long marqueeId;
-
-	public Fragment(FragmentDBDTO dto, Long marqueeId) {
+	public Fragment(FragmentDBDTO dto) {
 		this.id = dto.getId();
 		this.version = dto.getVersion();
 		this.sequence = dto.getSequence();
@@ -53,7 +51,6 @@ public class Fragment extends Base {
 		this.month = dto.getMonth();
 		this.day = dto.getDay();
 		this.text = dto.getText();
-		this.marqueeId = marqueeId;
 	}
 
 	public Fragment(FragmentPublishDTO dto) {
@@ -64,7 +61,6 @@ public class Fragment extends Base {
 		this.month = dto.getMonth();
 		this.day = dto.getDay();
 		this.text = dto.getText();
-		this.marqueeId = dto.getMarqueeId();
 	}
 
 	public boolean keyFieldsChanged(Fragment other) {

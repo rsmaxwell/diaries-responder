@@ -3,6 +3,7 @@ package com.rsmaxwell.diaries.response.handlers;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,8 +13,11 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -44,6 +48,7 @@ public class UpdateFragment extends RequestHandler {
 		log.info("UpdateFragment.handleRequest: Authorization.check: OK!");
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
@@ -79,7 +84,7 @@ public class UpdateFragment extends RequestHandler {
 					.build();
 			//@formatter:on		
 
-			incomingFragment = new Fragment(fragmentDBDTO, marqueeId);
+			incomingFragment = new Fragment(fragmentDBDTO);
 
 			// (3) check and bump the version
 			incomingFragment.checkAndIncrementVersion(originalFragment);
@@ -101,16 +106,23 @@ public class UpdateFragment extends RequestHandler {
 
 		// (5) Remove the original Fragment from the TopicTree
 
+		Marquee marquee = null;
+		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(incomingFragment);
+		if (optionalMarqueeDTO.isPresent()) {
+			MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
+			marquee = context.inflateMarquee(marqueeDTO);
+		}
+
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalFragment.keyFieldsChanged(incomingFragment)) {
 			log.info("UpdateFragment.handleRequest: removing the original fragment from the TopicTree");
-			FragmentPublishDTO dto = new FragmentPublishDTO(originalFragment);
+			FragmentPublishDTO dto = new FragmentPublishDTO(originalFragment, marquee);
 			dto.remove(client);
 		}
 
 		// (6) publish the Fragment to the topic tree
 		log.info("UpdateFragment.handleRequest: publishing the incoming fragment to the TopicTree");
-		FragmentPublishDTO dto = new FragmentPublishDTO(incomingFragment);
+		FragmentPublishDTO dto = new FragmentPublishDTO(incomingFragment, marquee);
 		dto.publish(client);
 
 		return Response.success(incomingFragment.getId());

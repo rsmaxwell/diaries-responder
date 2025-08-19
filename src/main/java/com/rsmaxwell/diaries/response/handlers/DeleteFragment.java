@@ -2,6 +2,7 @@ package com.rsmaxwell.diaries.response.handlers;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,7 +11,12 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
+import com.rsmaxwell.diaries.response.model.Page;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
@@ -37,6 +43,8 @@ public class DeleteFragment extends RequestHandler {
 		}
 		log.info("DeleteFragment.handleRequest: Authorization.check: OK!");
 
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
+
 		Fragment fragment;
 		try {
 			Long id = Utilities.getLong(args, "id");
@@ -53,7 +61,19 @@ public class DeleteFragment extends RequestHandler {
 
 		// Then remove the fragment from the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+
+		Marquee marquee = null;
+		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
+		if (optionalMarqueeDTO.isPresent()) {
+			MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
+			marquee = context.inflateMarquee(marqueeDTO);
+			Page page = marquee.getPage();
+			MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
+			marqueePublishDTO.remove(client, page.getDiary().getId());
+		}
+
+		log.info("DeleteFragment.handleRequest: removing the fragment from the TopicTree");
+		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment, marquee);
 		fragmentPublishDTO.remove(client);
 
 		return Response.success(fragment.getId());

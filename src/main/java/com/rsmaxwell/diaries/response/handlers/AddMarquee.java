@@ -18,6 +18,7 @@ import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
+import com.rsmaxwell.diaries.response.utilities.FragmentAndMarquee;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
@@ -94,7 +95,7 @@ public class AddMarquee extends RequestHandler {
 					.version(version)
 					.build();
 			//@formatter:on
-			fragment = new Fragment(fragmentDTO, id);
+			fragment = new Fragment(fragmentDTO);
 
 			marquee.setFragment(fragment);
 
@@ -106,8 +107,13 @@ public class AddMarquee extends RequestHandler {
 		}
 
 		// First add the new Fragment to the database
+
+		Fragment savedFragment;
+		Marquee savedMarquee;
 		try {
-			Fragment savedFragment = context.save(fragment); // This saves both the fragment and the marquee to the database
+			FragmentAndMarquee result = context.save(fragment, marquee);
+			savedFragment = result.getFragment();
+			savedMarquee = result.getMarquee();
 		} catch (Exception e) {
 			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
 			return Response.internalError(e.getMessage());
@@ -115,10 +121,10 @@ public class AddMarquee extends RequestHandler {
 
 		// Now publish the Fragment (and its marquee) to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
+		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(savedFragment, savedMarquee);
 		fragmentPublishDTO.publish(client);
 
-		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
+		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(savedMarquee);
 		marqueePublishDTO.publish(client, page.getDiary().getId());
 
 		return Response.success(marquee.getId());

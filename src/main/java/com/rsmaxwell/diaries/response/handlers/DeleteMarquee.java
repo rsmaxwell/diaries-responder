@@ -9,8 +9,9 @@ import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.dto.MarqueePublishDTO;
+import com.rsmaxwell.diaries.response.model.Marquee;
+import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
@@ -40,25 +41,27 @@ public class DeleteMarquee extends RequestHandler {
 
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
-		Fragment fragment;
+		Marquee marquee;
 		try {
 			Long id = Utilities.getLong(args, "id");
 
-			fragment = context.inflateFragment(id);
+			marquee = context.inflateMarquee(id);
 
 		} catch (Exception e) {
 			log.info("DeleteMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
 			throw new BadRequest(e.getMessage(), e);
 		}
 
-		// First delete the fragment from the database
-		context.deleteFragment(fragment);
+		// First delete the marquee from the database
+		marqueeRepository.delete(marquee);
 
-		// Then remove the fragment (and its marquee) from the topic tree
+		// Then remove the marquee from the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
-		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment);
-		fragmentPublishDTO.remove(client);
 
-		return Response.success(fragment.getId());
+		Page page = marquee.getPage();
+		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
+		marqueePublishDTO.remove(client, page.getDiary().getId());
+
+		return Response.success(marquee.getId());
 	}
 }

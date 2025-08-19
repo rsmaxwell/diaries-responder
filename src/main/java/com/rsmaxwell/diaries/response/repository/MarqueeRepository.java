@@ -8,11 +8,11 @@ import com.rsmaxwell.diaries.response.model.Marquee;
 
 public interface MarqueeRepository extends CrudRepository<Marquee, MarqueeDBDTO, Long> {
 
-	Iterable<MarqueeDBDTO> findAllByFragment(Fragment fragment);
-
 	Iterable<MarqueeDBDTO> findAllByPage(Long pageId);
 
-	Optional<MarqueeDBDTO> findByFragmentId(Long id);
+	Iterable<MarqueeDBDTO> findAllByFragment(Fragment fragment);
 
-	Optional<MarqueeDBDTO> findByFragment(Long id);
+	Optional<MarqueeDBDTO> findByFragment(Fragment fragment);
+
+	Optional<MarqueeDBDTO> findByFragmentId(Long id);
 }

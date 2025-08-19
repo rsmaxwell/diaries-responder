@@ -26,12 +26,15 @@ import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.response.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.response.dto.PageDTO;
 import com.rsmaxwell.diaries.response.model.Diary;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 import com.rsmaxwell.diaries.response.model.Page;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
+import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.response.repository.PageRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 
@@ -242,6 +245,7 @@ public class Synchronise {
 		EntityTransaction tx = em.getTransaction();
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		BigDecimal initial = new BigDecimal("1.0000");
 		BigDecimal increment = new BigDecimal("1.0000");
@@ -251,7 +255,7 @@ public class Synchronise {
 		Integer lastDay = 0;
 
 		for (FragmentDBDTO fragmentDTO : fragmentRepository.findAll()) {
-			Fragment fragment = new Fragment(fragmentDTO, 0L);
+			Fragment fragment = context.inflateFragment(fragmentDTO);
 
 			List<Fragment> updatedFragments = new ArrayList<>();
 
@@ -290,7 +294,15 @@ public class Synchronise {
 
 			// Publish the updated fragments
 			for (Fragment f : updatedFragments) {
-				FragmentPublishDTO dto = new FragmentPublishDTO(f);
+
+				Marquee marquee = null;
+				Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(f);
+				if (optionalMarqueeDTO.isPresent()) {
+					MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
+					marquee = context.inflateMarquee(marqueeDTO);
+				}
+
+				FragmentPublishDTO dto = new FragmentPublishDTO(f, marquee);
 				dto.publish(client);
 			}
 		}

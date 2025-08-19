@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.response.model.Base;
 import com.rsmaxwell.diaries.response.model.Fragment;
+import com.rsmaxwell.diaries.response.model.Marquee;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -43,7 +44,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	@JsonIgnore
 	private final Publisher publisher = new Publisher();
 
-	public FragmentPublishDTO(Fragment fragment) {
+	public FragmentPublishDTO(Fragment fragment, Marquee marquee) {
 		this.id = fragment.getId();
 		this.version = fragment.getVersion();
 		this.sequence = fragment.getSequence();
@@ -51,7 +52,13 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 		this.month = fragment.getMonth();
 		this.day = fragment.getDay();
 		this.text = fragment.getText();
-		this.marqueeId = fragment.getMarqueeId();
+
+		this.marqueeId = null;
+		if (marquee != null) {
+			this.marqueeId = marquee.getId();
+		} else {
+			this.marqueeId = null;
+		}
 	}
 
 	@Override
