@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
+import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
 import com.rsmaxwell.diaries.response.dto.FragmentDBDTO;
@@ -41,6 +42,7 @@ public class DiaryContext {
 	private String secret;
 	private DiariesConfig diaries;
 	private MqttAsyncClient publisherClient;
+	private Config config;
 
 	public Map<String, String> loadFromDatabase() throws Exception {
 		ConcurrentHashMap<String, String> map = new ConcurrentHashMap<>();
@@ -172,5 +174,4 @@ public class DiaryContext {
 
 		return fragmentRepository.delete(fragment);
 	}
-
 }

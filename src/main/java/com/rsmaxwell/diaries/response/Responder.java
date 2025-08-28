@@ -29,8 +29,10 @@ import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.response.handlers.AddMarquee;
+import com.rsmaxwell.diaries.response.handlers.DeleteFile;
 import com.rsmaxwell.diaries.response.handlers.DeleteFragment;
 import com.rsmaxwell.diaries.response.handlers.DeleteMarquee;
+import com.rsmaxwell.diaries.response.handlers.ListFiles;
 import com.rsmaxwell.diaries.response.handlers.NormaliseDiaries;
 import com.rsmaxwell.diaries.response.handlers.NormaliseFragments;
 import com.rsmaxwell.diaries.response.handlers.NormalisePages;
@@ -42,6 +44,7 @@ import com.rsmaxwell.diaries.response.handlers.UpdateDiary;
 import com.rsmaxwell.diaries.response.handlers.UpdateFragment;
 import com.rsmaxwell.diaries.response.handlers.UpdateMarquee;
 import com.rsmaxwell.diaries.response.handlers.UpdatePage;
+import com.rsmaxwell.diaries.response.handlers.UploadFile;
 import com.rsmaxwell.diaries.response.repository.DiaryRepository;
 import com.rsmaxwell.diaries.response.repository.FragmentRepository;
 import com.rsmaxwell.diaries.response.repository.MarqueeRepository;
@@ -88,6 +91,9 @@ public class Responder {
 		messageHandler.putHandler("updateFragment", new UpdateFragment());
 		messageHandler.putHandler("deleteFragment", new DeleteFragment());
 		messageHandler.putHandler("deleteMarquee", new DeleteMarquee());
+		messageHandler.putHandler("uploadFile", new UploadFile());
+		messageHandler.putHandler("listFiles", new ListFiles());
+		messageHandler.putHandler("deleteFile", new DeleteFile());
 		messageHandler.putHandler("quit", new Quit());
 	}
 
@@ -194,6 +200,7 @@ public class Responder {
 			MarqueeRepository marqueeRepository = new MarqueeRepositoryImpl(entityManager);
 
 			DiaryContext context = new DiaryContext();
+			context.setConfig(config);
 			context.setEntityManager(entityManager);
 			context.setDiaryRepository(diaryRepository);
 			context.setPageRepository(pageRepository);
