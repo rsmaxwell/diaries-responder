@@ -46,18 +46,22 @@ public class ListFiles extends RequestHandler {
 			}
 			log.info("ListFiles.handleRequest: Authorization.check: OK!");
 
+			// --- Config ---
 			DiariesConfig diariesConfig = context.getConfig().getDiaries();
-			Path base = Path.of(diariesConfig.getOriginal());
-			String uploadsDir = diariesConfig.getUploadsDir();
-			final Path baseUploadsDir = base.resolve(uploadsDir);
-			if (baseUploadsDir == null) {
-				return Response.internalError("Uploads directory is not configured on the server.");
+			Path root = Path.of(diariesConfig.getRoot());
+			String filesDirName = diariesConfig.getFiles();
+			if (root == null || filesDirName == null) {
+				return Response.internalError("Files directory not configured.");
 			}
-			log.info(String.format("ListFiles.handleRequest: baseUploadsDir: '%s'", baseUploadsDir));
-			Files.createDirectories(baseUploadsDir);
+			final Path filesDir = root.resolve(filesDirName);
+			if (filesDir == null) {
+				return Response.internalError("Files directory is not configured on the server.");
+			}
+			log.info(String.format("ListFiles.handleRequest: filesDir: '%s'", filesDir));
+			Files.createDirectories(filesDir);
 
 			final List<ImageItem> list;
-			try (Stream<Path> s = Files.list(baseUploadsDir)) {
+			try (Stream<Path> s = Files.list(filesDir)) {
 				list = s.filter(Files::isRegularFile).filter(p -> {
 					String fn = p.getFileName().toString().toLowerCase();
 					return fn.endsWith(".png") || fn.endsWith(".jpg") || fn.endsWith(".jpeg") || fn.endsWith(".gif") || fn.endsWith(".webp");
@@ -69,7 +73,7 @@ public class ListFiles extends RequestHandler {
 					}
 				}).reversed()).limit(500).map(p -> {
 					try {
-						return new ImageItem(p.getFileName().toString(), "/" + uploadsDir + "/" + p.getFileName().toString(), // public URL
+						return new ImageItem(p.getFileName().toString(), "/" + filesDirName + "/" + p.getFileName().toString(), // public URL
 								Files.size(p), Files.getLastModifiedTime(p).toMillis());
 					} catch (IOException e) {
 						throw new UncheckedIOException(e);

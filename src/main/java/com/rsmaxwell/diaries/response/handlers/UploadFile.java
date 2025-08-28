@@ -48,17 +48,17 @@ public class UploadFile extends RequestHandler {
 
 			// --- Config ---
 			DiariesConfig diariesConfig = context.getConfig().getDiaries();
-			Path base = Path.of(diariesConfig.getOriginal());
-			String uploadsDir = diariesConfig.getUploadsDir();
-			if (base == null || uploadsDir == null) {
-				return Response.internalError("Uploads directory not configured.");
+			Path root = Path.of(diariesConfig.getRoot());
+			String filesDirName = diariesConfig.getFiles();
+			if (root == null || filesDirName == null) {
+				return Response.internalError("Files directory not configured.");
 			}
-			final Path baseUploadsDir = base.resolve(uploadsDir);
-			if (baseUploadsDir == null) {
-				return Response.internalError("Uploads directory is not configured on the server.");
+			final Path filesDir = root.resolve(filesDirName);
+			if (filesDir == null) {
+				return Response.internalError("Files directory is not configured on the server.");
 			}
-			log.info(String.format("UploadFile.handleRequest: baseUploadsDir: '%s'", baseUploadsDir));
-			Files.createDirectories(baseUploadsDir);
+			log.info(String.format("UploadFile.handleRequest: filesDir: '%s'", filesDir));
+			Files.createDirectories(filesDir);
 
 			// --- Inputs ---
 			final String contentType = Utilities.getString(args, "contentType"); // e.g. "application/octet-stream"
@@ -80,7 +80,7 @@ public class UploadFile extends RequestHandler {
 				return Response.badRequest("Unsupported contentType: " + contentType);
 			}
 
-			Path tmp = createUploadTemp(baseUploadsDir);
+			Path tmp = createUploadTemp(filesDir);
 			long written = 0L;
 			String sha256Pre = null;
 			var md = java.security.MessageDigest.getInstance("SHA-256");
@@ -137,15 +137,15 @@ public class UploadFile extends RequestHandler {
 				return Response.badRequest("Invalid 'name'.");
 			}
 
-			Path targetDir = baseUploadsDir.resolve(safeSubdir).normalize();
-			if (!targetDir.startsWith(baseUploadsDir)) {
+			Path targetDir = filesDir.resolve(safeSubdir).normalize();
+			if (!targetDir.startsWith(filesDir)) {
 				Files.deleteIfExists(tmp);
 				return Response.badRequest("Resolved path escapes uploads root.");
 			}
 			Files.createDirectories(targetDir);
 
 			Path target = targetDir.resolve(name).normalize();
-			if (!target.startsWith(baseUploadsDir)) {
+			if (!target.startsWith(filesDir)) {
 				Files.deleteIfExists(tmp);
 				return Response.badRequest("Resolved file path escapes uploads root.");
 			}

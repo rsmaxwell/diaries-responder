@@ -119,10 +119,18 @@ public class SyncroniseDatabase {
 
 		log.info("Refresh the diaries");
 
-		String original = diariesConfig.getOriginal();
-		File originalDir = new File(original);
+		Path root = Path.of(diariesConfig.getRoot());
+		String diariesDirName = diariesConfig.getDiaries();
+		if (root == null) {
+			throw new Exception("Root directory not configured.");
+		}
+		if (diariesDirName == null) {
+			throw new Exception("Diaries directory not configured.");
+		}
+		Path diariesDirPath = root.resolve(diariesDirName);
+		File diariesDir = diariesDirPath.toFile();
 
-		File[] diaryDirs = originalDir.listFiles(new FilenameFilter() {
+		File[] children = diariesDir.listFiles(new FilenameFilter() {
 
 			@Override
 			public boolean accept(File f, String name) {
@@ -140,7 +148,7 @@ public class SyncroniseDatabase {
 		Iterable<DiaryDTO> diaries = diaryRepository.findAll();
 		for (DiaryDTO diary : diaries) {
 			String name = diary.getName();
-			Path path = Paths.get(original, name);
+			Path path = diariesDirPath.resolve(name);
 
 			log.info(String.format("%s", name));
 
@@ -153,7 +161,7 @@ public class SyncroniseDatabase {
 
 		// Make sure there is a database Diary for each original diary on the filesystem
 		// Also synchronise the database pages with Pages on the file system
-		for (File diarydir : diaryDirs) {
+		for (File diarydir : children) {
 			String name = diarydir.getName();
 			Optional<DiaryDTO> optional = diaryRepository.findByName(diarydir.getName());
 
@@ -172,7 +180,7 @@ public class SyncroniseDatabase {
 
 		log.info("Refresh the pages");
 
-		String original = diariesConfig.getOriginal();
+		String root = diariesConfig.getRoot();
 		String diaryName = MyFileUtilities.getFileName(diaryDir.getName());
 
 		Optional<DiaryDTO> optionalDiary = diaryRepository.findByName(diaryName);
@@ -185,7 +193,7 @@ public class SyncroniseDatabase {
 		Iterable<PageDTO> pages = pageRepository.findAllByDiary(diaryDTO.getId());
 		for (PageDTO page : pages) {
 			String pageName = page.getName();
-			File imageFile = Paths.get(original, diaryName, String.format("%s.jpg", pageName)).toFile();
+			File imageFile = Paths.get(root, diaryName, String.format("%s.jpg", pageName)).toFile();
 
 			if (!imageFile.exists()) {
 				throw new Exception(String.format("The database Page '%s/%s' does not match an original image file", diaryName, pageName));

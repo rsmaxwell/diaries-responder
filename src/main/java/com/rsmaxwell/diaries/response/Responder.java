@@ -1,7 +1,5 @@
 package com.rsmaxwell.diaries.response;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -9,6 +7,7 @@ import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -139,42 +138,101 @@ public class Responder {
 		}
 	}
 
-	// This will serve files like {baseurl}/{diary-name}/{page-name}.jpg
-	// e.g. http://localhost:8081/images/diary-1837/img2556.jpg
-	static void startFileServer(Config config) throws IOException {
-
+	static void startFileServer(Config config) throws Exception {
 		DiariesConfig diariesConfig = config.getDiaries();
+		Path root = Path.of(diariesConfig.getRoot());
+		String diariesDirName = diariesConfig.getDiaries();
+		String filesDirName = diariesConfig.getFiles();
+		if (root == null) {
+			throw new Exception("Root directory not configured.");
+		}
+		if (diariesDirName == null) {
+			throw new Exception("Diaries directory not configured.");
+		}
+		if (filesDirName == null) {
+			throw new Exception("Files directory not configured.");
+		}
+		Path diariesDir = root.resolve(diariesDirName);
+		Path filesDir = root.resolve(filesDirName);
 
-		Path directory = Path.of(diariesConfig.getOriginal());
+		// Ensure base directories exist (creates dirs if missing)
+		Files.createDirectories(diariesDir);
+		Files.createDirectories(filesDir);
+
 		HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
 
-		server.createContext("/images", new HttpHandler() {
-			@Override
-			public void handle(HttpExchange exchange) throws IOException {
-				String path = exchange.getRequestURI().getPath().replace("/images/", "");
-				File file = new File(directory.toFile(), path);
+		// --- Context for diary pages (existing) ---
+		String diariesContextName = "/" + diariesConfig.getDiaries(); // e.g. "/diaries"
+		server.createContext(diariesContextName, staticFileHandler(diariesContextName, diariesDir));
 
-				if (!file.exists() || !file.isFile()) {
+		// --- New context for uploaded files ---
+		String filesContextName = "/" + diariesConfig.getFiles(); // e.g. "/files"
+		server.createContext(filesContextName, staticFileHandler(filesContextName, filesDir));
+
+		server.start();
+		log.info("Static server running at:");
+		log.info("  http://localhost:8081{}  ->  {}", diariesContextName, diariesDir);
+		log.info("  http://localhost:8081{}  ->  {}", filesContextName, filesDir);
+	}
+
+	/**
+	 * Creates a handler that serves files from {@code baseDir} under the URL {@code contextName}. Prevents path traversal and returns 404 for non-existing files.
+	 */
+	private static HttpHandler staticFileHandler(String contextName, Path baseDir) {
+		return (HttpExchange exchange) -> {
+			try {
+				// Only allow GET/HEAD
+				String method = exchange.getRequestMethod();
+				if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) {
+					exchange.sendResponseHeaders(405, -1); // Method Not Allowed
+					return;
+				}
+
+				String fullPath = exchange.getRequestURI().getPath(); // e.g. "/uploads/foo/bar.jpg"
+				if (!fullPath.startsWith(contextName)) {
 					exchange.sendResponseHeaders(404, -1);
 					return;
 				}
 
-				String mime = Files.probeContentType(file.toPath());
-				if (mime != null) {
-					exchange.getResponseHeaders().add("Content-Type", mime);
+				// Strip the context prefix to get a relative path under baseDir
+				String rel = fullPath.substring(contextName.length()); // e.g. "/foo/bar.jpg"
+				// Normalize and prevent traversal
+				Path resolved = baseDir.resolve(rel.replaceFirst("^/", "")).normalize();
+				if (!resolved.startsWith(baseDir)) {
+					exchange.sendResponseHeaders(403, -1); // Forbidden
+					return;
 				}
 
-				exchange.sendResponseHeaders(200, file.length());
-
-				try (OutputStream os = exchange.getResponseBody(); InputStream is = new FileInputStream(file)) {
-					is.transferTo(os);
+				if (!Files.isRegularFile(resolved)) {
+					exchange.sendResponseHeaders(404, -1);
+					return;
 				}
+
+				// Content-Type (fallback to application/octet-stream)
+				String mime = Files.probeContentType(resolved);
+				if (mime == null) {
+					mime = "application/octet-stream";
+				}
+				exchange.getResponseHeaders().add("Content-Type", mime);
+
+				long length = Files.size(resolved);
+				exchange.sendResponseHeaders(200, "HEAD".equalsIgnoreCase(method) ? -1 : length);
+
+				if (!"HEAD".equalsIgnoreCase(method)) {
+					try (OutputStream os = exchange.getResponseBody(); InputStream is = Files.newInputStream(resolved, StandardOpenOption.READ)) {
+						is.transferTo(os);
+					}
+				}
+			} catch (Exception e) {
+				try {
+					exchange.sendResponseHeaders(500, -1);
+				} catch (IOException ignore) {
+					/* best effort */ }
+				log.error("Static handler error for {}: {}", contextName, e.toString(), e);
+			} finally {
+				exchange.close();
 			}
-		});
-
-		server.start();
-		log.info("Static image server running at http://localhost:8081/images/");
-		log.info(String.format("      from %s", diariesConfig.getOriginal()));
+		};
 	}
 
 	void run(Config config) throws Exception {

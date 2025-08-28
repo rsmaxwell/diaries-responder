@@ -65,7 +65,6 @@ public class UpdateFragment extends RequestHandler {
 			Integer month = Utilities.getInteger(args, "month");
 			Integer day = Utilities.getInteger(args, "day");
 			String text = Utilities.getString(args, "text");
-			Long marqueeId = Utilities.getLongOrNull(args, "marqueeId");
 
 			// (1) get the original Fragment
 			originalFragment = context.inflateFragment(id);

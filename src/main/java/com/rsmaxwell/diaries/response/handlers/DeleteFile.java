@@ -38,20 +38,22 @@ public class DeleteFile extends RequestHandler {
 			}
 			log.info("DeleteFile.handleRequest: Authorization.check: OK!");
 
+			// --- Config ---
+			DiariesConfig diariesConfig = context.getConfig().getDiaries();
+			Path root = Path.of(diariesConfig.getRoot());
+			String filesDirName = diariesConfig.getFiles();
+			if (root == null || filesDirName == null) {
+				return Response.internalError("Files directory not configured.");
+			}
+			final Path filesDir = root.resolve(filesDirName);
+			if (filesDir == null) {
+				return Response.internalError("Files directory is not configured on the server.");
+			}
+			log.info(String.format("UploadFile.handleRequest: filesDir: '%s'", filesDir));
+
 			// --- Inputs ---
 			final String name = Utilities.getString(args, "name"); // e.g. "my-photo.jpg"
 			final String subdir = Utilities.getStringOrDefault(args, "subdir", ""); // optional
-
-			// --- Resolve & sanitize target path ---
-			// Base uploads directory from your server config
-
-			DiariesConfig diariesConfig = context.getConfig().getDiaries();
-			Path base = Path.of(diariesConfig.getOriginal());
-			final Path baseUploadsDir = base.resolve("uploads");
-			if (baseUploadsDir == null) {
-				return Response.internalError("Uploads directory is not configured on the server.");
-			}
-			Files.createDirectories(baseUploadsDir);
 
 			// Disallow absolute or sneaky paths in subdir/name
 			Path safeSubdir = Paths.get(subdir).normalize();
@@ -64,14 +66,14 @@ public class DeleteFile extends RequestHandler {
 				return Response.badRequest("Invalid 'name'.");
 			}
 
-			Path targetDir = baseUploadsDir.resolve(safeSubdir).normalize();
-			if (!targetDir.startsWith(baseUploadsDir)) {
+			Path targetDir = filesDir.resolve(safeSubdir).normalize();
+			if (!targetDir.startsWith(filesDir)) {
 				return Response.badRequest("Resolved path escapes uploads root.");
 			}
 			Files.createDirectories(targetDir);
 
 			Path target = targetDir.resolve(name).normalize();
-			if (!target.startsWith(baseUploadsDir)) {
+			if (!target.startsWith(filesDir)) {
 				return Response.badRequest("Resolved file path escapes uploads root.");
 			}
 
