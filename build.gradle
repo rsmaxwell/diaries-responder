@@ -41,7 +41,7 @@ dependencies {
     runtimeOnly libs.jjwt.jackson
     compileOnly libs.jakarta.jakartaee.api
     implementation libs.hibernate.core
-        
+    implementation libs.metadata.extractor
     implementation libs.mqtt.rpc.common
     implementation libs.mqtt.rpc.response
     

@@ -31,6 +31,7 @@ public class RoleDTO extends Base implements Jsonable {
 	private String name;
 
 	@JsonIgnore
+	@EqualsAndHashCode.Exclude
 	private final Publisher publisher = new Publisher();
 
 	@Override

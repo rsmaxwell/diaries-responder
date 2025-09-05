@@ -25,7 +25,7 @@ public abstract class Base {
 	protected Long id;
 
 	@Column(name = "version", nullable = false, columnDefinition = "bigint DEFAULT 0")
-	protected Long version;
+	protected Long version = 0L;
 
 	public void checkAndIncrementVersion(Base other) throws BadRequest {
 		if (version != other.version) {

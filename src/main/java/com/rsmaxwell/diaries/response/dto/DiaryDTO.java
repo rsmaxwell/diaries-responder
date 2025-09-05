@@ -34,6 +34,7 @@ public class DiaryDTO extends Base implements Jsonable {
 	private BigDecimal sequence;
 
 	@JsonIgnore
+	@EqualsAndHashCode.Exclude
 	private final Publisher publisher = new Publisher();
 
 	public DiaryDTO(Diary diary) {

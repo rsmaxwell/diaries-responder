@@ -14,12 +14,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.response.dto.DiaryDTO;
@@ -46,6 +50,8 @@ import jakarta.persistence.EntityTransaction;
 
 public class RepositoryTest {
 
+	private static final Logger log = LogManager.getLogger(RepositoryTest.class);
+	private static final ObjectMapper mapper = new ObjectMapper();
 	private static EntityManagerFactory entityManagerFactory;
 	private static EntityManager entityManager;
 	private static EntityTransaction tx;
@@ -323,6 +329,10 @@ public class RepositoryTest {
 
 			assertNotNull(y.isPresent());
 			RoleDTO p2 = y.get();
+
+			ObjectWriter prettyprint = new ObjectMapper().writerWithDefaultPrettyPrinter();
+			log.info(String.format("p:  %s", prettyprint.writeValueAsString(p)));
+			log.info(String.format("p2: %s", prettyprint.writeValueAsString(p2)));
 
 			assertEquals(p.getId(), p2.getId());
 			assertTrue(p.equals(p2));

@@ -38,6 +38,7 @@ public class PersonDTO extends Base implements Jsonable {
 	private Long nationalNumber;
 
 	@JsonIgnore
+	@EqualsAndHashCode.Exclude
 	private final Publisher publisher = new Publisher();
 
 	@Override
