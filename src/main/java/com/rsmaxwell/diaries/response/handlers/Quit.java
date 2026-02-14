@@ -8,7 +8,7 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import com.rsmaxwell.mqtt.rpc.common.Response;
-import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
+import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
 
 public class Quit extends RequestHandler {
 

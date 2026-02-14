@@ -12,7 +12,7 @@ import com.rsmaxwell.diaries.common.response.RefreshTokenReply;
 import com.rsmaxwell.diaries.response.utilities.Authorization;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
-import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
+import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
 
 public class RefreshToken extends RequestHandler {
 

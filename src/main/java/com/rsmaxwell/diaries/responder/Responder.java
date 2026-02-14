@@ -1,4 +1,4 @@
-package com.rsmaxwell.diaries.response;
+package com.rsmaxwell.diaries.responder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,7 +58,7 @@ import com.rsmaxwell.diaries.response.sync.Synchronise;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.diaries.response.utilities.GetEntityManager;
 import com.rsmaxwell.diaries.response.utilities.MyMessageHandler;
-import com.rsmaxwell.mqtt.rpc.response.MessageHandler;
+import com.rsmaxwell.mqtt.rpc.responder.MessageHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;

@@ -11,7 +11,7 @@ import org.eclipse.paho.mqttv5.common.MqttMessage;
 import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties;
 
-import com.rsmaxwell.mqtt.rpc.response.MessageHandler;
+import com.rsmaxwell.mqtt.rpc.responder.MessageHandler;
 
 public class MyMessageHandler implements MqttCallback {
 

@@ -1,4 +1,4 @@
-package com.rsmaxwell.diaries.response;
+package com.rsmaxwell.diaries.responder;
 
 import java.io.File;
 import java.io.FileFilter;

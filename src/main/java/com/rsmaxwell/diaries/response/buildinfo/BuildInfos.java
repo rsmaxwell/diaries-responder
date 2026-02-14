@@ -12,7 +12,7 @@ public class BuildInfos {
 		List<IBuildInfo> infos = new ArrayList<IBuildInfo>();
 		infos.add(new BuildInfo());
 		infos.add(new com.rsmaxwell.mqtt.rpc.common.buildinfo.BuildInfo());
-		infos.add(new com.rsmaxwell.mqtt.rpc.response.buildinfo.BuildInfo());
+		infos.add(new com.rsmaxwell.mqtt.rpc.responder.buildinfo.BuildInfo());
 
 		for (IBuildInfo info : infos) {
 			info.printAll();

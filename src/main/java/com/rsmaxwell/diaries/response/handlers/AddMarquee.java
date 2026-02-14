@@ -21,7 +21,7 @@ import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.diaries.response.utilities.FragmentAndMarquee;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
-import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
+import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
 import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 

@@ -17,7 +17,7 @@ import com.rsmaxwell.diaries.response.repository.PersonRepository;
 import com.rsmaxwell.diaries.response.utilities.DiaryContext;
 import com.rsmaxwell.diaries.response.utilities.Field;
 import com.rsmaxwell.mqtt.rpc.common.Response;
-import com.rsmaxwell.mqtt.rpc.response.RequestHandler;
+import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
 import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 
 import jakarta.persistence.EntityManager;

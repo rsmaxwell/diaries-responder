@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -24,6 +25,7 @@ public abstract class Base {
 	@Column(name = "id", nullable = false, unique = true)
 	protected Long id;
 
+	@Builder.Default
 	@Column(name = "version", nullable = false, columnDefinition = "bigint DEFAULT 0")
 	protected Long version = 0L;
 

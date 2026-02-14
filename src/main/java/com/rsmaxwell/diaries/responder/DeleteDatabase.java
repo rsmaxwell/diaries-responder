@@ -1,4 +1,4 @@
-package com.rsmaxwell.diaries.response;
+package com.rsmaxwell.diaries.responder;
 
 import java.sql.Connection;
 
@@ -14,9 +14,9 @@ import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.User;
 
-public class CreateDatabase {
+public class DeleteDatabase {
 
-	private static final Logger log = LogManager.getLogger(CreateDatabase.class);
+	private static final Logger log = LogManager.getLogger(DeleteDatabase.class);
 
 	static Option createOption(String shortName, String longName, String argName, String description, boolean required) {
 		return Option.builder(shortName).longOpt(longName).argName(argName).desc(description).hasArg().required(required).build();
@@ -40,47 +40,52 @@ public class CreateDatabase {
 		String database = dbConfig.getDatabase();
 
 		try (Connection con = Database.connect(dbConfig)) {
-			createDatabase(con, database);
-			createUsers(con, dbConfig);
+			deleteUsers(con, dbConfig);
+			deleteDatabase(con, database);
 		}
 
 		log.info("Success");
 	}
 
-	public static void createUsers(Connection con, DbConfig dbConfig) throws Exception {
+	public static void deleteUsers(Connection con, DbConfig dbConfig) throws Exception {
 
 		String database = dbConfig.getDatabase();
 
 		for (User user : dbConfig.getUsers()) {
 			String username = user.getUsername();
-			String password = user.getPassword();
-			createUser(con, username, password, database);
 
-			Database.grantPrivilagesToUser(con, database, username);
+			deleteUser(con, username, database);
 		}
 	}
 
-	public static void createUser(Connection con, String username, String password, String database) throws Exception {
+	public static void deleteUser(Connection con, String username, String database) throws Exception {
 
-		boolean found = Database.userExists(con, username);
+		boolean userFound = Database.userExists(con, username);
 
-		if (found) {
-			log.info(String.format("user '%s' already exists", username));
+		if (!userFound) {
+			log.info(String.format("user '%s' not found", username));
 			return;
 		}
 
-		Database.createUser(con, username, password);
+		boolean databaseFound = Database.databaseExists(con, database);
+		if (databaseFound) {
+			Database.removePrivilagesFromUser(con, database, username);
+		}
+
+		Database.reAssignUserRoles(con, username, "postgres");
+		Database.dropOwnedByUser(con, username);
+		Database.deleteUser(con, username);
 	}
 
-	public static void createDatabase(Connection con, String database) throws Exception {
+	public static void deleteDatabase(Connection con, String database) throws Exception {
 
 		boolean found = Database.databaseExists(con, database);
 
-		if (found) {
-			log.info(String.format("Database '%s' already exists", database));
+		if (!found) {
+			log.info(String.format("Database '%s' not found", database));
 			return;
 		}
 
-		Database.createDatabase(con, database);
+		Database.deleteDatabase(con, database);
 	}
 }

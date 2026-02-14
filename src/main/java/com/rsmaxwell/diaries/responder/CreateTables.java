@@ -1,4 +1,4 @@
-package com.rsmaxwell.diaries.response;
+package com.rsmaxwell.diaries.responder;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
