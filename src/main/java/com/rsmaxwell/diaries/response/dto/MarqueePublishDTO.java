@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -28,6 +30,7 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class MarqueePublishDTO extends Base implements Jsonable {
 
+	private static final Logger log = LogManager.getLogger(MarqueePublishDTO.class);
 	private static final ObjectMapper objectMapper = new ObjectMapper();
 
 	private Long pageId;
@@ -70,6 +73,7 @@ public class MarqueePublishDTO extends Base implements Jsonable {
 
 	public void publish(MqttAsyncClient client, Long diaryId) throws Exception {
 		for (String topic : getTopics(diaryId)) {
+			log.info(String.format("publishing to topic: %s --> %s", topic, toJson()));
 			publisher.publish(client, topic, toJson().getBytes());
 		}
 	}
@@ -82,6 +86,7 @@ public class MarqueePublishDTO extends Base implements Jsonable {
 
 	public void remove(MqttAsyncClient client, Long diaryId) throws Exception {
 		for (String topic : getTopics(diaryId)) {
+			log.info(String.format("removing topic: %s", topic));
 			publisher.publish(client, topic, Publisher.emptyPayload);
 		}
 	}

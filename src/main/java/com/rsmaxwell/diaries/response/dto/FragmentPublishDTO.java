@@ -99,6 +99,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 
 	public void remove(MqttAsyncClient client) throws Exception {
 		for (String topic : getTopics()) {
+			log.info(String.format("removing topic: %s", topic));
 			publisher.publish(client, topic, Publisher.emptyPayload);
 		}
 	}
