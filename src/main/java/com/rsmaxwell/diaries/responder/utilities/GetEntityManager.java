@@ -1,8 +1,8 @@
 package com.rsmaxwell.diaries.responder.utilities;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,7 +89,7 @@ public class GetEntityManager {
 			Jdbc jdbc = dbConfig.getJdbc();
 			Map<String, String> additionalConnectionProperties = dbConfig.getAdditionalConnectionProperties();
 
-			Properties props = new Properties();
+			Map<String, Object> props = new HashMap<>();
 			props.put("jakarta.persistence.jdbc.url", dbConfig.getJdbcUrl(database));
 			props.put("jakarta.persistence.jdbc.driver", jdbc.getDriver());
 			props.put("jakarta.persistence.jdbc.user", user.getUsername());
@@ -103,8 +103,8 @@ public class GetEntityManager {
 			}
 
 			log.debug("Connection properties:");
-			for (String key : props.stringPropertyNames()) {
-				log.debug(String.format("    %s : %s", key, props.getProperty(key)));
+			for (String key : props.keySet()) {
+				log.debug(String.format("    %s : %s", key, props.get(key).toString()));
 			}
 
 			PersistenceUnitInfoImpl info = new PersistenceUnitInfoImpl();
