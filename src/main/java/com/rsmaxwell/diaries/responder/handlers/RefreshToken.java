@@ -1,0 +1,45 @@
+package com.rsmaxwell.diaries.responder.handlers;
+
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.eclipse.paho.mqttv5.common.packet.UserProperty;
+
+import com.rsmaxwell.diaries.common.response.RefreshTokenReply;
+import com.rsmaxwell.diaries.responder.utilities.Authorization;
+import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.mqtt.rpc.common.Response;
+import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
+
+public class RefreshToken extends RequestHandler {
+
+	private static final Logger log = LogManager.getLogger(RefreshToken.class);
+
+	@Override
+	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
+
+		log.info("RefreshToken.handleRequest");
+
+		String refreshToken = Authorization.getRefreshToken(args);
+		DiaryContext context = (DiaryContext) ctx;
+		if (Authorization.checkToken(context, "refresh", refreshToken) == null) {
+			log.info("GetDiaries.handleRequest: Authorization.check: Failed!");
+			return Response.unauthorized();
+		}
+		log.info("RefreshToken.handleRequest: Authorization.check: OK!");
+
+		String secret = context.getSecret();
+		int expiration = context.getRefreshExpiration();
+
+		String token = Authorization.getToken(secret, "access", expiration, ChronoUnit.SECONDS);
+		Integer refreshPeriod = context.getRefreshPeriod();
+		RefreshTokenReply reply = new RefreshTokenReply(token, refreshPeriod);
+
+		Response response = Response.success();
+		response.setPayload(reply);
+		return response;
+	}
+}

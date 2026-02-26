@@ -11,7 +11,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.rsmaxwell.diaries.response.utilities.Field;
+import com.rsmaxwell.diaries.responder.utilities.Field;
 import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 
 public class PhoneNumberFieldTest {

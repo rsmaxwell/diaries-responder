@@ -10,7 +10,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
-import com.rsmaxwell.diaries.response.utilities.GetEntityManager;
+import com.rsmaxwell.diaries.responder.utilities.GetEntityManager;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;

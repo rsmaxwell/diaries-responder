@@ -1,0 +1,132 @@
+package com.rsmaxwell.diaries.responder.handlers;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
+import org.eclipse.paho.mqttv5.common.packet.UserProperty;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.responder.dto.MarqueePublishDTO;
+import com.rsmaxwell.diaries.responder.model.Fragment;
+import com.rsmaxwell.diaries.responder.model.Marquee;
+import com.rsmaxwell.diaries.responder.model.Page;
+import com.rsmaxwell.diaries.responder.utilities.Authorization;
+import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.mqtt.rpc.common.Response;
+import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
+import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
+import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
+
+public class AddMarquee extends RequestHandler {
+
+	private static final Logger log = LogManager.getLogger(AddMarquee.class);
+	static private ObjectMapper mapper = new ObjectMapper();
+
+	@Override
+	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
+
+		log.info("AddFragment.handleRequest");
+
+		String accessToken = Authorization.getAccessToken(userProperties);
+		DiaryContext context = (DiaryContext) ctx;
+		if (Authorization.checkToken(context, "access", accessToken) == null) {
+			log.info("AddFragment.handleRequest: Authorization.check: Failed!");
+			throw new Unauthorised();
+		}
+		log.info("Authorization.check: OK!");
+
+		Page page;
+		Fragment fragment;
+		Marquee marquee;
+		try {
+			Long pageId = Utilities.getLong(args, "pageId");
+			Double x = Utilities.getDouble(args, "x");
+			Double y = Utilities.getDouble(args, "y");
+			Double width = Utilities.getDouble(args, "width");
+			Double height = Utilities.getDouble(args, "height");
+
+			BigDecimal sequence = new BigDecimal(123.0000).setScale(4);
+
+			if (width < 40.0) {
+				width = 40.0;
+			}
+			if (height < 40.0) {
+				height = 40.0;
+			}
+
+			page = context.inflatePage(pageId);
+
+			Long id = 0L;
+			Integer year = 0;
+			Integer month = 0;
+			Integer day = 0;
+			Long version = 0L;
+			String text = "Hello World!";
+
+			//@formatter:off
+			marquee = Marquee.builder()
+					.id(id)
+					.page(page)
+					.fragment(null)
+					.x(x)
+					.y(y)
+					.width(width)
+					.height(height)
+					.version(version)
+					.build();
+			//@formatter:on
+
+			//@formatter:off
+			FragmentDBDTO fragmentDTO = FragmentDBDTO.builder()
+					.id(id) 
+					.year(year)
+					.month(month)
+					.day(day)
+					.sequence(sequence)
+					.text(text)
+					.version(version)
+					.build();
+			//@formatter:on
+			fragment = new Fragment(fragmentDTO);
+
+			marquee.setFragment(fragment);
+
+			log.info("fragmentDTO: " + mapper.writeValueAsString(fragmentDTO));
+
+		} catch (Exception e) {
+			log.info("AddFragment.handleRequest: args: " + mapper.writeValueAsString(args));
+			throw new BadRequest(e.getMessage(), e);
+		}
+
+		// First add the new Fragment to the database
+
+		Fragment savedFragment;
+		Marquee savedMarquee;
+		try {
+			FragmentAndMarquee result = context.save(fragment, marquee);
+			savedFragment = result.getFragment();
+			savedMarquee = result.getMarquee();
+		} catch (Exception e) {
+			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
+			return Response.internalError(e.getMessage());
+		}
+
+		// Now publish the Fragment (and its marquee) to the topic tree
+		MqttAsyncClient client = context.getPublisherClient();
+		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(savedFragment, savedMarquee);
+		fragmentPublishDTO.publish(client);
+
+		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(savedMarquee);
+		marqueePublishDTO.publish(client, page.getDiary().getId());
+
+		return Response.success(marquee.getId());
+	}
+}
