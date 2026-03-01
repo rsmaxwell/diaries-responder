@@ -6,6 +6,7 @@ import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -43,24 +44,63 @@ public class Fragment extends Base {
 	@Column(length = 4096)
 	private String text;
 
+	/**
+	 * Lock state for this fragment (null/empty => unlocked).
+	 */
+	@Embedded
+	private LockInfo lock;
+
 	public Fragment(FragmentDBDTO dto) {
-		this.id = dto.getId();
-		this.version = dto.getVersion();
-		this.sequence = dto.getSequence();
-		this.year = dto.getYear();
-		this.month = dto.getMonth();
-		this.day = dto.getDay();
-		this.text = dto.getText();
+		copyCommonFieldsFrom(dto);
+		copyLockFrom(dto.getLock());
 	}
 
 	public Fragment(FragmentPublishDTO dto) {
+		copyCommonFieldsFrom(dto);
+		copyLockFrom(dto.getLock());
+	}
+
+	private void copyCommonFieldsFrom(Base dto) {
+		// Base
 		this.id = dto.getId();
 		this.version = dto.getVersion();
-		this.sequence = dto.getSequence();
-		this.year = dto.getYear();
-		this.month = dto.getMonth();
-		this.day = dto.getDay();
-		this.text = dto.getText();
+
+		// Fragment-specific (DTO types both expose these, so we downcast safely)
+		if (dto instanceof FragmentDBDTO f) {
+			this.sequence = f.getSequence();
+			this.year = f.getYear();
+			this.month = f.getMonth();
+			this.day = f.getDay();
+			this.text = f.getText();
+		} else if (dto instanceof FragmentPublishDTO f) {
+			this.sequence = f.getSequence();
+			this.year = f.getYear();
+			this.month = f.getMonth();
+			this.day = f.getDay();
+			this.text = f.getText();
+		} else {
+			throw new IllegalArgumentException("Unsupported DTO type: " + dto.getClass());
+		}
+	}
+
+	/**
+	 * Defensive copy so we don't share the same LockInfo instance between entity and DTOs. (Safer if DTOs are reused/mutated elsewhere.)
+	 */
+	private void copyLockFrom(LockInfo src) {
+		if (src == null) {
+			this.lock = null;
+			return;
+		}
+
+		// @formatter:off
+		this.lock = LockInfo.builder()
+				  .lockUserId(src.getLockUserId())
+				  .lockUserName(src.getLockUserName())
+				  .lockKnownAs(src.getLockKnownAs())
+				  .lockTimeStamp(src.getLockTimeStamp())
+				  .lockSessionId(src.getLockSessionId())
+				  .build();
+		// @formatter:on		
 	}
 
 	public boolean keyFieldsChanged(Fragment other) {

@@ -53,8 +53,9 @@ public class Signin extends RequestHandler {
 		String refreshToken = Authorization.getToken(secret, "refresh", context.getRefreshExpiration(), ChronoUnit.SECONDS);
 		Integer refreshPeriod = context.getRefreshPeriod();
 		Long id = person.getId();
+		String knownas = person.getKnownas();
 
-		SigninReply payload = new SigninReply(accessToken, refreshToken, refreshPeriod, id);
+		SigninReply payload = new SigninReply(accessToken, refreshToken, refreshPeriod, id, username, knownas);
 		return Response.success(payload);
 	}
 }

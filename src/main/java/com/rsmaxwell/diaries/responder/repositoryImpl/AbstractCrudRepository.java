@@ -50,8 +50,12 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	public long count() {
 		String sql = String.format("select count(*) from %s", getTable());
 		Query query = entityManager.createNativeQuery(sql);
-		Object object = query.getSingleResult();
-		return ((Number) object).longValue();
+
+		@SuppressWarnings("unchecked")
+		List<Object> rows = query.getResultList();
+
+		Object one = rows.isEmpty() ? null : rows.get(0);
+		return ((Number) one).longValue();
 	}
 
 	@Override
@@ -87,7 +91,12 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		log.debug(String.format("sql: %s", sql));
 
 		Query query = entityManager.createNativeQuery(sql);
-		return (Boolean) query.getSingleResult();
+
+		@SuppressWarnings("unchecked")
+		List<Object> rows = query.getResultList();
+
+		Object one = rows.isEmpty() ? null : rows.get(0);
+		return (Boolean) one;
 	}
 
 	protected String orderBy() {
@@ -236,7 +245,12 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		// @formatter:on
 
 		Query query = entityManager.createNativeQuery(sql);
-		Object keyValue = query.getSingleResult();
+
+		@SuppressWarnings("unchecked")
+		List<Object> rows = query.getResultList();
+		Object one = rows.isEmpty() ? null : rows.get(0);
+		Object keyValue = one;
+
 		log.info(String.format("save %s --> %s: %s", entity.getClass().getSimpleName(), getKeyField(), keyValue.toString()));
 		setKeyValue(entity, keyValue);
 
@@ -288,15 +302,21 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 
 	public String quote(Object value) {
 
+		if (value == null) {
+			return "null"; // SQL NULL (no quotes)
+		}
+
 		if (value instanceof Number) {
 			return value.toString();
 		}
 
-		StringBuffer sb = new StringBuffer();
-		sb.append("'");
-		sb.append(value);
-		sb.append("'");
-		return sb.toString();
+		if (value instanceof Boolean) {
+			return ((Boolean) value) ? "true" : "false";
+		}
+
+		// Escape single quotes for SQL
+		String s = value.toString().replace("'", "''");
+		return "'" + s + "'";
 	}
 
 	protected String getStringFromSqlResult(Object[] result, int index, String defaultValue) {

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.responder.model.Base;
 import com.rsmaxwell.diaries.responder.model.Fragment;
+import com.rsmaxwell.diaries.responder.model.LockInfo;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 
 import lombok.AllArgsConstructor;
@@ -41,6 +42,11 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	private String text;
 	private Long marqueeId;
 
+	/**
+	 * Lock state for this fragment (may be null / empty => unlocked).
+	 */
+	private LockInfo lock;
+
 	@JsonIgnore
 	private final Publisher publisher = new Publisher();
 
@@ -52,6 +58,9 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 		this.month = fragment.getMonth();
 		this.day = fragment.getDay();
 		this.text = fragment.getText();
+
+		// Include lock state in MQTT payloads (if present)
+		this.lock = fragment.getLock();
 
 		this.marqueeId = null;
 		if (marquee != null) {
