@@ -1,6 +1,7 @@
 package com.rsmaxwell.diaries.responder.handlers;
 
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,14 +30,14 @@ public class Signin extends RequestHandler {
 
 		log.debug("Signin.handleRequest");
 
-		String username = Utilities.getString(args, "username");
-		String password = Utilities.getString(args, "password");
+		String incomingUsername = Utilities.getString(args, "username");
+		String incomingPassword = Utilities.getString(args, "password");
 
 		DiaryContext context = (DiaryContext) ctx;
 		PersonRepository personRepository = context.getPersonRepository();
 		String secret = context.getSecret();
 
-		Optional<PersonDTO> optional = personRepository.findByUsername(username);
+		Optional<PersonDTO> optional = personRepository.findByUsername(incomingUsername);
 
 		if (optional.isEmpty()) {
 			return Response.badRequest("bad username or password");
@@ -44,18 +45,26 @@ public class Signin extends RequestHandler {
 
 		PersonDTO person = optional.get();
 
-		boolean ok = BCrypt.checkpw(password, person.getPasswordHash());
+		boolean ok = BCrypt.checkpw(incomingPassword, person.getPasswordHash());
 		if (!ok) {
 			return Response.badRequest("bad username or password");
 		}
 
-		String accessToken = Authorization.getToken(secret, "access", context.getRefreshPeriod(), ChronoUnit.SECONDS);
+		Long id = person.getId();
+		String username = person.getUsername();
+		String knownAs = person.getKnownas();
+
+		Map<String, Object> claims = new HashMap<String, Object>();
+		claims.put("userId", id);
+		claims.put("username", username);
+		claims.put("knownAs", knownAs);
+		claims.put("sessionId", "qwertyuioplkjhgfdsazxcvbnm,.#");
+
+		String accessToken = Authorization.getTokenWithClaims(secret, "access", context.getRefreshPeriod(), ChronoUnit.SECONDS, claims);
 		String refreshToken = Authorization.getToken(secret, "refresh", context.getRefreshExpiration(), ChronoUnit.SECONDS);
 		Integer refreshPeriod = context.getRefreshPeriod();
-		Long id = person.getId();
-		String knownas = person.getKnownas();
 
-		SigninReply payload = new SigninReply(accessToken, refreshToken, refreshPeriod, id, username, knownas);
+		SigninReply payload = new SigninReply(accessToken, refreshToken, refreshPeriod, id, username, knownAs);
 		return Response.success(payload);
 	}
 }

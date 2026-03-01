@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import javax.crypto.SecretKey;
 
@@ -16,6 +16,7 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
@@ -25,22 +26,35 @@ public class Authorization {
 
 	public static String getToken(String secret, String subject, int expiration, ChronoUnit units) {
 
+		Map<String, Object> claims = new HashMap<String, Object>();
+
+		return getTokenWithClaims(secret, subject, expiration, units, claims);
+	}
+
+	public static String getTokenWithClaims(String secret, String subject, int expiration, ChronoUnit units, Map<String, Object> claims) {
+
 		Instant now = Instant.now();
 		Date expireTime = Date.from(now.plus(expiration, units));
 
 		byte[] secretBytes = Base64.getDecoder().decode(secret);
-		SecretKey key = Keys.hmacShaKeyFor(secretBytes);
+		SecretKey secretKey = Keys.hmacShaKeyFor(secretBytes);
 
 		String jwt = null;
 		try {
 			// @formatter:off
-			    jwt = Jwts.builder()
+			    JwtBuilder builder = Jwts.builder()
 					.subject(subject)
-			        .claim("id20", new Random().nextInt(20) + 1)
 			        .expiration(expireTime)
-			        .signWith(key)
-			        .compact(); 
-			// @formatter:on
+			        .signWith(secretKey);
+				// @formatter:on
+
+			for (String key : claims.keySet()) {
+				Object value = claims.get(key);
+				builder.claim(key, value);
+			}
+
+			jwt = builder.compact();
+
 		} catch (Throwable t) {
 			log.catching(t);
 		}
