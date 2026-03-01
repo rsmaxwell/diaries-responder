@@ -72,8 +72,6 @@ public class UpdateFragment extends RequestHandler {
 
 			// get the lock fields
 			Long lockUserId = claims.get("userId", Long.class);
-			String lockUsername = claims.get("username", String.class);
-			String lockKnownAs = claims.get("knownAs", String.class);
 			String lockSessionId = claims.get("sessionId", String.class);
 
 			// (1) load original from DB (includes current lock state)
