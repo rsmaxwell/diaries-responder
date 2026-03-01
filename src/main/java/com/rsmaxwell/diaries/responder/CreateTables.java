@@ -20,7 +20,7 @@ public class CreateTables {
 	private static final Logger log = LogManager.getLogger(CreateTables.class);
 
 	static Option createOption(String shortName, String longName, String argName, String description, boolean required) {
-		return Option.builder(shortName).longOpt(longName).argName(argName).desc(description).hasArg().required(required).build();
+		return Option.builder(shortName).longOpt(longName).argName(argName).desc(description).hasArg().required(required).get();
 	}
 
 	public static void main(String[] args) throws Exception {

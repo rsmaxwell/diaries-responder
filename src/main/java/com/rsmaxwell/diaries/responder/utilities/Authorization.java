@@ -148,22 +148,29 @@ public class Authorization {
 
 		String secret = "p8l4Qk6gw6QIvNo0uqZNyAsExRPxH7a7fW4Bz0MUk0w=";
 		String subject = "access";
-
+		Integer id20 = 123456;
 		int expirationPeriod = 5;
 
-		String accessToken = getToken(secret, subject, expirationPeriod, ChronoUnit.SECONDS);
+		Map<String, Object> claims1 = new HashMap<String, Object>();
+		claims1.put("id20", id20);
+
+		String accessToken = getTokenWithClaims(secret, subject, expirationPeriod, ChronoUnit.SECONDS, claims1);
 
 		DiaryContext context = new DiaryContext();
 		context.setSecret(secret);
 
-		Claims claims = checkToken(context, subject, accessToken);
+		Claims claims2 = checkToken(context, subject, accessToken);
 
-		if (claims == null) {
+		if (claims2 == null) {
 			System.out.println("Unauthorized");
 		} else {
-			Integer id20 = claims.get("id20", Integer.class);
-			System.out.println(String.format("id20 = %d", id20));
-			System.out.println("Success");
+			Integer id = claims2.get("id20", Integer.class);
+
+			if (id == id20) {
+				System.out.println("Success");
+			} else {
+				System.out.println(String.format("Failed. Expected %d actual %d", id20, id));
+			}
 		}
 
 	}

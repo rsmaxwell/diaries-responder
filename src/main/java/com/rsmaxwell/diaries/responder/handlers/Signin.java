@@ -32,6 +32,7 @@ public class Signin extends RequestHandler {
 
 		String incomingUsername = Utilities.getString(args, "username");
 		String incomingPassword = Utilities.getString(args, "password");
+		String sessionId = Utilities.getString(args, "sessionId");
 
 		DiaryContext context = (DiaryContext) ctx;
 		PersonRepository personRepository = context.getPersonRepository();
@@ -58,7 +59,7 @@ public class Signin extends RequestHandler {
 		claims.put("userId", id);
 		claims.put("username", username);
 		claims.put("knownAs", knownAs);
-		claims.put("sessionId", "qwertyuioplkjhgfdsazxcvbnm,.#");
+		claims.put("sessionId", sessionId);
 
 		String accessToken = Authorization.getTokenWithClaims(secret, "access", context.getRefreshPeriod(), ChronoUnit.SECONDS, claims);
 		String refreshToken = Authorization.getToken(secret, "refresh", context.getRefreshExpiration(), ChronoUnit.SECONDS);
