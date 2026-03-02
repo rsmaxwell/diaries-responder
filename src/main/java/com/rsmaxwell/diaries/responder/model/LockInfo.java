@@ -4,6 +4,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.AllArgsConstructor;
@@ -60,6 +62,7 @@ public class LockInfo {
 	/**
 	 * Returns the lock time as an Instant, or null if no timestamp is set.
 	 */
+	@JsonIgnore
 	public Instant getLockInstant() {
 		return lockTimeStamp == null ? null : Instant.ofEpochMilli(lockTimeStamp);
 	}
@@ -67,6 +70,7 @@ public class LockInfo {
 	/**
 	 * Sets the lock timestamp from an Instant (stored as epoch millis), or clears if null.
 	 */
+	@JsonIgnore
 	public void setLockInstant(Instant instant) {
 		this.lockTimeStamp = (instant == null) ? null : instant.toEpochMilli();
 	}
