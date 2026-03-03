@@ -65,7 +65,7 @@ public class Signin extends RequestHandler {
 		String refreshToken = Authorization.getToken(secret, "refresh", context.getRefreshExpiration(), ChronoUnit.SECONDS);
 		Integer refreshPeriod = context.getRefreshPeriod();
 
-		SigninReply payload = new SigninReply(accessToken, refreshToken, refreshPeriod, id, username, knownAs);
+		SigninReply payload = new SigninReply(accessToken, refreshToken, refreshPeriod, id, username, knownAs, sessionId);
 		return Response.success(payload);
 	}
 }

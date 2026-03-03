@@ -76,6 +76,7 @@ public class UnlockFragment extends RequestHandler {
 
 			// Prevent stealing someone else’s lock
 			if (lock.isLocked() && !lock.isLockedBy(userId, sessionId)) {
+				tx.rollback();
 				return Response.conflict("Fragment is locked by another user.");
 			}
 
