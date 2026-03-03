@@ -89,13 +89,20 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 
 	public void publish(ConcurrentHashMap<String, String> map) throws Exception {
 		for (String topic : getTopics()) {
+
+			log.info(String.format("publishing to Map: %s --> %s", topic, toJson()));
+			log.info("Publishing fragmentId: {} to topic: {}, version: {}", this.getId(), topic, this.getVersion());
+
 			publisher.publish(map, topic, toJson().getBytes());
 		}
 	}
 
 	public void publish(MqttAsyncClient client) throws Exception {
 		for (String topic : getTopics()) {
+
 			log.info(String.format("publishing to topic: %s --> %s", topic, toJson()));
+			log.info("Publishing fragmentId: {} to topic: {}, version: {}", this.getId(), topic, this.getVersion());
+
 			publisher.publish(client, topic, toJson().getBytes());
 		}
 	}
