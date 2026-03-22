@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x
 BASEDIR=$(dirname "$0")
 SCRIPT_DIR=$(cd $BASEDIR && pwd)
 PROJECT_DIR=$(dirname $SCRIPT_DIR)
@@ -29,6 +29,7 @@ done
 set -x
 echo "GRADLE_USER_HOME=$GRADLE_USER_HOME"
 ls -al "$GRADLE_USER_HOME"
+ls -al "$PROJECT_DIR"
 set +x
 
 
