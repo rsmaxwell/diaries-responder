@@ -1,14 +1,12 @@
-#!/bin/bash
+#!/bin/sh
 
-set -euo pipefail
+set -eu
 set -x
 
-echo "***********  This is the image.sh script ***********"
-
-BASEDIR="$(dirname "$0")"
-SCRIPT_DIR="$(cd "$BASEDIR" && pwd)"
-SUBPROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_DIR="$(dirname "$SUBPROJECT_DIR")"
+BASEDIR=$(dirname "$0")
+SCRIPT_DIR=$(cd "$BASEDIR" && pwd)
+SUBPROJECT_DIR=$(dirname "$SCRIPT_DIR")
+PROJECT_DIR=$(dirname "$SUBPROJECT_DIR")
 BUILD_DIR="${SUBPROJECT_DIR}/build"
 
 . "${BUILD_DIR}/buildinfo"
@@ -18,17 +16,18 @@ cd "${SUBPROJECT_DIR}"
 # ----------------------------
 # Check the environment
 # ----------------------------
-required_vars=(
-  REPOSITORY
-  VERSION
-  IMAGE_REGISTRY
-  IMAGE_NAME
-  DOCKER_USERNAME
-  DOCKER_PASSWORD
-)
+required_vars="
+REPOSITORY
+VERSION
+IMAGE_REGISTRY
+IMAGE_NAME
+DOCKER_USERNAME
+DOCKER_PASSWORD
+"
 
-for var in "${required_vars[@]}"; do
-  if [ -z "${!var:-}" ]; then
+for var in $required_vars; do
+  eval "value=\${$var-}"
+  if [ -z "$value" ]; then
     echo "ERROR: ${var} is not set or empty" >&2
     exit 2
   fi
@@ -47,13 +46,24 @@ fi
 IMAGE_TAG="${VERSION}"
 
 # Optional convenience tags
-EXTRA_TAGS=()
-
+EXTRA_TAGS=""
 case "${REPOSITORY}" in
-  releases)    EXTRA_TAGS+=("latest") ;;
-  integration) EXTRA_TAGS+=("integration") ;;
-  snapshots)   EXTRA_TAGS+=("snapshot") ;;
+  releases)
+    EXTRA_TAGS="latest"
+    ;;
+  integration)
+    EXTRA_TAGS="integration"
+    ;;
+  snapshots)
+    EXTRA_TAGS="snapshot"
+    ;;
 esac
+
+# Build comma-separated list of names for BuildKit
+NAMES="${IMAGE_REPO}:${IMAGE_TAG}"
+for tag in $EXTRA_TAGS; do
+  NAMES="${NAMES},${IMAGE_REPO}:${tag}"
+done
 
 echo "PROJECT_DIR=${PROJECT_DIR}"
 echo "BUILD_DIR=${BUILD_DIR}"
@@ -61,6 +71,7 @@ echo "VERSION=${VERSION}"
 echo "REPOSITORY=${REPOSITORY}"
 echo "IMAGE_REPO=${IMAGE_REPO}"
 echo "IMAGE_TAG=${IMAGE_TAG}"
+echo "NAMES=${NAMES}"
 
 # ----------------------------
 # Preconditions
@@ -76,30 +87,35 @@ fi
 if [ ! -d "${SUBPROJECT_DIR}/build" ] || [ ! -f "${SUBPROJECT_DIR}/build/libs/diaries-responder.jar" ]; then
   echo "WARNING: expected responder build output not found yet."
   echo "Make sure the package/build stage runs before image.sh if the Dockerfile depends on built artifacts."
-  
+
   echo "${SUBPROJECT_DIR}/build"
-  [ -d "${SUBPROJECT_DIR}/build" ] && tree "${SUBPROJECT_DIR}/build" || true
+  tree "${SUBPROJECT_DIR}/build" || true
 fi
 
 # ----------------------------
-# Buildkit
+# Registry auth for BuildKit
 # ----------------------------
 
 mkdir -p "${HOME}/.docker"
+
+AUTH=$(printf '%s:%s' "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')
+
 cat > "${HOME}/.docker/config.json" <<EOF
 {
   "auths": {
     "${IMAGE_REGISTRY}": {
-      "auth": "$(printf '%s:%s' "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 -w0)"
+      "auth": "${AUTH}"
     }
   }
 }
 EOF
 
-NAMES="${IMAGE_REPO}:${IMAGE_TAG}"
-for tag in "${EXTRA_TAGS[@]}"; do
-  NAMES="${NAMES},${IMAGE_REPO}:${tag}"
-done
+echo "docker config:"
+cat "${HOME}/.docker/config.json"
+
+# ----------------------------
+# Build + push
+# ----------------------------
 
 buildctl-daemonless.sh build \
   --frontend dockerfile.v0 \
