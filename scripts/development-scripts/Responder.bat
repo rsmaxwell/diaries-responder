@@ -32,18 +32,17 @@ popd
 cd %PROJECT_DIR%
 
 
-rem Build a short classpath using runtime\* wildcard
-set "CLASSPATH=%SUBPROJECT_DIR%\bin\main;%SUBPROJECT_DIR%\src\main\resources\META-INF;%COMMON_SUBPROJECT_DIR%\bin\main;%SUBPROJECT_DIR%\runtime\*"
+set CLASSPATH="%SUBPROJECT_DIR%\bin\main
+set CLASSPATH=%CLASSPATH%;%SUBPROJECT_DIR%\src\main\resources\META-INF
+set CLASSPATH=%CLASSPATH%;%COMMON_SUBPROJECT_DIR%\bin\main
+for /R %SUBPROJECT_DIR%\runtime %%a in (*.jar) do (
+  set CLASSPATH=!CLASSPATH!;%%a
+)
+set CLASSPATH=%CLASSPATH%"
 
-rem echo(
-rem echo ==== CLASSPATH entries ====
-rem echo %SUBPROJECT_DIR%\bin\main
-rem echo %SUBPROJECT_DIR%\src\main\resources\META-INF
-rem echo %COMMON_SUBPROJECT_DIR%\bin\main
-rem for %%a in ("%SUBPROJECT_DIR%\runtime\*.jar") do echo %%~fa
-rem echo ==========================
-rem echo(
+set HIBERNATE_LOGLEVEL=OFF
+set LOGLEVEL=DEBUG
 
-java -classpath "%CLASSPATH%" com.rsmaxwell.diaries.responder.Responder ^
+java -classpath %CLASSPATH% com.rsmaxwell.diaries.response.Responder ^
  --config %USERPROFILE%\.diaries\responder.json
 

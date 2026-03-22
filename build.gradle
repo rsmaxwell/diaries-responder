@@ -1,19 +1,29 @@
-
 plugins {
     id 'application'
     id 'maven-publish'
+    id 'com.gradleup.shadow' version '9.3.1'
     id 'eclipse'
+}
+
+def projectVersion = findProperty('projectVersion') ?: '0.0.1-SNAPSHOT'
+def repositoryName = findProperty('repositoryName') ?: 'snapshots'
+def responderMainClass = 'com.rsmaxwell.diaries.responder.Responder'
+
+group = projectGroupId
+version = projectVersion
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
 
 repositories {
     mavenCentral()
     maven {
-        url = "https://pluto.rsmaxwell.co.uk/archiva/repository/releases"
+        name = 'archiva'
+        url = "${mavenRepositoryBaseURL}/releases"
     }
-}
-
-configurations {
-   testCompile
 }
 
 dependencies {
@@ -44,40 +54,48 @@ dependencies {
     implementation libs.metadata.extractor
     implementation libs.mqtt.rpc.common
     implementation libs.mqtt.rpc.responder
-    
+
     implementation project(':diaries-common')
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+application {
+    mainClass = responderMainClass
+}
+
+tasks.named('jar') {
+    archiveBaseName.set(projectArtifactId)
+    archiveClassifier.set('')
+    manifest {
+        attributes 'Main-Class': responderMainClass
     }
 }
 
-compileJava.options.encoding = "UTF-8"
-compileTestJava.options.encoding = "UTF-8"
+tasks.named('shadowJar') {
+    archiveBaseName.set(projectArtifactId)
+    archiveClassifier.set('fat')
+    manifest {
+        attributes 'Main-Class': responderMainClass
+    }
+    mergeServiceFiles()
+}
 
-application {
-    mainClass = 'com.rsmaxwell.diaries.calculator.App'
+tasks.named('assemble') {
+    dependsOn tasks.named('shadowJar')
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
 
-ext {
-    projectVersion = project.hasProperty('projectVersion') ? project.getProperty('projectVersion') : "0.0.1-SNAPSHOT"
-    repositoryName = project.hasProperty('repositoryName') ? project.getProperty('repositoryName') : "snapshots"
-}
-
 publishing {
     publications {
         mavenJava(MavenPublication) {
             artifactId = projectArtifactId
-            groupId = projectGroupId
-            version = projectVersion
-
-            from components["java"]
+            from components.java
             suppressAllPomMetadataWarnings()
         }
     }
@@ -88,18 +106,12 @@ publishing {
                 username = mavenUser
                 password = mavenPassword
             }
-
             url = "${mavenRepositoryBaseURL}/${repositoryName}"
-            allowInsecureProtocol = true
         }
     }
 }
 
-
-
-task getDeps {
-  copy {
+tasks.register('getDeps', Copy) {
     from sourceSets.main.runtimeClasspath
     into 'runtime/'
-  }
 }

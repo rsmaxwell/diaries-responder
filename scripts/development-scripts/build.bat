@@ -21,8 +21,6 @@ popd
 
 
 
-
-cd %PROJECT_DIR%
-
 echo on
-%PROJECT_DIR%\gradlew build
+cd /d %PROJECT_DIR%
+call %PROJECT_DIR%\gradlew.bat :diaries-responder:clean :diaries-responder:build --info

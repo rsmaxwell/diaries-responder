@@ -1,5 +1,5 @@
-@echo on
-setlocal 
+@echo off
+setlocal
 
 set BASEDIR=%~dp0
 
@@ -23,13 +23,12 @@ pushd %SUBPROJECT_DIR%\build
 set BUILD_DIR=%CD%
 popd
 
-
-
-
 call %BUILD_DIR%\buildinfo.bat
 
-cd %SUBPROJECT_DIR%
 
+
+echo on
+cd %SUBPROJECT_DIR%
 call %PROJECT_DIR%/gradlew publish --no-daemon --info --warning-mode all
 
 

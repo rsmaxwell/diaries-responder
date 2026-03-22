@@ -1,4 +1,4 @@
-@echo on
+@echo off
 setlocal
 
 set BASEDIR=%~dp0
@@ -23,8 +23,13 @@ pushd %SUBPROJECT_DIR%\build
 set BUILD_DIR=%CD%
 popd
 
-cd %SUBPROJECT%
 
+
+
+
+
+
+cd %SUBPROJECT%
 
 set PROJECT=diaries-response
 set GROUPID=com.rsmaxwell.diaries
@@ -48,7 +53,6 @@ set REPOSITORY=snapshots
 
 
 echo on
-..\gradlew build --warning-mode all 
 
 (
     echo set BUILD_ID=%BUILD_ID%
