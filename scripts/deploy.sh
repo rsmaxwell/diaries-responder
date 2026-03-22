@@ -1,14 +1,16 @@
 #!/bin/bash
+
 set -x
-BASEDIR=$(dirname "$0")
-SCRIPT_DIR=$(cd $BASEDIR && pwd)
-SUBPROJECT_DIR=$(dirname $SCRIPT_DIR)
-PROJECT_DIR=$(dirname $SUBPROJECT_DIR)
-BUILD_DIR=${SUBPROJECT_DIR}/build
 
-. ${BUILD_DIR}/buildinfo
+BASEDIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd $BASEDIR && pwd)"
+SUBPROJECT_DIR="$(dirname $SCRIPT_DIR)"
+PROJECT_DIR="$(dirname $SUBPROJECT_DIR)"
+BUILD_DIR="${SUBPROJECT_DIR}/build"
 
-cd ${SUBPROJECT_DIR}
+. "${BUILD_DIR}/buildinfo"
+
+cd "${PROJECT_DIR}"
 
 # ----------------------------
 # Check the environment
@@ -38,6 +40,6 @@ set +x
 # Build and publish
 # ----------------------------
 
-${SUBPROJECT_DIR}/gradlew :diaries-responder:publish --info --stacktrace \
+${PROJECT_DIR}/gradlew :diaries-responder:publish --info --stacktrace \
     -PrepositoryName=${REPOSITORY} \
     -PprojectVersion=${VERSION}

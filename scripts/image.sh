@@ -1,15 +1,17 @@
 #!/bin/bash
+
 set -euo pipefail
 set -x
 
-BASEDIR=$(dirname "$0")
-SCRIPT_DIR=$(cd "$BASEDIR" && pwd)
-PROJECT_DIR=$(dirname "$SCRIPT_DIR")
-BUILD_DIR="${PROJECT_DIR}/build"
+BASEDIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd $BASEDIR && pwd)"
+SUBPROJECT_DIR="$(dirname $SCRIPT_DIR)"
+PROJECT_DIR="$(dirname $SUBPROJECT_DIR)"
+BUILD_DIR="${SUBPROJECT_DIR}/build"
 
 . "${BUILD_DIR}/buildinfo"
 
-cd "${PROJECT_DIR}"
+cd "${SUBPROJECT_DIR}"
 
 # ----------------------------
 # Check the environment
@@ -68,14 +70,14 @@ echo "IMAGE_TAG=${IMAGE_TAG}"
 # Preconditions
 # ----------------------------
 
-if [ ! -f "${PROJECT_DIR}/Dockerfile" ]; then
-  echo "ERROR: Dockerfile not found at ${PROJECT_DIR}/Dockerfile" >&2
+if [ ! -f "${SUBPROJECT_DIR}/files/Dockerfile" ]; then
+  echo "ERROR: Dockerfile not found at ${SUBPROJECT_DIR}/files/Dockerfile" >&2
   exit 1
 fi
 
 # Optional: if the Dockerfile copies a packaged distribution built earlier
 # then make sure it exists before building the image.
-if [ ! -d "${PROJECT_DIR}/diaries-responder/build" ] && [ ! -f "${PROJECT_DIR}/diaries-responder/build/libs/diaries-responder.jar" ]; then
+if [ ! -d "${SUBPROJECT_DIR}/build" ] || [ ! -f "${SUBPROJECT_DIR}/build/libs/diaries-responder.jar" ]; then
   echo "WARNING: expected responder build output not found yet."
   echo "Make sure the package/build stage runs before image.sh if the Dockerfile depends on built artifacts."
 fi
@@ -90,7 +92,7 @@ docker build \
   --build-arg VERSION="${VERSION}" \
   --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --build-arg VCS_REF="${GIT_COMMIT:-unknown}" \
-  "${PROJECT_DIR}"
+  "${SUBPROJECT_DIR}/files"
 
 for tag in "${EXTRA_TAGS[@]}"; do
   docker tag "${IMAGE_REPO}:${IMAGE_TAG}" "${IMAGE_REPO}:${tag}"
