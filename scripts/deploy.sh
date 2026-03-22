@@ -2,12 +2,13 @@
 set -x
 BASEDIR=$(dirname "$0")
 SCRIPT_DIR=$(cd $BASEDIR && pwd)
-PROJECT_DIR=$(dirname $SCRIPT_DIR)
-BUILD_DIR=${PROJECT_DIR}/build
+SUBPROJECT_DIR=$(dirname $SCRIPT_DIR)
+PROJECT_DIR=$(dirname $SUBPROJECT_DIR)
+BUILD_DIR=${SUBPROJECT_DIR}/build
 
 . ${BUILD_DIR}/buildinfo
 
-cd ${PROJECT_DIR}
+cd ${SUBPROJECT_DIR}
 
 # ----------------------------
 # Check the environment
@@ -29,7 +30,7 @@ done
 set -x
 echo "GRADLE_USER_HOME=$GRADLE_USER_HOME"
 ls -al "$GRADLE_USER_HOME"
-ls -al "$PROJECT_DIR"
+ls -al "$SUBPROJECT_DIR"
 set +x
 
 
@@ -37,6 +38,6 @@ set +x
 # Build and publish
 # ----------------------------
 
-${PROJECT_DIR}/gradlew publish --info --stacktrace \
+${SUBPROJECT_DIR}/gradlew :diaries-responder:publish --info --stacktrace \
     -PrepositoryName=${REPOSITORY} \
     -PprojectVersion=${VERSION}

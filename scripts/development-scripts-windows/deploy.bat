@@ -28,8 +28,8 @@ call %BUILD_DIR%\buildinfo.bat
 
 
 echo on
-cd %SUBPROJECT_DIR%
-call %PROJECT_DIR%/gradlew publish --no-daemon --info --warning-mode all
+cd /d %PROJECT_DIR%
+call %PROJECT_DIR%/gradlew :diaries-responder:publish --no-daemon --info --warning-mode all
 
 
 
