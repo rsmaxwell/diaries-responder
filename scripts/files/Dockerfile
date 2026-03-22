@@ -13,14 +13,11 @@ RUN mkdir -p \
 
 RUN apk add --no-cache curl bash
 
-# Download diaries-common
-curl -fL \
+# Download diaries-common and diaries-responder
+RUN curl -fL \
   -o /opt/diaries/lib/diaries-common-${DIARIES_COMMON_VERSION}.jar \
   "${ARCHIVA_BASE_URL}/com/rsmaxwell/diaries/diaries-common/${DIARIES_COMMON_VERSION}/diaries-common-${DIARIES_COMMON_VERSION}.jar" ; \
-
-
-# Download diaries-responder
-curl -fL \
+&& curl -fL \
   -o /opt/diaries/lib/diaries-responder-${DIARIES_RESPONDER_VERSION}.jar \
   "${ARCHIVA_BASE_URL}/com/rsmaxwell/diaries/diaries-responder/${DIARIES_RESPONDER_VERSION}/diaries-responder-${DIARIES_RESPONDER_VERSION}.jar" ; \
 
