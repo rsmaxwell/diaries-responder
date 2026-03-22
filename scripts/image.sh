@@ -80,6 +80,9 @@ fi
 if [ ! -d "${SUBPROJECT_DIR}/build" ] || [ ! -f "${SUBPROJECT_DIR}/build/libs/diaries-responder.jar" ]; then
   echo "WARNING: expected responder build output not found yet."
   echo "Make sure the package/build stage runs before image.sh if the Dockerfile depends on built artifacts."
+  
+  echo "${SUBPROJECT_DIR}/build"
+  tree "${SUBPROJECT_DIR}/build"
 fi
 
 # ----------------------------
