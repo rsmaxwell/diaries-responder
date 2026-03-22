@@ -70,8 +70,8 @@ echo "IMAGE_TAG=${IMAGE_TAG}"
 # Preconditions
 # ----------------------------
 
-if [ ! -f "${SUBPROJECT_DIR}/files/Dockerfile" ]; then
-  echo "ERROR: Dockerfile not found at ${SUBPROJECT_DIR}/files/Dockerfile" >&2
+if [ ! -f "${SUBPROJECT_DIR}/scripts/files/Dockerfile" ]; then
+  echo "ERROR: Dockerfile not found at ${SUBPROJECT_DIR}/scripts/files/Dockerfile" >&2
   exit 1
 fi
 
