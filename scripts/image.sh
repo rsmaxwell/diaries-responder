@@ -4,9 +4,9 @@ set -euo pipefail
 set -x
 
 BASEDIR="$(dirname "$0")"
-SCRIPT_DIR="$(cd $BASEDIR && pwd)"
-SUBPROJECT_DIR="$(dirname $SCRIPT_DIR)"
-PROJECT_DIR="$(dirname $SUBPROJECT_DIR)"
+SCRIPT_DIR="$(cd "$BASEDIR" && pwd)"
+SUBPROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$SUBPROJECT_DIR")"
 BUILD_DIR="${SUBPROJECT_DIR}/build"
 
 . "${BUILD_DIR}/buildinfo"
@@ -48,15 +48,9 @@ IMAGE_TAG="${VERSION}"
 EXTRA_TAGS=()
 
 case "${REPOSITORY}" in
-  releases)
-    EXTRA_TAGS+=("latest")
-    ;;
-  integration)
-    EXTRA_TAGS+=("integration")
-    ;;
-  snapshots)
-    EXTRA_TAGS+=("snapshot")
-    ;;
+  releases)    EXTRA_TAGS+=("latest") ;;
+  integration) EXTRA_TAGS+=("integration") ;;
+  snapshots)   EXTRA_TAGS+=("snapshot") ;;
 esac
 
 echo "PROJECT_DIR=${PROJECT_DIR}"
@@ -86,20 +80,33 @@ if [ ! -d "${SUBPROJECT_DIR}/build" ] || [ ! -f "${SUBPROJECT_DIR}/build/libs/di
 fi
 
 # ----------------------------
-# Build
+# Buildkit
 # ----------------------------
 
-docker build \
-  --pull \
-  --tag "${IMAGE_REPO}:${IMAGE_TAG}" \
-  --build-arg VERSION="${VERSION}" \
-  --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --build-arg VCS_REF="${GIT_COMMIT:-unknown}" \
-  "${SUBPROJECT_DIR}/files"
+mkdir -p "${HOME}/.docker"
+cat > "${HOME}/.docker/config.json" <<EOF
+{
+  "auths": {
+    "${IMAGE_REGISTRY}": {
+      "auth": "$(printf '%s:%s' "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 -w0)"
+    }
+  }
+}
+EOF
 
+NAMES="${IMAGE_REPO}:${IMAGE_TAG}"
 for tag in "${EXTRA_TAGS[@]}"; do
-  docker tag "${IMAGE_REPO}:${IMAGE_TAG}" "${IMAGE_REPO}:${tag}"
+  NAMES="${NAMES},${IMAGE_REPO}:${tag}"
 done
+
+buildctl-daemonless.sh build \
+  --frontend dockerfile.v0 \
+  --local context="${SUBPROJECT_DIR}/scripts/files" \
+  --local dockerfile="${SUBPROJECT_DIR}/scripts/files" \
+  --opt build-arg:VERSION="${VERSION}" \
+  --opt build-arg:BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --opt build-arg:VCS_REF="${GIT_COMMIT:-unknown}" \
+  --output "type=image,name=${NAMES},push=true"
 
 # ----------------------------
 # Write image info for later stages
@@ -113,16 +120,3 @@ EOF
 
 echo "imageinfo:"
 cat "${BUILD_DIR}/imageinfo"
-
-# ----------------------------
-# Push the image to the repository
-# ----------------------------
-
-echo "${DOCKER_PASSWORD}" | docker login "${IMAGE_REGISTRY}" \
-  --username "${DOCKER_USERNAME}" \
-  --password-stdin
-
-docker push "${IMAGE_REPO}:${IMAGE_TAG}"
-for tag in "${EXTRA_TAGS[@]}"; do
-  docker push "${IMAGE_REPO}:${tag}"
-done
