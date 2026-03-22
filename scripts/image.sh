@@ -61,9 +61,9 @@ esac
 
 # Build comma-separated list of names for BuildKit
 NAMES="${IMAGE_REPO}:${IMAGE_TAG}"
-for tag in $EXTRA_TAGS; do
-  NAMES="${NAMES},${IMAGE_REPO}:${tag}"
-done
+# for tag in $EXTRA_TAGS; do
+#   NAMES="${NAMES},${IMAGE_REPO}:${tag}"
+# done
 
 echo "PROJECT_DIR=${PROJECT_DIR}"
 echo "BUILD_DIR=${BUILD_DIR}"
