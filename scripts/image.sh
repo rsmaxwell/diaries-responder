@@ -3,6 +3,8 @@
 set -euo pipefail
 set -x
 
+echo "***********  This is the image.sh script ***********"
+
 BASEDIR="$(dirname "$0")"
 SCRIPT_DIR="$(cd "$BASEDIR" && pwd)"
 SUBPROJECT_DIR="$(dirname "$SCRIPT_DIR")"
