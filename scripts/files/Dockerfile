@@ -21,7 +21,7 @@ RUN curl -fL \
   -o /opt/diaries/lib/diaries-responder-${DIARIES_RESPONDER_VERSION}.jar \
   "${ARCHIVA_BASE_URL}/com/rsmaxwell/diaries/diaries-responder/${DIARIES_RESPONDER_VERSION}/diaries-responder-${DIARIES_RESPONDER_VERSION}.jar"
 
-COPY image/responder.sh /opt/diaries/bin/responder.sh
+COPY scripts/files/responder.sh /opt/diaries/bin/responder.sh
 RUN chmod +x /opt/diaries/bin/responder.sh
 
 ENV CONFIG_FILE=/config/responder.json
