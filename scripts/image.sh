@@ -119,7 +119,7 @@ cat "${HOME}/.docker/config.json"
 
 buildctl-daemonless.sh build \
   --frontend dockerfile.v0 \
-  --local context="${SUBPROJECT_DIR}/scripts/files" \
+  --local context="${SUBPROJECT_DIR}" \
   --local dockerfile="${SUBPROJECT_DIR}/scripts/files" \
   --opt build-arg:VERSION="${VERSION}" \
   --opt build-arg:BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
