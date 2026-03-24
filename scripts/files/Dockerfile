@@ -16,13 +16,11 @@ RUN apk add --no-cache curl bash
 # Download diaries-common and diaries-responder
 RUN curl -fL \
   -o /opt/diaries/lib/diaries-common-${DIARIES_COMMON_VERSION}.jar \
-  "${ARCHIVA_BASE_URL}/com/rsmaxwell/diaries/diaries-common/${DIARIES_COMMON_VERSION}/diaries-common-${DIARIES_COMMON_VERSION}.jar" ; \
-&& curl -fL \
+  "${ARCHIVA_BASE_URL}/com/rsmaxwell/diaries/diaries-common/${DIARIES_COMMON_VERSION}/diaries-common-${DIARIES_COMMON_VERSION}.jar" \
+  && curl -fL \
   -o /opt/diaries/lib/diaries-responder-${DIARIES_RESPONDER_VERSION}.jar \
-  "${ARCHIVA_BASE_URL}/com/rsmaxwell/diaries/diaries-responder/${DIARIES_RESPONDER_VERSION}/diaries-responder-${DIARIES_RESPONDER_VERSION}.jar" ; \
+  "${ARCHIVA_BASE_URL}/com/rsmaxwell/diaries/diaries-responder/${DIARIES_RESPONDER_VERSION}/diaries-responder-${DIARIES_RESPONDER_VERSION}.jar"
 
-
-# Add startup script
 COPY image/responder.sh /opt/diaries/bin/responder.sh
 RUN chmod +x /opt/diaries/bin/responder.sh
 
