@@ -40,8 +40,6 @@ for var in $required_vars; do
   fi
 done
 
-log "DOCKER_USERNAME: $DOCKER_USERNAME, DOCKER_PASSWORD: $DOCKER_PASSWORD"
-
 # ----------------------------
 # Image naming
 # ----------------------------
@@ -157,7 +155,7 @@ buildctl-daemonless.sh build \
   --opt build-arg:VERSION="${VERSION}" \
   --opt build-arg:BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --opt build-arg:VCS_REF="${GIT_COMMIT:-unknown}" \
-  --output "type=image,name=${NAMES},push=true"
+  --output "type=image,\"name=${NAMES}\",push=true"
 
 # ----------------------------
 # Write image info for later stages
