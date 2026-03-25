@@ -22,8 +22,8 @@ RUN curl -fL \
     "${ARCHIVA_BASE_URL}/${REPOSITORY}/com/rsmaxwell/diaries/diaries-responder/${VERSION}/diaries-responder-${VERSION}-fat.jar" \
     -o /opt/diaries/lib/diaries-responder.jar
 
-ENV CONFIG_FILE=/config/responder.json
 ENV APP_JAR=/opt/diaries/lib/diaries-responder.jar
+ENV CONFIG_FILE=/etc/diaries_responder/config/responder.json
 ENV JAVA_OPTS=""
 
 ENTRYPOINT ["/opt/diaries/bin/responder.sh"]
