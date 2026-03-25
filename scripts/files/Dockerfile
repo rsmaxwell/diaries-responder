@@ -1,7 +1,9 @@
 FROM eclipse-temurin:21-jre-alpine
 
+ARG REPOSITORY
 ARG VERSION
-ARG ARCHIVA_BASE_URL="http://pluto.rsmaxwell.co.uk/repository/integration"
+ARG ARCHIVA_BASE_URL="https://pluto.rsmaxwell.co.uk/archiva/repository"
+
 
 WORKDIR /opt/diaries
 
@@ -16,7 +18,12 @@ RUN apk add --no-cache curl bash
 COPY scripts/files/responder.sh /opt/diaries/bin/responder.sh
 RUN chmod +x /opt/diaries/bin/responder.sh
 
+RUN curl -fL \
+    "${ARCHIVA_BASE_URL}/${REPOSITORY}/com/rsmaxwell/diaries/diaries-responder/${VERSION}/diaries-responder-${VERSION}-fat.jar" \
+    -o /opt/diaries/lib/diaries-responder.jar
+
 ENV CONFIG_FILE=/config/responder.json
+ENV APP_JAR=/opt/diaries/lib/diaries-responder.jar
 ENV JAVA_OPTS=""
 
 ENTRYPOINT ["/opt/diaries/bin/responder.sh"]
