@@ -35,6 +35,15 @@ ls -al "$GRADLE_USER_HOME"
 ls -al "$SUBPROJECT_DIR"
 set +x
 
+# ----------------------------
+# pre checks
+# ----------------------------
+
+echo "=== log4j entries in libs.versions.toml ==="
+grep -n "log4j" gradle/libs.versions.toml || grep -n "log4j" libs.versions.toml
+
+echo "=== runtimeClasspath dependency insight ==="
+./gradlew :diaries-responder:dependencyInsight --dependency log4j --configuration runtimeClasspath
 
 # ----------------------------
 # Build and publish
@@ -43,3 +52,15 @@ set +x
 ${PROJECT_DIR}/gradlew :diaries-responder:publish --info --stacktrace \
     -PrepositoryName=${REPOSITORY} \
     -PprojectVersion=${VERSION}
+
+# ----------------------------
+# post checks
+# ----------------------------
+
+echo "=== packaged log4j-api version from fat jar ==="
+unzip -p diaries-responder/build/libs/diaries-responder-*-fat.jar \
+  META-INF/maven/org.apache.logging.log4j/log4j-api/pom.properties || true
+
+echo "=== packaged log4j-core version from fat jar ==="
+unzip -p diaries-responder/build/libs/diaries-responder-*-fat.jar \
+  META-INF/maven/org.apache.logging.log4j/log4j-core/pom.properties || true
