@@ -9,14 +9,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.common.config.DbConfig;
 
 public class Database {
 
-	private static final Logger log = LogManager.getLogger(Database.class);
+	private static final Logger log = LoggerFactory.getLogger(Database.class);
 
 	public static Connection connect(DbConfig dbConfig) throws SQLException {
 		return connect(dbConfig, "");
@@ -49,7 +49,7 @@ public class Database {
 				count = rs.getInt(1);
 			}
 		} catch (SQLException e) {
-			log.catching(e);
+			log.error("Unhandled exception while handling request", e);
 			throw e;
 		}
 
@@ -68,7 +68,7 @@ public class Database {
 				count = rs.getInt(1);
 			}
 		} catch (SQLException e) {
-			log.catching(e);
+			log.error("Unhandled exception while handling request", e);
 			throw e;
 		}
 

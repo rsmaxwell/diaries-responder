@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.mindrot.jbcrypt.BCrypt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
@@ -25,13 +25,13 @@ import jakarta.persistence.EntityTransaction;
 
 public class Register extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(Register.class);
+	private static final Logger log = LoggerFactory.getLogger(Register.class);
 	public static final PhoneNumberUtil phoneNumberUtil = PhoneNumberUtil.getInstance();
 	public static final String defaultRegion = "GB";
 
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
-		log.traceEntry();
+		log.trace("Entering method");
 
 		DiaryContext context = (DiaryContext) ctx;
 		PersonRepository personRepository = context.getPersonRepository();
@@ -53,7 +53,7 @@ public class Register extends RequestHandler {
 			return Response.success(person.getId());
 
 		} catch (Exception e) {
-			log.catching(e);
+			log.error("Unhandled exception while handling request", e);
 			if (tx != null) {
 				tx.rollback();
 			}

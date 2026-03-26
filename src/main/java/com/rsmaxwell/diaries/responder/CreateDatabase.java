@@ -7,8 +7,8 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
@@ -16,7 +16,7 @@ import com.rsmaxwell.diaries.common.config.User;
 
 public class CreateDatabase {
 
-	private static final Logger log = LogManager.getLogger(CreateDatabase.class);
+	private static final Logger log = LoggerFactory.getLogger(CreateDatabase.class);
 
 	static Option createOption(String shortName, String longName, String argName, String description, boolean required) {
 		return Option.builder(shortName).longOpt(longName).argName(argName).desc(description).hasArg().required(required).get();

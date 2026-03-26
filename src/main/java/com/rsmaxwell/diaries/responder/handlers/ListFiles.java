@@ -17,9 +17,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 //EXIF
 import com.drew.imaging.ImageMetadataReader;
@@ -46,7 +46,7 @@ import jakarta.ws.rs.BadRequestException;
 
 public class ListFiles extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(ListFiles.class);
+	private static final Logger log = LoggerFactory.getLogger(ListFiles.class);
 	private static final ObjectMapper mapper = new ObjectMapper();
 
 	@Override

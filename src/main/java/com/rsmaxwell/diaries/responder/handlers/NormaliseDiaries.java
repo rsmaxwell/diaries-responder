@@ -5,10 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.model.Diary;
@@ -24,7 +24,7 @@ import jakarta.persistence.EntityTransaction;
 
 public class NormaliseDiaries extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(NormaliseDiaries.class);
+	private static final Logger log = LoggerFactory.getLogger(NormaliseDiaries.class);
 
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {

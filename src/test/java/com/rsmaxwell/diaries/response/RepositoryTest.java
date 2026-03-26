@@ -14,13 +14,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -50,7 +50,7 @@ import jakarta.persistence.EntityTransaction;
 
 public class RepositoryTest {
 
-	private static final Logger log = LogManager.getLogger(RepositoryTest.class);
+	private static final Logger log = LoggerFactory.getLogger(RepositoryTest.class);
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static EntityManagerFactory entityManagerFactory;
 	private static EntityManager entityManager;

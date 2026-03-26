@@ -4,9 +4,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hibernate.jpa.boot.spi.Bootstrap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.Jdbc;
@@ -22,7 +22,7 @@ import jakarta.persistence.EntityManagerFactory;
 
 public class GetEntityManager {
 
-	private static final Logger log = LogManager.getLogger(GetEntityManager.class);
+	private static final Logger log = LoggerFactory.getLogger(GetEntityManager.class);
 
 	public static EntityManagerFactory factory(DbConfig dbConfig) {
 

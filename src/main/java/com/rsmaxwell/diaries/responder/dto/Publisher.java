@@ -2,13 +2,13 @@ package com.rsmaxwell.diaries.responder.dto;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Publisher implements Publishable {
 
-	private static final Logger log = LogManager.getLogger(Publisher.class);
+	private static final Logger log = LoggerFactory.getLogger(Publisher.class);
 	protected static byte[] emptyPayload = new byte[0];
 
 	@Override

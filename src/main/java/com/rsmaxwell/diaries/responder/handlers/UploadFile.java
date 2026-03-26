@@ -14,9 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
@@ -32,7 +32,7 @@ import jakarta.ws.rs.BadRequestException;
 
 public class UploadFile extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(UploadFile.class);
+	private static final Logger log = LoggerFactory.getLogger(UploadFile.class);
 	private static final ObjectMapper mapper = new ObjectMapper();
 	private static final Set<String> AllowedContentType = Set.of("image/jpeg", "image/png", "image/gif", "image/webp", "application/octet-stream");
 	private static final long MAX_BYTES = 20L * 1024 * 1024;

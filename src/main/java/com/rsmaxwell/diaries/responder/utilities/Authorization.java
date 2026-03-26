@@ -10,9 +10,9 @@ import java.util.Map;
 
 import javax.crypto.SecretKey;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -22,7 +22,7 @@ import io.jsonwebtoken.security.Keys;
 
 public class Authorization {
 
-	private static final Logger log = LogManager.getLogger(Authorization.class);
+	private static final Logger log = LoggerFactory.getLogger(Authorization.class);
 
 	public static String getToken(String secret, String subject, int expiration, ChronoUnit units) {
 
@@ -56,7 +56,7 @@ public class Authorization {
 			jwt = builder.compact();
 
 		} catch (Throwable t) {
-			log.catching(t);
+			log.error("Unhandled exception while handling request", t);
 		}
 
 		return jwt;

@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.responder.repository.CrudRepository;
 
@@ -15,7 +15,7 @@ import jakarta.persistence.Query;
 
 public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudRepository<T, DTO, ID> {
 
-	private static final Logger log = LogManager.getLogger(AbstractCrudRepository.class);
+	private static final Logger log = LoggerFactory.getLogger(AbstractCrudRepository.class);
 
 	protected EntityManager entityManager;
 

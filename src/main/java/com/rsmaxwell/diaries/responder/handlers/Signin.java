@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.mindrot.jbcrypt.BCrypt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.common.response.SigninReply;
 import com.rsmaxwell.diaries.responder.dto.PersonDTO;
@@ -22,11 +22,11 @@ import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
 
 public class Signin extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(Signin.class);
+	private static final Logger log = LoggerFactory.getLogger(Signin.class);
 
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
-		log.traceEntry();
+		log.trace("Entering method");
 
 		log.debug("Signin.handleRequest");
 

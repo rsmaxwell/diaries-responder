@@ -14,13 +14,13 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence;
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
 import org.eclipse.paho.mqttv5.common.MqttException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
@@ -70,7 +70,7 @@ import jakarta.persistence.EntityManagerFactory;
 
 public class Responder {
 
-	private static final Logger log = LogManager.getLogger(Responder.class);
+	private static final Logger log = LoggerFactory.getLogger(Responder.class);
 
 	static final String clientID_publisher = "responder";
 	static final String clientID_listener = "listener";

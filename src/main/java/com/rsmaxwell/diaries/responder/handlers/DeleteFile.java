@@ -6,9 +6,9 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
@@ -21,7 +21,7 @@ import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
 public class DeleteFile extends RequestHandler {
 
-	private static final Logger log = LogManager.getLogger(DeleteFile.class);
+	private static final Logger log = LoggerFactory.getLogger(DeleteFile.class);
 	private static final ObjectMapper mapper = new ObjectMapper();
 
 	@Override

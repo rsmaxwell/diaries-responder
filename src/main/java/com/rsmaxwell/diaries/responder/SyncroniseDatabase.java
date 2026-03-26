@@ -21,8 +21,8 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.Config;
@@ -49,7 +49,7 @@ import jakarta.persistence.EntityTransaction;
 
 public class SyncroniseDatabase {
 
-	private static final Logger log = LogManager.getLogger(SyncroniseDatabase.class);
+	private static final Logger log = LoggerFactory.getLogger(SyncroniseDatabase.class);
 	static private ObjectMapper mapper = new ObjectMapper();
 
 	private DiariesConfig diariesConfig;
@@ -107,7 +107,7 @@ public class SyncroniseDatabase {
 			log.info("Success");
 
 		} catch (Exception e) {
-			log.catching(e);
+			log.error("Unhandled exception while handling request", e);
 			if (tx != null) {
 				tx.rollback();
 			}

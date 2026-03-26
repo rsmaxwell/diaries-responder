@@ -3,17 +3,17 @@ package com.rsmaxwell.diaries.responder.sync;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.IMqttToken;
 import org.eclipse.paho.mqttv5.client.MqttCallback;
 import org.eclipse.paho.mqttv5.common.MqttMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.mqtt.rpc.common.Adapter;
 
 public class SynchroniseCallback extends Adapter implements MqttCallback {
 
-	private static final Logger log = LogManager.getLogger(SynchroniseCallback.class);
+	private static final Logger log = LoggerFactory.getLogger(SynchroniseCallback.class);
 
 	private final AtomicLong lastMessageTime = new AtomicLong(System.currentTimeMillis());
 

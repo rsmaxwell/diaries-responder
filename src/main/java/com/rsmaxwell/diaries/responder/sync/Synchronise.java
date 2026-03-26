@@ -13,14 +13,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttClientPersistence;
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
 import org.eclipse.paho.mqttv5.common.MqttMessage;
 import org.eclipse.paho.mqttv5.common.MqttSubscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
@@ -43,7 +43,7 @@ import jakarta.persistence.EntityTransaction;
 
 public class Synchronise {
 
-	private static final Logger log = LogManager.getLogger(Synchronise.class);
+	private static final Logger log = LoggerFactory.getLogger(Synchronise.class);
 
 	static final String clientID_sync_pub = "syncronise-pub";
 	static final String clientID_sync_sub = "syncronise-sub";

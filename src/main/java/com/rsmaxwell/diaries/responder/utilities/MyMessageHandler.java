@@ -1,7 +1,5 @@
 package com.rsmaxwell.diaries.responder.utilities;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.paho.mqttv5.client.IMqttToken;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttCallback;
@@ -10,12 +8,14 @@ import org.eclipse.paho.mqttv5.common.MqttException;
 import org.eclipse.paho.mqttv5.common.MqttMessage;
 import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.mqtt.rpc.responder.MessageHandler;
 
 public class MyMessageHandler implements MqttCallback {
 
-	private static final Logger log = LogManager.getLogger(MyMessageHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(MyMessageHandler.class);
 
 	static final String requestTopic = "request";
 
@@ -63,7 +63,7 @@ public class MyMessageHandler implements MqttCallback {
 			listenerClient.subscribe(subscription);
 
 		} catch (MqttException e) {
-			log.catching(e);
+			log.error("Unhandled exception while handling request", e);
 		}
 
 		messageHandler.connectComplete(reconnect, serverURI);
