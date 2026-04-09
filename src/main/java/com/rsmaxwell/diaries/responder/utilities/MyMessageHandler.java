@@ -17,7 +17,7 @@ public class MyMessageHandler implements MqttCallback {
 
 	private static final Logger log = LoggerFactory.getLogger(MyMessageHandler.class);
 
-	static final String requestTopic = "request";
+	static final String requestTopic = "diaries/rpc/request";
 
 	private MessageHandler messageHandler;
 
