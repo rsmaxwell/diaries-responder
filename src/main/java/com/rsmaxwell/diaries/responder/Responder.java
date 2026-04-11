@@ -306,6 +306,18 @@ public class Responder {
 		publisherConnOpts.setPassword(user.getPassword().getBytes());
 		publisherConnOpts.setCleanStart(false);
 		publisherConnOpts.setAutomaticReconnect(true);
+
+		// @formatter:off
+		String publisherConnOptsJson = String.format(
+		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+		    publisherConnOpts.getUserName(),
+		    user.getPassword(),
+		    publisherConnOpts.isCleanStart(),
+		    publisherConnOpts.isAutomaticReconnect()
+		);
+		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
+		// @formatter:on
+
 		publisherClient.connect(publisherConnOpts).waitForCompletion();
 
 		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_listener));
@@ -314,6 +326,18 @@ public class Responder {
 		listenerConnOpts.setPassword(user.getPassword().getBytes());
 		listenerConnOpts.setCleanStart(false);
 		listenerConnOpts.setAutomaticReconnect(true);
+
+		// @formatter:off
+		String listenerConnOptsJson = String.format(
+		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+		    listenerConnOpts.getUserName(),
+		    user.getPassword(),
+		    listenerConnOpts.isCleanStart(),
+		    listenerConnOpts.isAutomaticReconnect()
+		);
+		log.info("    listenerConnOpts: {}", listenerConnOptsJson);		
+		// @formatter:on		
+
 		listenerClient.connect(listenerConnOpts).waitForCompletion();
 
 		// log.info(String.format("subscribing to: %s", requestTopic));
