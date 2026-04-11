@@ -66,14 +66,14 @@ public class Synchronise {
 		connOpts_pub.setReceiveMaximum(20);
 
 		// @formatter:off
-		String publisherConnOptsJson = String.format(
-		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-		    connOpts_pub.getUserName(),
-		    user.getPassword(),
-		    connOpts_pub.isCleanStart(),
-		    connOpts_pub.isAutomaticReconnect()
-		);
-		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
+//		String publisherConnOptsJson = String.format(
+//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+//		    connOpts_pub.getUserName(),
+//		    user.getPassword(),
+//		    connOpts_pub.isCleanStart(),
+//		    connOpts_pub.isAutomaticReconnect()
+//		);
+//		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
 		// @formatter:on		
 
 		client_pub.connect(connOpts_pub).waitForCompletion();
@@ -91,14 +91,14 @@ public class Synchronise {
 		connOpts_sub.setAutomaticReconnect(true);
 
 		// @formatter:off
-		String subscriberConnOptsJson = String.format(
-		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-		    connOpts_sub.getUserName(),
-		    user.getPassword(),
-		    connOpts_sub.isCleanStart(),
-		    connOpts_sub.isAutomaticReconnect()
-		);
-		log.info("    subscriberConnOptsJson: {}", subscriberConnOptsJson);		
+//		String subscriberConnOptsJson = String.format(
+//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+//		    connOpts_sub.getUserName(),
+//		    user.getPassword(),
+//		    connOpts_sub.isCleanStart(),
+//		    connOpts_sub.isAutomaticReconnect()
+//		);
+//		log.info("    subscriberConnOptsJson: {}", subscriberConnOptsJson);		
 		// @formatter:on		
 
 		client_sub.connect(connOpts_sub).waitForCompletion();

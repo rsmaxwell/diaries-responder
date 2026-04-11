@@ -200,7 +200,7 @@ public class Responder {
 
 				// Strip the context prefix to get a relative path under baseDir
 				String rel = fullPath.substring(contextName.length()); // e.g. "/foo/bar.jpg"
-				// Normalize and prevent traversal
+				// Normalise and prevent traversal
 				Path resolved = baseDir.resolve(rel.replaceFirst("^/", "")).normalize();
 				if (!resolved.startsWith(baseDir)) {
 					exchange.sendResponseHeaders(403, -1); // Forbidden
@@ -308,14 +308,14 @@ public class Responder {
 		publisherConnOpts.setAutomaticReconnect(true);
 
 		// @formatter:off
-		String publisherConnOptsJson = String.format(
-		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-		    publisherConnOpts.getUserName(),
-		    user.getPassword(),
-		    publisherConnOpts.isCleanStart(),
-		    publisherConnOpts.isAutomaticReconnect()
-		);
-		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
+//		String publisherConnOptsJson = String.format(
+//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+//		    publisherConnOpts.getUserName(),
+//		    user.getPassword(),
+//		    publisherConnOpts.isCleanStart(),
+//		    publisherConnOpts.isAutomaticReconnect()
+//		);
+//		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
 		// @formatter:on
 
 		publisherClient.connect(publisherConnOpts).waitForCompletion();
@@ -328,14 +328,14 @@ public class Responder {
 		listenerConnOpts.setAutomaticReconnect(true);
 
 		// @formatter:off
-		String listenerConnOptsJson = String.format(
-		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-		    listenerConnOpts.getUserName(),
-		    user.getPassword(),
-		    listenerConnOpts.isCleanStart(),
-		    listenerConnOpts.isAutomaticReconnect()
-		);
-		log.info("    listenerConnOpts: {}", listenerConnOptsJson);		
+//		String listenerConnOptsJson = String.format(
+//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+//		    listenerConnOpts.getUserName(),
+//		    user.getPassword(),
+//		    listenerConnOpts.isCleanStart(),
+//		    listenerConnOpts.isAutomaticReconnect()
+//		);
+//		log.info("    listenerConnOpts: {}", listenerConnOptsJson);		
 		// @formatter:on		
 
 		listenerClient.connect(listenerConnOpts).waitForCompletion();
