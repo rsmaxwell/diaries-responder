@@ -64,6 +64,18 @@ public class Synchronise {
 		connOpts_pub.setCleanStart(true);
 		connOpts_pub.setAutomaticReconnect(true);
 		connOpts_pub.setReceiveMaximum(20);
+
+		// @formatter:off
+		String publisherConnOptsJson = String.format(
+		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+		    connOpts_pub.getUserName(),
+		    user.getPassword(),
+		    connOpts_pub.isCleanStart(),
+		    connOpts_pub.isAutomaticReconnect()
+		);
+		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
+		// @formatter:on		
+
 		client_pub.connect(connOpts_pub).waitForCompletion();
 
 		// Setup the Subscribe Client
@@ -77,6 +89,18 @@ public class Synchronise {
 		connOpts_sub.setPassword(user.getPassword().getBytes());
 		connOpts_sub.setCleanStart(true);
 		connOpts_sub.setAutomaticReconnect(true);
+
+		// @formatter:off
+		String subscriberConnOptsJson = String.format(
+		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
+		    connOpts_sub.getUserName(),
+		    user.getPassword(),
+		    connOpts_sub.isCleanStart(),
+		    connOpts_sub.isAutomaticReconnect()
+		);
+		log.info("    subscriberConnOptsJson: {}", subscriberConnOptsJson);		
+		// @formatter:on		
+
 		client_sub.connect(connOpts_sub).waitForCompletion();
 
 		// Set up the callback and subscribe to all the topics
