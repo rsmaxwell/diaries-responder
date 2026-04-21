@@ -46,7 +46,7 @@ public class RoleDTO extends Base implements Jsonable {
 
 	List<String> getTopics() {
 		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("roles/%d", id));
+		topics.add(String.format("diaries/roles/%d", id));
 		return topics;
 	}
 

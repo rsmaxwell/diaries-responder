@@ -60,8 +60,8 @@ public class MarqueePublishDTO extends Base implements Jsonable {
 
 	List<String> getTopics(Long diaryId) {
 		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("diaries/%d/%d/%d", diaryId, pageId, id));
-		topics.add(String.format("marquees/%d", id));
+		topics.add(String.format("diaries/diaries/%d/%d/%d", diaryId, pageId, id));
+		topics.add(String.format("diaries/marquees/%d", id));
 		return topics;
 	}
 

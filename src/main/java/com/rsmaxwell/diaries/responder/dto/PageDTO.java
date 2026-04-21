@@ -74,8 +74,8 @@ public class PageDTO extends Base implements Jsonable {
 
 	List<String> getTopics() {
 		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("diaries/%d/%d", diaryId, id));
-		topics.add(String.format("pages/%d", id));
+		topics.add(String.format("diaries/diaries/%d/%d", diaryId, id));
+		topics.add(String.format("diaries/pages/%d", id));
 		return topics;
 	}
 

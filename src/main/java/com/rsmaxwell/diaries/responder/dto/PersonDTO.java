@@ -53,7 +53,7 @@ public class PersonDTO extends Base implements Jsonable {
 
 	List<String> getTopics() {
 		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("people/%d", id));
+		topics.add(String.format("diaries/people/%d", id));
 		return topics;
 	}
 

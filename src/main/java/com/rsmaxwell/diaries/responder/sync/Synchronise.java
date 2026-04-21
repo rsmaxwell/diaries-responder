@@ -48,7 +48,7 @@ public class Synchronise {
 	static final String clientID_sync_pub = "syncronise-pub";
 	static final String clientID_sync_sub = "syncronise-sub";
 
-	private static final String[] topicFilters = { "diaries/#", "dates/#", "pages/#", "fragments/#", "marquees/#" };
+	private static final String[] topicFilters = { "diaries/#", "diaries/dates/#", "diaries/pages/#", "diaries/fragments/#", "diaries/marquees/#" };
 
 	public void perform(DiaryContext context, String server, User user) throws Exception {
 

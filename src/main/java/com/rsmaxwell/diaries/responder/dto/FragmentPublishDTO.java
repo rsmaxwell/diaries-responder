@@ -82,8 +82,8 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 
 	List<String> getTopics() {
 		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("fragments/%d", id));
-		topics.add(String.format("dates/%s/%s/%s/%s", year, month, day, id));
+		topics.add(String.format("diaries/fragments/%d", id));
+		topics.add(String.format("diaries/dates/%s/%s/%s/%s", year, month, day, id));
 		return topics;
 	}
 
