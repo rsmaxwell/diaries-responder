@@ -56,7 +56,7 @@ public class DiaryDTO extends Base implements Jsonable {
 
 	List<String> getTopics() {
 		List<String> topics = new ArrayList<String>();
-		topics.add(String.format("diaries/%d", id));
+		topics.add(String.format("diaries/diaries/%d", id));
 		return topics;
 	}
 
