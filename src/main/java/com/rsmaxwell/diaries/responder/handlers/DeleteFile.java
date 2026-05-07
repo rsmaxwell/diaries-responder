@@ -12,12 +12,15 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
+
+import io.jsonwebtoken.Claims;
 
 public class DeleteFile extends RequestHandler {
 
@@ -25,75 +28,67 @@ public class DeleteFile extends RequestHandler {
 	private static final ObjectMapper mapper = new ObjectMapper();
 
 	@Override
-	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) {
-		try {
-			log.info("DeleteFile.handleRequest: args: {}", mapper.writeValueAsString(args));
+	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-			// --- Auth ---
-			String accessToken = Authorization.getAccessToken(userProperties);
-			DiaryContext context = (DiaryContext) ctx;
-			if (Authorization.checkToken(context, "access", accessToken) == null) {
-				log.info("DeleteFile.handleRequest: Authorization.check: Failed!");
-				throw new Unauthorised();
-			}
-			log.info("DeleteFile.handleRequest: Authorization.check: OK!");
+		log.info("DeleteFile.handleRequest: args: {}", mapper.writeValueAsString(args));
 
-			// --- Config ---
-			DiariesConfig diariesConfig = context.getConfig().getDiaries();
-			Path root = Path.of(diariesConfig.getRoot());
-			String filesDirName = diariesConfig.getFiles();
-			if (root == null || filesDirName == null) {
-				return Response.internalError("Files directory not configured.");
-			}
-			final Path filesDir = root.resolve(filesDirName);
-			if (filesDir == null) {
-				return Response.internalError("Files directory is not configured on the server.");
-			}
-			log.info(String.format("UploadFile.handleRequest: filesDir: '%s'", filesDir));
+		// --- Auth ---
+		String accessToken = Authorization.getAccessToken(userProperties);
+		DiaryContext context = (DiaryContext) ctx;
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
+		log.info("DeleteFile.handleRequest: Authorization.check: OK!");
 
-			// --- Inputs ---
-			final String name = Utilities.getString(args, "name"); // e.g. "my-photo.jpg"
-			final String subdir = Utilities.getStringOrDefault(args, "subdir", ""); // optional
-
-			// Disallow absolute or sneaky paths in subdir/name
-			Path safeSubdir = Paths.get(subdir).normalize();
-			if (safeSubdir.isAbsolute() || safeSubdir.toString().contains("..")) {
-				return Response.badRequest("Invalid 'subdir'.");
-			}
-
-			// Disallow path separators in 'name' to avoid traversal (or allow and sanitize carefully)
-			if (name.contains("/") || name.contains("\\") || name.contains("..") || name.isBlank()) {
-				return Response.badRequest("Invalid 'name'.");
-			}
-
-			Path targetDir = filesDir.resolve(safeSubdir).normalize();
-			if (!targetDir.startsWith(filesDir)) {
-				return Response.badRequest("Resolved path escapes uploads root.");
-			}
-			Files.createDirectories(targetDir);
-
-			Path target = targetDir.resolve(name).normalize();
-			if (!target.startsWith(filesDir)) {
-				return Response.badRequest("Resolved file path escapes uploads root.");
-			}
-
-			// Delete the file
-			if (Files.exists(target)) {
-				log.info(String.format("DeleteFile.handleRequest: deleting: '%s' ", target));
-				Files.delete(target);
-			} else {
-				log.info(String.format("DeleteFile.handleRequest: file not found: '%s' ", target));
-			}
-
-			// --- Success payload ---
-			Map<String, Object> result = Map.of("name", name, "subdir", safeSubdir.toString(), "path", target.toString());
-			return Response.success(result);
-
-		} catch (Unauthorised u) {
-			return Response.unauthorized();
-		} catch (Exception e) {
-			log.error("DeleteFile.handleRequest: error", e);
-			return Response.internalError(e.getMessage());
+		// --- Config ---
+		DiariesConfig diariesConfig = context.getConfig().getDiaries();
+		Path root = Path.of(diariesConfig.getRoot());
+		String filesDirName = diariesConfig.getFiles();
+		if (root == null || filesDirName == null) {
+			throw RpcStatusException.internalError("Files directory not configured.");
 		}
+		final Path filesDir = root.resolve(filesDirName);
+		if (filesDir == null) {
+			throw RpcStatusException.internalError("Files directory is not configured on the server.");
+		}
+		log.info(String.format("UploadFile.handleRequest: filesDir: '%s'", filesDir));
+
+		// --- Inputs ---
+		final String name = Utilities.getString(args, "name"); // e.g. "my-photo.jpg"
+		final String subdir = Utilities.getStringOrDefault(args, "subdir", ""); // optional
+
+		// Disallow absolute or sneaky paths in subdir/name
+		Path safeSubdir = Paths.get(subdir).normalize();
+		if (safeSubdir.isAbsolute() || safeSubdir.toString().contains("..")) {
+			throw RpcStatusException.badRequest("Invalid 'subdir'.");
+		}
+
+		// Disallow path separators in 'name' to avoid traversal (or allow and sanitize carefully)
+		if (name.contains("/") || name.contains("\\") || name.contains("..") || name.isBlank()) {
+			throw RpcStatusException.badRequest("Invalid 'name'.");
+		}
+
+		Path targetDir = filesDir.resolve(safeSubdir).normalize();
+		if (!targetDir.startsWith(filesDir)) {
+			throw RpcStatusException.badRequest("Resolved path escapes uploads root.");
+		}
+		Files.createDirectories(targetDir);
+
+		Path target = targetDir.resolve(name).normalize();
+		if (!target.startsWith(filesDir)) {
+			throw RpcStatusException.badRequest("Resolved file path escapes uploads root.");
+		}
+
+		// Delete the file
+		if (Files.exists(target)) {
+			log.info(String.format("DeleteFile.handleRequest: deleting: '%s' ", target));
+			Files.delete(target);
+		} else {
+			log.info(String.format("DeleteFile.handleRequest: file not found: '%s' ", target));
+		}
+
+		// --- Success payload ---
+		Map<String, Object> result = Map.of("name", name, "subdir", safeSubdir.toString(), "path", target.toString());
+		return Response.success(result);
 	}
 }

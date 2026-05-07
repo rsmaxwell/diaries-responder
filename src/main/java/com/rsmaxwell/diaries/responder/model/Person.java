@@ -4,6 +4,8 @@ import com.rsmaxwell.diaries.responder.dto.PersonDTO;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -55,6 +57,15 @@ public class Person extends Base {
 	@Column(name = "nationalNumber")
 	private Long nationalNumber;
 
+	@NonNull
+	@Enumerated(EnumType.STRING)
+	@Column(name = "status")
+	private UserStatus status;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "role")
+	private Role role;
+
 	public Person(PersonDTO dto) {
 		this.id = dto.getId();
 		this.username = dto.getUsername();
@@ -66,5 +77,7 @@ public class Person extends Base {
 		this.countryCode = dto.getCountryCode();
 		this.nationalNumber = dto.getNationalNumber();
 		this.version = dto.getVersion();
+		this.status = dto.getStatus();
+		this.role = dto.getRole();
 	}
 }

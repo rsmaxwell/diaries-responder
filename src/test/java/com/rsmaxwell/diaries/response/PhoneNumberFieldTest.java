@@ -12,7 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.rsmaxwell.diaries.responder.utilities.Field;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 
 public class PhoneNumberFieldTest {
 
@@ -94,7 +94,7 @@ public class PhoneNumberFieldTest {
 						assertEquals(test.phoneNumber, phone);
 					});
 				} else {
-					assertThrows(BadRequest.class, () -> {
+					assertThrows(RpcStatusException.class, () -> {
 						new Field("phone", args).phone().toString();
 					});
 				}

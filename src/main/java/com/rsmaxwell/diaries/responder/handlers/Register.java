@@ -13,12 +13,14 @@ import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
 import com.rsmaxwell.diaries.responder.dto.PersonDTO;
 import com.rsmaxwell.diaries.responder.model.Person;
+import com.rsmaxwell.diaries.responder.model.Role;
+import com.rsmaxwell.diaries.responder.model.UserStatus;
 import com.rsmaxwell.diaries.responder.repository.PersonRepository;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.diaries.responder.utilities.Field;
 import com.rsmaxwell.mqtt.rpc.common.Response;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
@@ -57,11 +59,11 @@ public class Register extends RequestHandler {
 			if (tx != null) {
 				tx.rollback();
 			}
-			return Response.badRequest(e.getMessage());
+			throw RpcStatusException.badRequest(e.getMessage());
 		}
 	}
 
-	private Person validate(PersonRepository personRepository, Map<String, Object> args) throws BadRequest {
+	private Person validate(PersonRepository personRepository, Map<String, Object> args) throws Exception {
 
 		String username = new Field("username", args).min(3).max(20).toString();
 		String password = new Field("password", args).min(3).max(20).toString();
@@ -73,7 +75,7 @@ public class Register extends RequestHandler {
 
 		Optional<PersonDTO> optional = personRepository.findByUsername(username);
 		if (optional.isPresent()) {
-			throw new BadRequest("Already Registered");
+			throw RpcStatusException.badRequest("Already Registered");
 		}
 
 		String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt());
@@ -82,11 +84,14 @@ public class Register extends RequestHandler {
 		try {
 			phoneNumber = phoneNumberUtil.parse(phone, defaultRegion);
 		} catch (Exception e) {
-			throw new BadRequest("Not a valid phone number");
+			throw RpcStatusException.badRequest("Not a valid phone number");
 		}
 		int countryCode = phoneNumber.getCountryCode();
 		long nationalNumber = phoneNumber.getNationalNumber();
 
-		return new Person(username, passwordHash, firstname, lastname, knownas, email, countryCode, nationalNumber);
+		UserStatus status = UserStatus.PENDING;
+		Role role = null;
+
+		return new Person(username, passwordHash, firstname, lastname, knownas, email, countryCode, nationalNumber, status, role);
 	}
 }

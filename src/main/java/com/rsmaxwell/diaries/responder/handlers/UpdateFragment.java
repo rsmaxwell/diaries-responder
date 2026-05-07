@@ -17,16 +17,15 @@ import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.LockInfo;
 import com.rsmaxwell.diaries.responder.model.Marquee;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
-import com.rsmaxwell.mqtt.rpc.utilities.Conflict;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
 import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
@@ -45,10 +44,8 @@ public class UpdateFragment extends RequestHandler {
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		Claims claims = Authorization.checkToken(context, "access", accessToken);
-		if (claims == null) {
-			log.info("UpdateFragment.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("UpdateFragment.handleRequest: Authorization.check: OK!");
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
@@ -80,10 +77,10 @@ public class UpdateFragment extends RequestHandler {
 			// (2) enforce: must own the lock
 			LockInfo originalLock = originalFragment.getLock();
 			if (originalLock == null || !originalLock.isLocked()) {
-				throw new BadRequest("Fragment is not locked");
+				throw RpcStatusException.badRequest("Fragment is not locked");
 			}
 			if (!originalLock.isLockedBy(lockUserId, lockSessionId)) {
-				throw new Conflict("Fragment is locked by another session");
+				throw RpcStatusException.conflict("Fragment is locked by another session");
 			}
 
 			// (3) build incoming fragment WITHOUT taking lock fields from client
@@ -114,15 +111,18 @@ public class UpdateFragment extends RequestHandler {
 			}
 			tx.commit();
 
-		} catch (BadRequest e) {
-			tx.rollback();
-			return Response.badRequest(e.getMessage());
-		} catch (Conflict e) {
-			tx.rollback();
-			return Response.conflict(e.getMessage());
+		} catch (RpcStatusException e) {
+			log.warn("UpdateFragment.handleRequest: request failed; rolling back transaction: {}", e.getMessage(), e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		} catch (Exception e) {
-			tx.rollback();
-			return Response.internalError(e.getMessage());
+			log.error("UpdateFragment.handleRequest: unexpected error; rolling back transaction", e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		}
 
 		// (7) get the marquee associated with the fragment (can be null)

@@ -1,6 +1,6 @@
 package com.rsmaxwell.diaries.responder.model;
 
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
@@ -29,9 +29,9 @@ public abstract class Base {
 	@Column(name = "version", nullable = false, columnDefinition = "bigint DEFAULT 0")
 	protected Long version = 0L;
 
-	public void checkAndIncrementVersion(Base other) throws BadRequest {
+	public void checkAndIncrementVersion(Base other) throws Exception {
 		if (version != other.version) {
-			throw new BadRequest(String.format("Stale update. incoming version: %d, original version: %d", version, other.version));
+			throw RpcStatusException.badRequest(String.format("Stale update. incoming version: %d, original version: %d", version, other.version));
 		}
 
 		version += 1;

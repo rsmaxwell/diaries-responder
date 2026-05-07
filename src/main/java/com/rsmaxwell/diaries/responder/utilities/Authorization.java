@@ -14,6 +14,9 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.rsmaxwell.diaries.responder.model.Role;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtBuilder;
@@ -116,13 +119,12 @@ public class Authorization {
 		return accessToken;
 	}
 
-	public static Claims checkToken(DiaryContext context, String subject, String token) {
+	public static Claims checkToken(DiaryContext context, String subject, String token) throws RpcStatusException {
 
 		log.info("Authorization.checkToken");
 
 		if (token == null) {
-			log.info("Authorization.checkToken: accessToken not found'");
-			return null;
+			throw RpcStatusException.unauthorized("accessToken not found'");
 		}
 
 		Claims claims = null;
@@ -131,47 +133,39 @@ public class Authorization {
 			claims = parseToken(secret, token);
 		} catch (ExpiredJwtException e) {
 			log.info("Authorization.checkToken: JWT has expired'");
-			// log.catching(e);
-			return null;
+			throw RpcStatusException.unauthorized("JWT has expired");
 		}
 
 		String actual = claims.getSubject();
 		if (!subject.equals(actual)) {
-			log.info(String.format("Authorization.checkToken: unexpected subject: expected: %s, actual: %s", subject, actual));
-			return null;
+			throw RpcStatusException.unauthorized(String.format("unexpected subject: expected: %s, actual: %s", subject, actual));
 		}
 
 		return claims;
 	}
 
-	public static void main(String[] args) throws Exception {
+	public static void checkActive(Claims claims) throws RpcStatusException {
+		String status = (String) claims.get("status");
+		if (!"ACTIVE".equals(status)) {
+			throw RpcStatusException.unauthorized("account is not active");
+		}
+	}
 
-		String secret = "p8l4Qk6gw6QIvNo0uqZNyAsExRPxH7a7fW4Bz0MUk0w=";
-		String subject = "access";
-		Integer id20 = 123456;
-		int expirationPeriod = 5;
-
-		Map<String, Object> claims1 = new HashMap<String, Object>();
-		claims1.put("id20", id20);
-
-		String accessToken = getTokenWithClaims(secret, subject, expirationPeriod, ChronoUnit.SECONDS, claims1);
-
-		DiaryContext context = new DiaryContext();
-		context.setSecret(secret);
-
-		Claims claims2 = checkToken(context, subject, accessToken);
-
-		if (claims2 == null) {
-			System.out.println("Unauthorized");
-		} else {
-			Integer id = claims2.get("id20", Integer.class);
-
-			if (id == id20) {
-				System.out.println("Success");
-			} else {
-				System.out.println(String.format("Failed. Expected %d actual %d", id20, id));
-			}
+	public static void checkRoleAtLeast(Claims claims, Role requiredRole) throws RpcStatusException {
+		String roleValue = (String) claims.get("role");
+		if (roleValue == null) {
+			throw RpcStatusException.unauthorized("no role claim");
 		}
 
+		try {
+			Role actualRole = Role.valueOf(roleValue);
+
+			if (!actualRole.atLeast(requiredRole)) {
+				throw RpcStatusException.unauthorized("insufficient role");
+			}
+
+		} catch (IllegalArgumentException e) {
+			throw RpcStatusException.unauthorized(String.format("invalid role claim: {}", roleValue));
+		}
 	}
 }

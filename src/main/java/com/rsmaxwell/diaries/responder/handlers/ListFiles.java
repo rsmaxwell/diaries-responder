@@ -31,16 +31,16 @@ import com.drew.metadata.mp4.Mp4Directory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.responder.dto.ListFilesResponse;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
-import com.rsmaxwell.diaries.responder.utilities.ConflictException;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.diaries.responder.utilities.ImageItem;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
-import jakarta.ws.rs.BadRequestException;
+import io.jsonwebtoken.Claims;
 
 //convenience DTO (or use your own class)
 
@@ -50,123 +50,110 @@ public class ListFiles extends RequestHandler {
 	private static final ObjectMapper mapper = new ObjectMapper();
 
 	@Override
-	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) {
+	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		try {
-			log.info("ListFiles.handleRequest: args: {}", mapper.writeValueAsString(args));
+		log.info("ListFiles.handleRequest: args: {}", mapper.writeValueAsString(args));
 
-			// --- Auth ---
-			String accessToken = Authorization.getAccessToken(userProperties);
-			DiaryContext context = (DiaryContext) ctx;
-			if (Authorization.checkToken(context, "access", accessToken) == null) {
-				log.info("ListFiles.handleRequest: Authorization.check: Failed!");
-				throw new Unauthorised();
-			}
-			log.info("ListFiles.handleRequest: Authorization.check: OK!");
+		// --- Auth ---
+		String accessToken = Authorization.getAccessToken(userProperties);
+		DiaryContext context = (DiaryContext) ctx;
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
+		log.info("ListFiles.handleRequest: Authorization.check: OK!");
 
-			// --- Config ---
-			DiariesConfig diariesConfig = context.getConfig().getDiaries();
-			Path root = Path.of(diariesConfig.getRoot());
-			String filesDirName = diariesConfig.getFiles();
-			if (root == null || filesDirName == null) {
-				throw new Exception("Files directory not configured.");
-			}
-			final Path filesDir = root.resolve(filesDirName);
-			if (filesDir == null) {
-				throw new Exception("Files directory is not configured on the server.");
-			}
-			log.info(String.format("ListFiles.handleRequest: filesDir: '%s'", filesDir));
-			Files.createDirectories(filesDir);
-
-			// --- Inputs ---
-			final String subdir = Utilities.getStringOrDefault(args, "subdir", ""); // optional
-
-			// ---- Sanitize subdir ----
-			Path safeSubdir = Paths.get(subdir == null ? "" : subdir).normalize();
-			if (safeSubdir.isAbsolute() || safeSubdir.toString().contains("..")) {
-				return Response.badRequest("Invalid 'subdir'.");
-			}
-
-			Path targetDir = filesDir.resolve(safeSubdir).normalize();
-			if (!targetDir.startsWith(filesDir)) {
-				return Response.badRequest("Resolved path escapes uploads root.");
-			}
-
-			// --- ListFiles ---
-			final Set<String> allowedExt = Set.of(".png", ".jpg", ".jpeg", ".gif", ".webp");
-			final String filesContext = "/" + Objects.requireNonNull(diariesConfig.getFiles());
-
-			//@formatter:off
-			List<ImageItem> items;
-			try (Stream<Path> listing = Files.list(targetDir)) {
-			    List<Path> children = listing.collect(Collectors.toList());
-
-			    // Directories first (alpha)
-			    List<ImageItem> dirItems = children.stream()
-			        .filter(Files::isDirectory)
-			        .sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase()))
-			        .map(p -> {
-			            long mtime = lastModifiedMillis(p);
-			            String name = p.getFileName().toString();
-			            return ImageItem.builder()
-			                .name(name)
-			                .url(null)       // no URL for folders
-			                .size(0L)
-			                .mtime(mtime)
-			                .dateTaken(null)
-			                .dir(true) 
-			                .build();
-			        })
-			        .collect(Collectors.toList());
-
-			    // Files next (filtered by extension, sorted by mtime desc)
-			    List<ImageItem> fileItems = children.stream()
-			        .filter(Files::isRegularFile)
-			        .filter(p -> {
-			            String fn = p.getFileName().toString().toLowerCase();
-			            return allowedExt.stream().anyMatch(fn::endsWith);
-			        })
-			        .sorted(Comparator.comparingLong(this::lastModifiedMillis)
-			        .reversed())
-			        .map(p -> {
-			            long mtime = lastModifiedMillis(p);
-			            long size;
-			            try { size = Files.size(p); } catch (IOException e) { throw new UncheckedIOException(e); }
-			            String name = p.getFileName().toString();
-			            String url = buildUrlPath(filesContext, subdir, name);
-			            Long dateTaken = readDateTakenMillis(p);
-
-			            return ImageItem.builder()
-			                .name(name)
-			                .url(url)
-			                .size(size)
-			                .mtime(mtime)
-			                .dateTaken(dateTaken)
-			                .dir(false)
-			                .build();
-			        })
-			        .collect(Collectors.toList());
-
-			    items = new ArrayList<>(dirItems.size() + fileItems.size());
-			    items.addAll(dirItems);
-			    items.addAll(fileItems);
-			}
-			//@formatter:on
-
-			// --- Success payload ---
-			ListFilesResponse response = new ListFilesResponse(safeSubdir, items);
-			return Response.success(response);
-
-		} catch (Unauthorised u) {
-			return Response.unauthorized();
-		} catch (BadRequestException e) {
-			return Response.badRequest(e.getMessage());
-		} catch (ConflictException e) {
-			return Response.conflict(e.getMessage());
-		} catch (Exception e) {
-			log.error("ListFiles.handleRequest: error", e);
-			return Response.internalError(e.getMessage());
+		// --- Config ---
+		DiariesConfig diariesConfig = context.getConfig().getDiaries();
+		Path root = Path.of(diariesConfig.getRoot());
+		String filesDirName = diariesConfig.getFiles();
+		if (root == null || filesDirName == null) {
+			throw new Exception("Files directory not configured.");
 		}
+		final Path filesDir = root.resolve(filesDirName);
+		if (filesDir == null) {
+			throw new Exception("Files directory is not configured on the server.");
+		}
+		log.info(String.format("ListFiles.handleRequest: filesDir: '%s'", filesDir));
+		Files.createDirectories(filesDir);
+
+		// --- Inputs ---
+		final String subdir = Utilities.getStringOrDefault(args, "subdir", ""); // optional
+
+		// ---- Sanitise sub-dir ----
+		Path safeSubdir = Paths.get(subdir == null ? "" : subdir).normalize();
+		if (safeSubdir.isAbsolute() || safeSubdir.toString().contains("..")) {
+			throw RpcStatusException.badRequest("Invalid 'subdir'.");
+		}
+
+		Path targetDir = filesDir.resolve(safeSubdir).normalize();
+		if (!targetDir.startsWith(filesDir)) {
+			throw RpcStatusException.badRequest("Resolved path escapes uploads root.");
+		}
+
+		// --- ListFiles ---
+		final Set<String> allowedExt = Set.of(".png", ".jpg", ".jpeg", ".gif", ".webp");
+		final String filesContext = "/" + Objects.requireNonNull(diariesConfig.getFiles());
+
+		//@formatter:off
+		List<ImageItem> items;
+		try (Stream<Path> listing = Files.list(targetDir)) {
+		    List<Path> children = listing.collect(Collectors.toList());
+
+		    // Directories first (alpha)
+		    List<ImageItem> dirItems = children.stream()
+		        .filter(Files::isDirectory)
+		        .sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase()))
+		        .map(p -> {
+		            long mtime = lastModifiedMillis(p);
+		            String name = p.getFileName().toString();
+		            return ImageItem.builder()
+		                .name(name)
+		                .url(null)       // no URL for folders
+		                .size(0L)
+		                .mtime(mtime)
+		                .dateTaken(null)
+		                .dir(true) 
+		                .build();
+		        })
+		        .collect(Collectors.toList());
+
+		    // Files next (filtered by extension, sorted by mtime desc)
+		    List<ImageItem> fileItems = children.stream()
+		        .filter(Files::isRegularFile)
+		        .filter(p -> {
+		            String fn = p.getFileName().toString().toLowerCase();
+		            return allowedExt.stream().anyMatch(fn::endsWith);
+		        })
+		        .sorted(Comparator.comparingLong(this::lastModifiedMillis)
+		        .reversed())
+		        .map(p -> {
+		            long mtime = lastModifiedMillis(p);
+		            long size;
+		            try { size = Files.size(p); } catch (IOException e) { throw new UncheckedIOException(e); }
+		            String name = p.getFileName().toString();
+		            String url = buildUrlPath(filesContext, subdir, name);
+		            Long dateTaken = readDateTakenMillis(p);
+
+		            return ImageItem.builder()
+		                .name(name)
+		                .url(url)
+		                .size(size)
+		                .mtime(mtime)
+		                .dateTaken(dateTaken)
+		                .dir(false)
+		                .build();
+		        })
+		        .collect(Collectors.toList());
+
+		    items = new ArrayList<>(dirItems.size() + fileItems.size());
+		    items.addAll(dirItems);
+		    items.addAll(fileItems);
+		}
+		//@formatter:on
+
+		// --- Success payload ---
+		ListFilesResponse response = new ListFilesResponse(safeSubdir, items);
+		return Response.success(response);
 	}
 
 	private static Long readDateTakenMillis(Path imagePath) {

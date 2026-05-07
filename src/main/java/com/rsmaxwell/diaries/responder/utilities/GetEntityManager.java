@@ -16,7 +16,6 @@ import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.model.Person;
-import com.rsmaxwell.diaries.responder.model.Role;
 
 import jakarta.persistence.EntityManagerFactory;
 
@@ -111,7 +110,6 @@ public class GetEntityManager {
 			info.addClasses(Diary.class.getName());
 			info.addClasses(Page.class.getName());
 			info.addClasses(Person.class.getName());
-			info.addClasses(Role.class.getName());
 			info.addClasses(Marquee.class.getName());
 			info.addClasses(Fragment.class.getName());
 			info.addClasses(Marquee.class.getName());

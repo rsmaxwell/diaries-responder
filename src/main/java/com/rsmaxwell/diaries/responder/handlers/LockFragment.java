@@ -15,15 +15,15 @@ import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.LockInfo;
 import com.rsmaxwell.diaries.responder.model.Marquee;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
 import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
@@ -42,10 +42,8 @@ public class LockFragment extends RequestHandler {
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		Claims claims = Authorization.checkToken(context, "access", accessToken);
-		if (claims == null) {
-			log.info("LockFragment.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("LockFragment.handleRequest: Authorization.check: OK!");
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
@@ -78,7 +76,7 @@ public class LockFragment extends RequestHandler {
 
 			// Prevent stealing someone else’s lock
 			if (lock.isLocked() && !lock.isLockedBy(userId, sessionId)) {
-				return Response.conflict("Fragment is locked by another user.");
+				throw RpcStatusException.conflict("Fragment is locked by another user.");
 			}
 
 			// Lock the fragment
@@ -91,12 +89,18 @@ public class LockFragment extends RequestHandler {
 			}
 			tx.commit();
 
-		} catch (BadRequest e) {
-			tx.rollback();
-			return Response.badRequest(e.getMessage());
+		} catch (RpcStatusException e) {
+			log.warn("LockFragment.handleRequest: transaction failed; rolling back", e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		} catch (Exception e) {
-			tx.rollback();
-			return Response.internalError(e.getMessage());
+			log.error("LockFragment.handleRequest: unexpected error; rolling back", e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		}
 
 		// get the marquee associated with the fragment (can be null)

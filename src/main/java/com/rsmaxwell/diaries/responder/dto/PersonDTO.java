@@ -10,6 +10,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.responder.model.Base;
+import com.rsmaxwell.diaries.responder.model.Role;
+import com.rsmaxwell.diaries.responder.model.UserStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -36,6 +38,8 @@ public class PersonDTO extends Base implements Jsonable {
 	private String email;
 	private Integer countryCode;
 	private Long nationalNumber;
+	private UserStatus status;
+	private Role role;
 
 	@JsonIgnore
 	@EqualsAndHashCode.Exclude

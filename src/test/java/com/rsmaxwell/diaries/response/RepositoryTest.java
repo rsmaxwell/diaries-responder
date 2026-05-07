@@ -19,29 +19,23 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.dto.PageDTO;
 import com.rsmaxwell.diaries.responder.dto.PersonDTO;
-import com.rsmaxwell.diaries.responder.dto.RoleDTO;
 import com.rsmaxwell.diaries.responder.model.Diary;
 import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.model.Person;
 import com.rsmaxwell.diaries.responder.model.Role;
+import com.rsmaxwell.diaries.responder.model.UserStatus;
 import com.rsmaxwell.diaries.responder.repository.DiaryRepository;
 import com.rsmaxwell.diaries.responder.repository.PageRepository;
 import com.rsmaxwell.diaries.responder.repository.PersonRepository;
-import com.rsmaxwell.diaries.responder.repository.RoleRepository;
 import com.rsmaxwell.diaries.responder.repositoryImpl.DiaryRepositoryImpl;
 import com.rsmaxwell.diaries.responder.repositoryImpl.PageRepositoryImpl;
 import com.rsmaxwell.diaries.responder.repositoryImpl.PersonRepositoryImpl;
-import com.rsmaxwell.diaries.responder.repositoryImpl.RoleRepositoryImpl;
 import com.rsmaxwell.diaries.responder.utilities.GetEntityManager;
 
 import jakarta.persistence.EntityManager;
@@ -50,8 +44,6 @@ import jakarta.persistence.EntityTransaction;
 
 public class RepositoryTest {
 
-	private static final Logger log = LoggerFactory.getLogger(RepositoryTest.class);
-	private static final ObjectMapper mapper = new ObjectMapper();
 	private static EntityManagerFactory entityManagerFactory;
 	private static EntityManager entityManager;
 	private static EntityTransaction tx;
@@ -119,16 +111,19 @@ public class RepositoryTest {
 		PersonRepository repository = new PersonRepositoryImpl(entityManager);
 		repository.deleteAll();
 
-		Person p0 = new Person("007", "secrethash", "James", "Bond", "007", "bond@mi6.uk.gov", 44, 56220218978L);
-		Person p1 = new Person("horrorpoplar", "maze", "Ayana", "Bush", "bob", "bobhorror@acer.com", 44, 54990891104L);
-		Person p2 = new Person("swarmbreath", "architect", "Frederick", "Costa", "jill", "jgswarm@@london.edu.uk", 44, 12190125697L);
-		Person p3 = new Person("sickowither", "direct", "Brian", "Villa", "greg", "gyobbo@os.co.uk", 44, 46431927722L);
-		Person p4 = new Person("pushprovision", "landowner", "Evelyn", "Benton", "top", "beefsteak@waitrose.co.uk", 44, 50782257157L);
-		Person p5 = new Person("fantasy", "quarter", "Jazlynn", "Collins", "toby", "thomashall@ntlworld.co.uk", 44, 53377002182L);
-		Person p6 = new Person("shine", "conductor", "Sean", "Pierce", "sue", "qwerty@outlook.com", 44, 42326833933L);
-		Person p7 = new Person("indulge", "action", "Gisselle", "Moss", "tom", "gross@hotmail.com", 44, 39906867554L);
-		Person p8 = new Person("hemisphere", "horseshoe", "Cherish", "Nguyen", "georgy", "george@hotmail.com", 44, 35598005196L);
-		Person p9 = new Person("judicial", "sigh", "Tianna ", "Meza", "fred", "fredbloggs@vista.co.uk", 44, 35598005196L);
+		UserStatus status = UserStatus.ACTIVE;
+		Role role = Role.EDITOR;
+
+		Person p0 = new Person("007", "secrethash", "James", "Bond", "007", "bond@mi6.uk.gov", 44, 56220218978L, status, role);
+		Person p1 = new Person("horrorpoplar", "maze", "Ayana", "Bush", "bob", "bobhorror@acer.com", 44, 54990891104L, status, role);
+		Person p2 = new Person("swarmbreath", "architect", "Frederick", "Costa", "jill", "jgswarm@@london.edu.uk", 44, 12190125697L, status, role);
+		Person p3 = new Person("sickowither", "direct", "Brian", "Villa", "greg", "gyobbo@os.co.uk", 44, 46431927722L, status, role);
+		Person p4 = new Person("pushprovision", "landowner", "Evelyn", "Benton", "top", "beefsteak@waitrose.co.uk", 44, 50782257157L, status, role);
+		Person p5 = new Person("fantasy", "quarter", "Jazlynn", "Collins", "toby", "thomashall@ntlworld.co.uk", 44, 53377002182L, status, role);
+		Person p6 = new Person("shine", "conductor", "Sean", "Pierce", "sue", "qwerty@outlook.com", 44, 42326833933L, status, role);
+		Person p7 = new Person("indulge", "action", "Gisselle", "Moss", "tom", "gross@hotmail.com", 44, 39906867554L, status, role);
+		Person p8 = new Person("hemisphere", "horseshoe", "Cherish", "Nguyen", "georgy", "george@hotmail.com", 44, 35598005196L, status, role);
+		Person p9 = new Person("judicial", "sigh", "Tianna ", "Meza", "fred", "fredbloggs@vista.co.uk", 44, 35598005196L, status, role);
 
 		Long id0 = repository.save(p0);
 		Long id1 = repository.save(p1);
@@ -289,72 +284,5 @@ public class RepositoryTest {
 
 		diaryRepository.deleteAll();
 		assertEquals(diaryRepository.count(), 0);
-	}
-
-	@SuppressWarnings("unused")
-	@Test
-	void testRoleRepository() throws Exception {
-
-		RoleRepository repository = new RoleRepositoryImpl(entityManager);
-		repository.deleteAll();
-
-		Role r0 = new Role("hardship");
-		Role r1 = new Role("horrorpoplar");
-		Role r2 = new Role("swarmbreath");
-		Role r3 = new Role("sickowither");
-		Role r4 = new Role("pushprovision");
-		Role r5 = new Role("fantasy");
-		Role r6 = new Role("shine");
-		Role r7 = new Role("indulge");
-
-		Long id0 = repository.save(r0);
-		Long id1 = repository.save(r1);
-		Long id2 = repository.save(r2);
-		Long id3 = repository.save(r3);
-		Long id4 = repository.save(r4);
-		Long id5 = repository.save(r5);
-		Long id6 = repository.save(r6);
-		Long id7 = repository.save(r7);
-		assertEquals(8, repository.count());
-
-		Role r8 = new Role("hemisphere");
-		Role r9 = new Role("judicial");
-		Long id8 = repository.save(r8);
-		Long id9 = repository.save(r9);
-
-		int count1 = 0;
-		Iterable<RoleDTO> all = repository.findAll();
-		for (RoleDTO p : all) {
-			Optional<RoleDTO> y = repository.findById(p.getId());
-
-			assertNotNull(y.isPresent());
-			RoleDTO p2 = y.get();
-
-			ObjectWriter prettyprint = new ObjectMapper().writerWithDefaultPrettyPrinter();
-			log.info(String.format("p:  %s", prettyprint.writeValueAsString(p)));
-			log.info(String.format("p2: %s", prettyprint.writeValueAsString(p2)));
-
-			assertEquals(p.getId(), p2.getId());
-			assertTrue(p.equals(p2));
-
-			count1++;
-		}
-
-		assertEquals(count1, 10);
-		assertEquals(count1, repository.count());
-
-		assertEquals(repository.count(), 10);
-		assertTrue(repository.existsById(id0));
-		repository.delete(r0);
-		assertFalse(repository.existsById(id0));
-		assertEquals(repository.count(), 9);
-
-		assertTrue(repository.existsById(id1));
-		repository.delete(r1);
-		assertFalse(repository.existsById(id1));
-		assertEquals(repository.count(), 8);
-
-		repository.deleteAll();
-		assertEquals(repository.count(), 0);
 	}
 }

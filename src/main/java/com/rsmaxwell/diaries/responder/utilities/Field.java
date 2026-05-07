@@ -9,7 +9,7 @@ import org.apache.commons.validator.routines.EmailValidator;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 
 public class Field {
 
@@ -20,59 +20,59 @@ public class Field {
 	private final String name;
 	private final String value;
 
-	public Field(String name, Map<String, Object> args) throws BadRequest {
+	public Field(String name, Map<String, Object> args) throws RpcStatusException {
 		this.name = name;
 
 		try {
 			this.value = Utilities.getString(args, name);
 		} catch (Exception e) {
-			throw new BadRequest(e.getMessage());
+			throw RpcStatusException.badRequest(e.getMessage());
 		}
 	}
 
-	public Field min(int limit) throws BadRequest {
+	public Field min(int limit) throws RpcStatusException {
 		if (value.length() < limit) {
-			throw new BadRequest(String.format("'%s' too short", name));
+			throw RpcStatusException.badRequest(String.format("'%s' too short", name));
 		}
 		return this;
 	}
 
-	public Field max(int limit) throws BadRequest {
+	public Field max(int limit) throws RpcStatusException {
 		if (value.length() > limit) {
-			throw new BadRequest(String.format("'%s' too long", name));
+			throw RpcStatusException.badRequest(String.format("'%s' too long", name));
 		}
 		return this;
 	}
 
-	public Field pattern(String regex) throws BadRequest {
+	public Field pattern(String regex) throws RpcStatusException {
 		Pattern pattern = Pattern.compile(regex);
 		Matcher matcher = pattern.matcher(value);
 
 		if (!matcher.matches()) {
-			throw new BadRequest(String.format("'%s' bad formatted incorrectly", name));
+			throw RpcStatusException.badRequest(String.format("'%s' bad formatted incorrectly", name));
 		}
 		return this;
 	}
 
-	public Field email() throws BadRequest {
+	public Field email() throws RpcStatusException {
 		boolean valid = emailValidator.isValid(value);
 		if (!valid) {
-			throw new BadRequest(String.format("'%s' bad format", name));
+			throw RpcStatusException.badRequest(String.format("'%s' bad format", name));
 		}
 		return this;
 	}
 
-	public Field phone() throws BadRequest {
+	public Field phone() throws RpcStatusException {
 		PhoneNumber number;
 
 		try {
 			number = phoneNumberUtil.parse(value, defaultRegion);
 		} catch (Exception e) {
-			throw new BadRequest(String.format("'%s' bad format: %s", name, e.getMessage()));
+			throw RpcStatusException.badRequest(String.format("'%s' bad format: %s", name, e.getMessage()));
 		}
 
 		if (!phoneNumberUtil.isValidNumber(number)) {
-			throw new BadRequest(String.format("'%s' bad format", name));
+			throw RpcStatusException.badRequest(String.format("'%s' bad format", name));
 		}
 
 		return this;

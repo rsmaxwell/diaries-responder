@@ -15,15 +15,16 @@ import com.rsmaxwell.diaries.responder.model.Diary;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Page;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
+import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 
@@ -39,10 +40,9 @@ public class UpdateMarquee extends RequestHandler {
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("UpdateMarquee.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("UpdateMarquee.handleRequest: Authorization.check: OK!");
 
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
@@ -97,12 +97,18 @@ public class UpdateMarquee extends RequestHandler {
 			}
 			tx.commit();
 
-		} catch (BadRequest e) {
-			tx.rollback();
-			return Response.badRequest(e.getMessage());
+		} catch (RpcStatusException e) {
+			log.warn("UpdateMarquee.handleRequest: request failed; rolling back transaction: {}", e.getMessage(), e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		} catch (Exception e) {
-			tx.rollback();
-			return Response.internalError(e.getMessage());
+			log.error("UpdateMarquee.handleRequest: unexpected error; rolling back transaction", e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		}
 
 		// (5) Remove the original Marquee from the TopicTree

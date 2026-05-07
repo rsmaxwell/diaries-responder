@@ -13,13 +13,14 @@ import org.slf4j.LoggerFactory;
 import com.rsmaxwell.diaries.responder.dto.PageDTO;
 import com.rsmaxwell.diaries.responder.model.Diary;
 import com.rsmaxwell.diaries.responder.model.Page;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.PageRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
+import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 
@@ -34,10 +35,9 @@ public class NormalisePages extends RequestHandler {
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("NormalisePages.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("NormalisePages.handleRequest: Authorization.check: OK!");
 
 		MqttAsyncClient client = context.getPublisherClient();

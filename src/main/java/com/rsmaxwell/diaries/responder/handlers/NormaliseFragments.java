@@ -17,16 +17,17 @@ import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
 import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
+import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 
@@ -42,10 +43,9 @@ public class NormaliseFragments extends RequestHandler {
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("NormaliseFragments.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("NormaliseFragments.handleRequest: Authorization.check: OK!");
 
 		MqttAsyncClient client = context.getPublisherClient();
@@ -64,7 +64,7 @@ public class NormaliseFragments extends RequestHandler {
 
 		} catch (Exception e) {
 			log.info("NormaliseFragments.handleRequest: args: " + mapper.writeValueAsString(args));
-			throw new BadRequest(e.getMessage(), e);
+			throw RpcStatusException.badRequest(e.getMessage());
 		}
 
 		EntityManager em = context.getEntityManager();

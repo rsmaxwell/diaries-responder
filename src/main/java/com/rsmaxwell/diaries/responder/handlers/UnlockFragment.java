@@ -15,15 +15,15 @@ import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.LockInfo;
 import com.rsmaxwell.diaries.responder.model.Marquee;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
 import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
@@ -42,10 +42,8 @@ public class UnlockFragment extends RequestHandler {
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
 		Claims claims = Authorization.checkToken(context, "access", accessToken);
-		if (claims == null) {
-			log.info("UnlockFragment.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("UnlockFragment.handleRequest: Authorization.check: OK!");
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
@@ -77,7 +75,7 @@ public class UnlockFragment extends RequestHandler {
 			// Prevent stealing someone else’s lock
 			if (lock.isLocked() && !lock.isLockedBy(userId, sessionId)) {
 				tx.rollback();
-				return Response.conflict("Fragment is locked by another user.");
+				throw RpcStatusException.conflict("Fragment is locked by another user.");
 			}
 
 			// Unlock the fragment
@@ -90,12 +88,18 @@ public class UnlockFragment extends RequestHandler {
 			}
 			tx.commit();
 
-		} catch (BadRequest e) {
-			tx.rollback();
-			return Response.badRequest(e.getMessage());
+		} catch (RpcStatusException e) {
+			log.warn("UnlockFragment.handleRequest: request failed; rolling back transaction: {}", e.getMessage(), e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		} catch (Exception e) {
-			tx.rollback();
-			return Response.internalError(e.getMessage());
+			log.error("UnlockFragment.handleRequest: unexpected error; rolling back transaction", e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		}
 
 		// get the marquee associated with the fragment (can be null)

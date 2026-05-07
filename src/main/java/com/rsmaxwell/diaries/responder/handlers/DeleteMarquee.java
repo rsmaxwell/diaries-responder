@@ -12,14 +12,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.responder.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Page;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
+
+import io.jsonwebtoken.Claims;
 
 public class DeleteMarquee extends RequestHandler {
 
@@ -33,10 +35,9 @@ public class DeleteMarquee extends RequestHandler {
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("UpdateFragment.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("DeleteMarquee.handleRequest: Authorization.check: OK!");
 
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
@@ -44,12 +45,11 @@ public class DeleteMarquee extends RequestHandler {
 		Marquee marquee;
 		try {
 			Long id = Utilities.getLong(args, "id");
-
 			marquee = context.inflateMarquee(id);
 
 		} catch (Exception e) {
 			log.info("DeleteMarquee.handleRequest: args: " + mapper.writeValueAsString(args));
-			throw new BadRequest(e.getMessage(), e);
+			throw RpcStatusException.badRequest(e.getMessage());
 		}
 
 		// First delete the marquee from the database

@@ -8,6 +8,8 @@ import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
 import com.rsmaxwell.diaries.responder.dto.PersonDTO;
 import com.rsmaxwell.diaries.responder.model.Person;
+import com.rsmaxwell.diaries.responder.model.Role;
+import com.rsmaxwell.diaries.responder.model.UserStatus;
 import com.rsmaxwell.diaries.responder.repository.PersonRepository;
 import com.rsmaxwell.diaries.responder.utilities.WhereBuilder;
 
@@ -53,6 +55,8 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		list.add("email");
 		list.add("countryCode");
 		list.add("nationalNumber");
+		list.add("status");
+		list.add("role");
 		return list;
 	}
 
@@ -67,6 +71,8 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		list.add(entity.getEmail());
 		list.add(entity.getCountryCode());
 		list.add(entity.getNationalNumber());
+		list.add(entity.getStatus() == null ? null : entity.getStatus().name());
+		list.add(entity.getRole() == null ? null : entity.getRole().name());
 		return list;
 	}
 
@@ -81,6 +87,11 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		String email = getStringFromSqlResult(result, 6, null);
 		Integer countryCode = getIntegerFromSqlResult(result, 7, 0);
 		Long nationalNumber = getLongFromSqlResult(result, 8, 0L);
+		String statusValue = getStringFromSqlResult(result, 9, null);
+		String roleValue = getStringFromSqlResult(result, 10, null);
+
+		UserStatus status = toUserStatus(statusValue);
+		Role role = toRole(roleValue);
 
 		//@formatter:off
 		return PersonDTO.builder()
@@ -93,8 +104,24 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 				.email(email)
 				.countryCode(countryCode)
 				.nationalNumber(nationalNumber)
+				.status(status)
+				.role(role)
 				.build();
 		//@formatter:on
+	}
+
+	private UserStatus toUserStatus(String value) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		return UserStatus.valueOf(value);
+	}
+
+	private Role toRole(String value) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		return Role.valueOf(value);
 	}
 
 	public String phoneNumberFromDTO(Integer countryCode, Long nationalNumber) {
@@ -105,32 +132,6 @@ public class PersonRepositoryImpl extends AbstractCrudRepository<Person, PersonD
 		number.setCountryCode(countryCode);
 		number.setNationalNumber(nationalNumber);
 		return phoneNumberUtil.format(number, PhoneNumberUtil.PhoneNumberFormat.NATIONAL);
-	}
-
-	public PersonDTO newPersonDTO(Object[] result) {
-		Long id = ((Number) result[0]).longValue();
-		String username = (String) result[1];
-		String passwordHash = (String) result[2];
-		String firstName = (String) result[3];
-		String lastName = (String) result[4];
-		String knownas = (String) result[5];
-		String email = (String) result[6];
-		int countryCode = ((Number) result[7]).intValue();
-		long nationalNumber = ((Number) result[8]).longValue();
-
-		//@formatter:off
-		return PersonDTO.builder()
-				.id(id)
-				.username(username)
-				.passwordHash(passwordHash)
-				.firstName(firstName)
-				.lastName(lastName)
-				.knownas(knownas)
-				.email(email)
-				.countryCode(countryCode)
-				.nationalNumber(nationalNumber)
-				.build();
-		//@formatter:on
 	}
 
 	@Override

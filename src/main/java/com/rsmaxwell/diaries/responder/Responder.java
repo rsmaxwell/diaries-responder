@@ -165,12 +165,12 @@ public class Responder {
 
 		HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
 
-		// --- Context for diary pages (existing) ---
-		String diariesContextName = "/" + diariesConfig.getDiaries(); // e.g. "/diaries"
+		// --- Context for diary pages ---
+		String diariesContextName = "/diaries";
 		server.createContext(diariesContextName, staticFileHandler(diariesContextName, diariesDir));
 
-		// --- New context for uploaded files ---
-		String filesContextName = "/" + diariesConfig.getFiles(); // e.g. "/files"
+		// --- Context for uploaded files ---
+		String filesContextName = "/files";
 		server.createContext(filesContextName, staticFileHandler(filesContextName, filesDir));
 
 		server.start();

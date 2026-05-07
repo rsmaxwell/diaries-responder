@@ -12,14 +12,16 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.model.Diary;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.DiaryRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
 
+import io.jsonwebtoken.Claims;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 
@@ -35,10 +37,9 @@ public class UpdateDiary extends RequestHandler {
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("UpdateDiary.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("UpdateDiary.handleRequest: Authorization.check: OK!");
 
 		DiaryRepository diaryRepository = context.getDiaryRepository();
@@ -82,9 +83,18 @@ public class UpdateDiary extends RequestHandler {
 			}
 			tx.commit();
 
+		} catch (RpcStatusException e) {
+			log.warn("UpdateDiary.handleRequest: request failed; rolling back transaction: {}", e.getMessage(), e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		} catch (Exception e) {
-			tx.rollback();
-			return Response.internalError(e.getMessage());
+			log.error("UpdateDiary.handleRequest: unexpected error; rolling back transaction", e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
 		}
 
 		// (5) Remove the original Diary from the TopicTree

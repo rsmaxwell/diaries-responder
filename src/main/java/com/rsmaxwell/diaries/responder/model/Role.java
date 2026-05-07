@@ -1,27 +1,15 @@
 package com.rsmaxwell.diaries.responder.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
-import lombok.NonNull;
-import lombok.ToString;
-import lombok.experimental.SuperBuilder;
+public enum Role {
+	READER(10), EDITOR(20), ADMIN(30);
 
-@Entity
-@Table(name = "role")
-@Data
-@EqualsAndHashCode(callSuper = true)
-@ToString(callSuper = true)
-@SuperBuilder
-@NoArgsConstructor
-@AllArgsConstructor
-public class Role extends Base {
+	private final int level;
 
-	@NonNull
-	@Column(name = "name", unique = true)
-	private String name;
+	Role(int level) {
+		this.level = level;
+	}
+
+	public boolean atLeast(Role required) {
+		return this.level >= required.level;
+	}
 }

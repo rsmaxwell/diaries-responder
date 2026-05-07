@@ -7,9 +7,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Optional;
 
 import javax.imageio.ImageIO;
@@ -30,15 +28,12 @@ import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.dto.PageDTO;
-import com.rsmaxwell.diaries.responder.dto.RoleDTO;
 import com.rsmaxwell.diaries.responder.model.Diary;
 import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.repository.DiaryRepository;
 import com.rsmaxwell.diaries.responder.repository.PageRepository;
-import com.rsmaxwell.diaries.responder.repository.RoleRepository;
 import com.rsmaxwell.diaries.responder.repositoryImpl.DiaryRepositoryImpl;
 import com.rsmaxwell.diaries.responder.repositoryImpl.PageRepositoryImpl;
-import com.rsmaxwell.diaries.responder.repositoryImpl.RoleRepositoryImpl;
 import com.rsmaxwell.diaries.responder.template.ImageInfo;
 import com.rsmaxwell.diaries.responder.utilities.GetEntityManager;
 import com.rsmaxwell.diaries.responder.utilities.MyFileUtilities;
@@ -55,13 +50,11 @@ public class SyncroniseDatabase {
 	private DiariesConfig diariesConfig;
 	private DiaryRepository diaryRepository;
 	private PageRepository pageRepository;
-	private RoleRepository roleRepository;
 
-	public SyncroniseDatabase(DiariesConfig diariesConfig, DiaryRepository diaryRepository, PageRepository pageRepository, RoleRepository roleRepository) {
+	public SyncroniseDatabase(DiariesConfig diariesConfig, DiaryRepository diaryRepository, PageRepository pageRepository) {
 		this.diariesConfig = diariesConfig;
 		this.diaryRepository = diaryRepository;
 		this.pageRepository = pageRepository;
-		this.roleRepository = roleRepository;
 	}
 
 	static Option createOption(String shortName, String longName, String argName, String description, boolean required) {
@@ -93,14 +86,12 @@ public class SyncroniseDatabase {
 
 			DiaryRepository diaryRepository = new DiaryRepositoryImpl(entityManager);
 			PageRepository pageRepository = new PageRepositoryImpl(entityManager);
-			RoleRepository roleRepository = new RoleRepositoryImpl(entityManager);
-			SyncroniseDatabase p = new SyncroniseDatabase(diariesConfig, diaryRepository, pageRepository, roleRepository);
+			SyncroniseDatabase p = new SyncroniseDatabase(diariesConfig, diaryRepository, pageRepository);
 
 			tx = entityManager.getTransaction();
 			tx.begin();
 
 			p.synchroniseDiaries();
-			p.synchroniseRoles();
 
 			tx.commit();
 
@@ -301,39 +292,5 @@ public class SyncroniseDatabase {
 		}
 
 		return info;
-	}
-
-	public void synchroniseRoles() throws Exception {
-
-		log.info("Refresh the roles");
-
-		List<String> list = new ArrayList<String>();
-		list.add("admin");
-		list.add("editor");
-		list.add("viewer");
-
-		for (String name : list) {
-			Optional<RoleDTO> optional = roleRepository.findByName(name);
-
-			if (optional.isPresent()) {
-				log.info(String.format("Role '%s' already has a database record", name));
-			} else {
-				log.info(String.format("creating Role '%s' database record", name));
-				// diaryRepository.save(new Diary(name));
-			}
-		}
-
-		Iterable<RoleDTO> roles = roleRepository.findAll();
-		for (RoleDTO role : roles) {
-			String name = role.getName();
-
-			if (list.contains(name)) {
-				log.info(String.format("The database Role '%s' is correct", name));
-			} else {
-				String message = String.format("The database Role '%s' sould not be present", name);
-				log.info(message);
-				throw new Exception(message);
-			}
-		}
 	}
 }

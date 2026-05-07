@@ -16,14 +16,16 @@ import com.rsmaxwell.diaries.responder.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Page;
+import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
+import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
-import com.rsmaxwell.mqtt.rpc.utilities.BadRequest;
-import com.rsmaxwell.mqtt.rpc.utilities.Unauthorised;
+
+import io.jsonwebtoken.Claims;
 
 public class AddMarquee extends RequestHandler {
 
@@ -37,11 +39,10 @@ public class AddMarquee extends RequestHandler {
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
-		if (Authorization.checkToken(context, "access", accessToken) == null) {
-			log.info("AddFragment.handleRequest: Authorization.check: Failed!");
-			throw new Unauthorised();
-		}
-		log.info("Authorization.check: OK!");
+		Claims claims = Authorization.checkToken(context, "access", accessToken);
+		Authorization.checkActive(claims);
+		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
+		log.info("AddMarquee.handleRequest: Authorization.check: OK!");
 
 		Page page;
 		Fragment fragment;
@@ -103,7 +104,7 @@ public class AddMarquee extends RequestHandler {
 
 		} catch (Exception e) {
 			log.info("AddFragment.handleRequest: args: " + mapper.writeValueAsString(args));
-			throw new BadRequest(e.getMessage(), e);
+			throw RpcStatusException.badRequest(e.getMessage());
 		}
 
 		// First add the new Fragment to the database
@@ -115,8 +116,7 @@ public class AddMarquee extends RequestHandler {
 			savedFragment = result.getFragment();
 			savedMarquee = result.getMarquee();
 		} catch (Exception e) {
-			log.info("AddFragment.handleRequest: Exception: " + e.getMessage());
-			return Response.internalError(e.getMessage());
+			throw RpcStatusException.internalError(e.getMessage());
 		}
 
 		// Now publish the Fragment (and its marquee) to the topic tree
