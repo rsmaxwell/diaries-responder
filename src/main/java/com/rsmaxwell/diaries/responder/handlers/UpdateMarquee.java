@@ -127,6 +127,6 @@ public class UpdateMarquee extends RequestHandler {
 		MarqueePublishDTO dto = new MarqueePublishDTO(incomingMarquee);
 		dto.publish(client, diary.getId());
 
-		return Response.success(incomingMarquee.getId());
+		return Response.success(dto);
 	}
 }
