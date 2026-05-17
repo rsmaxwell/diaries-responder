@@ -103,7 +103,7 @@ public class LockFragment extends RequestHandler {
 			throw e;
 		}
 
-		// get the marquee associated with the fragment (can be null)
+		// get the Marquee associated with the fragment (can be null)
 		Marquee marquee = null;
 		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
 		if (optionalMarqueeDTO.isPresent()) {
@@ -111,7 +111,7 @@ public class LockFragment extends RequestHandler {
 			marquee = context.inflateMarquee(marqueeDTO);
 		}
 
-		// (6) publish the locked Fragment to the topic tree
+		// publish the locked Fragment to the topic tree
 		MqttAsyncClient client = context.getPublisherClient();
 		log.info("LockFragment.handleRequest: publishing the locked fragment to the TopicTree");
 		FragmentPublishDTO dto = new FragmentPublishDTO(fragment, marquee);
