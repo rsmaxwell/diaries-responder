@@ -27,6 +27,7 @@ import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.responder.handlers.AddFragment;
 import com.rsmaxwell.diaries.responder.handlers.AddMarquee;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFile;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFragment;
@@ -87,6 +88,7 @@ public class Responder {
 		messageHandler.putHandler("normaliseFragments", new NormaliseFragments());
 		messageHandler.putHandler("updatePage", new UpdatePage());
 		messageHandler.putHandler("updateDiary", new UpdateDiary());
+		messageHandler.putHandler("addFragment", new AddFragment());
 		messageHandler.putHandler("addMarquee", new AddMarquee());
 		messageHandler.putHandler("updateMarquee", new UpdateMarquee());
 		messageHandler.putHandler("updateFragment", new UpdateFragment());
@@ -246,9 +248,10 @@ public class Responder {
 		String server = mqttConfig.getServer();
 		User user = mqttConfig.getUser();
 
-		log.info("Config:");
-		log.info(String.format("    refreshPeriod:     %8s = %d Seconds", config.getRefreshPeriod(), config.getRefreshPeriodSeconds()));
-		log.info(String.format("    refreshExpiration: %8s = %d Seconds", config.getRefreshExpiration(), config.getRefreshExpirationSeconds()));
+		log.debug("Config:");
+		log.debug(String.format("    refreshPeriod:     %8s = %d Seconds", config.getRefreshPeriod(), config.getRefreshPeriodSeconds()));
+		log.debug(String.format("    refreshExpiration: %8s = %d Seconds", config.getRefreshExpiration(), config.getRefreshExpirationSeconds()));
+		log.debug(String.format("    normaliseOnStartup: %8s", config.getNormaliseOnStartup()));
 
 		// @formatter:off
 		try (EntityManagerFactory entityManagerFactory = GetEntityManager.adminFactory(dbConfig); 
@@ -276,7 +279,7 @@ public class Responder {
 
 			// Synchronise the topic tree with the database
 			Synchronise sync = new Synchronise();
-			sync.perform(context, server, user);
+			sync.perform(config, context, server, user);
 			// sync.test(context, server, user);
 
 			// Respond to user requests till asked to quit

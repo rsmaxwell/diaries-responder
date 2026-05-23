@@ -167,11 +167,10 @@ public class DiaryContext {
 	}
 
 	public Integer deleteFragment(Fragment fragment) {
-
-		for (MarqueeDBDTO marqueeDTO : marqueeRepository.findAllByFragment(fragment)) {
-			marqueeRepository.deleteById(marqueeDTO.getId());
-		}
-
 		return fragmentRepository.delete(fragment);
+	}
+
+	public void deleteMarquee(Marquee marquee) {
+		marqueeRepository.delete(marquee);
 	}
 }

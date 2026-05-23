@@ -22,6 +22,7 @@ import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.rsmaxwell.diaries.common.config.Config;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
@@ -50,7 +51,7 @@ public class Synchronise {
 
 	private static final String[] topicFilters = { "diaries/#", "diaries/dates/#", "diaries/pages/#", "diaries/fragments/#", "diaries/marquees/#" };
 
-	public void perform(DiaryContext context, String server, User user) throws Exception {
+	public void perform(Config config, DiaryContext context, String server, User user) throws Exception {
 
 		// Setup the Publish Client
 		String clientId_pub = clientID_sync_pub + "-" + System.currentTimeMillis();
@@ -110,7 +111,7 @@ public class Synchronise {
 
 		for (String topic : topicFilters) {
 			MqttSubscription sub = new MqttSubscription(topic, 1);
-			log.info(String.format("SUBSCRIBED %s", sub));
+			log.debug(String.format("SUBSCRIBED %s", sub));
 			client_sub.subscribe(sub).waitForCompletion();
 			// sync.waitForMessages();
 		}
@@ -124,10 +125,13 @@ public class Synchronise {
 		removeOrphanEntries(client_pub, topicTreeMap, databaseMap);
 
 		// Wait for broker to actually drop the retained messages
-		sync.waitForMessages();
-		normaliseDiarySequence(client_pub, context);
-		normalisePageSequence(client_pub, context);
-		normaliseFragmentSequence(client_pub, context);
+		if (config.isNormaliseOnStartup()) {
+			log.debug("Normalising sequence numbers");
+			sync.waitForMessages();
+			normaliseDiarySequence(client_pub, context);
+			normalisePageSequence(client_pub, context);
+			normaliseFragmentSequence(client_pub, context);
+		}
 
 		// Wait again for those publishes to arrive
 		sync.waitForMessages();
@@ -140,7 +144,7 @@ public class Synchronise {
 	}
 
 	private void normaliseDiarySequence(MqttAsyncClient client, DiaryContext context) throws Exception {
-		log.info("normaliseDiarySequence");
+		log.debug("normaliseDiarySequence");
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
@@ -161,42 +165,50 @@ public class Synchronise {
 		BigDecimal sequence = new BigDecimal("1.0000");
 		BigDecimal increment = new BigDecimal("1.0000");
 
-		tx.begin();
-		try {
-			for (DiaryDTO dto : diaryList) {
-				BigDecimal currentSeq = dto.getSequence();
+		for (DiaryDTO dto : diaryList) {
+			BigDecimal currentSeq = dto.getSequence();
 
-				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
-					// log.info(String.format("diary id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
-				} else {
-					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-					log.info(String.format("Updating diary id:%d: name:%s: sequence %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
+			if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
+				// log.info(String.format("diary id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
+			} else {
+				String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
+				log.info(String.format("Updating diary id:%d: name:%s: sequence %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
 
-					Diary diary = new Diary(dto);
-					diary.setSequence(sequence);
-					diaryRepository.update(diary);
-					updatedDiaries.add(diary);
-				}
-
-				sequence = sequence.add(increment);
+				Diary diary = new Diary(dto);
+				diary.setSequence(sequence);
+				updatedDiaries.add(diary);
 			}
-			tx.commit();
 
-		} catch (Exception ex) {
-			tx.rollback();
-			throw ex;
+			sequence = sequence.add(increment);
 		}
 
-		// Publish the updated diaries
-		for (Diary diary : updatedDiaries) {
-			log.info(String.format("publishing diary id: %d, name: %s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
-			DiaryDTO diaryDTO = new DiaryDTO(diary);
-			diaryDTO.publish(client);
+		if (!updatedDiaries.isEmpty()) {
+			tx.begin();
+
+			// Publish the updated diaries to the database
+			try {
+				for (Diary diary : updatedDiaries) {
+					diaryRepository.update(diary);
+				}
+
+				tx.commit();
+
+			} catch (Exception ex) {
+				tx.rollback();
+				throw ex;
+			}
+
+			// Publish the updated diaries to the topic tree
+			for (Diary diary : updatedDiaries) {
+				log.info(String.format("publishing diary id: %d, name: %s, sequence: %s", diary.getId(), diary.getName(), diary.getSequence().toPlainString()));
+				DiaryDTO diaryDTO = new DiaryDTO(diary);
+				diaryDTO.publish(client);
+			}
 		}
 	}
 
 	private void normalisePageSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
-		log.info("normalisePageSequence");
+		log.debug("normalisePageSequence");
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
@@ -228,42 +240,50 @@ public class Synchronise {
 			BigDecimal sequence = new BigDecimal("1.0000");
 			BigDecimal increment = new BigDecimal("1.0000");
 
-			tx.begin();
-			try {
-				for (PageDTO dto : pageList) {
-					BigDecimal currentSeq = dto.getSequence();
+			for (PageDTO dto : pageList) {
+				BigDecimal currentSeq = dto.getSequence();
 
-					if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
-						// log.info(String.format("page id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
-					} else {
-						String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-						log.info(String.format("Updating diary id:%d: name:%s: sequence %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
+				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
+					// log.info(String.format("page id:%d, name:%s already has correct sequence number", dto.getId(), dto.getName()));
+				} else {
+					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
+					log.info(String.format("Updating page id:%d: name:%s: sequence %s -> %s", dto.getId(), dto.getName(), currentSeqStr, sequence.toPlainString()));
 
-						Page page = new Page(diary, dto);
-						page.setSequence(sequence);
-						pageRepository.update(page);
-						updatedPages.add(page);
-					}
-
-					sequence = sequence.add(increment);
+					Page page = new Page(diary, dto);
+					page.setSequence(sequence);
+					updatedPages.add(page);
 				}
-				tx.commit();
 
-			} catch (Exception ex) {
-				tx.rollback();
-				throw ex;
+				sequence = sequence.add(increment);
 			}
 
-			// Publish the updated pages
-			for (Page page : updatedPages) {
-				PageDTO pageDTO = new PageDTO(page);
-				pageDTO.publish(client);
+			if (!updatedPages.isEmpty()) {
+				tx.begin();
+
+				// Publish the updated pages to the database
+				try {
+					for (Page page : updatedPages) {
+						pageRepository.update(page);
+					}
+
+					tx.commit();
+
+				} catch (Exception ex) {
+					tx.rollback();
+					throw ex;
+				}
+
+				// Publish the updated pages to the topic tree
+				for (Page page : updatedPages) {
+					PageDTO pageDTO = new PageDTO(page);
+					pageDTO.publish(client);
+				}
 			}
 		}
 	}
 
 	private void normaliseFragmentSequence(MqttAsyncClient client, DiaryContext context) throws Exception {
-		log.info("normaliseFragmentSequence");
+		log.debug("normaliseFragmentSequence");
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
@@ -274,49 +294,56 @@ public class Synchronise {
 		BigDecimal initial = new BigDecimal("1.0000");
 		BigDecimal increment = new BigDecimal("1.0000");
 		BigDecimal sequence = initial;
-		Integer lastYear = 0;
-		Integer lastMonth = 0;
-		Integer lastDay = 0;
+		Integer lastYear = null;
+		Integer lastMonth = null;
+		Integer lastDay = null;
+
+		List<Fragment> updatedFragments = new ArrayList<>();
 
 		for (FragmentDBDTO fragmentDTO : fragmentRepository.findAll()) {
 			Fragment fragment = context.inflateFragment(fragmentDTO);
 
-			List<Fragment> updatedFragments = new ArrayList<>();
+			boolean sameDate = Objects.equals(lastYear, fragment.getYear()) && Objects.equals(lastMonth, fragment.getMonth()) && Objects.equals(lastDay, fragment.getDay());
 
+			if (!sameDate) {
+				sequence = initial;
+				lastYear = fragment.getYear();
+				lastMonth = fragment.getMonth();
+				lastDay = fragment.getDay();
+			}
+
+			String fragmentName = String.format("id:%d, date: %s.%s.%s", fragment.getId(), fragment.getYear(), fragment.getMonth(), fragment.getDay());
+
+			BigDecimal currentSeq = fragment.getSequence();
+			if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
+				// log.info(String.format("fragment %s already has correct sequence number", fragmentName));
+			} else {
+				String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
+				log.info(String.format("       fragment: %s", fragmentName));
+				log.info(String.format("       %d/%d/%d: sequence %s -> %s", fragment.getYear(), fragment.getMonth(), fragment.getDay(), currentSeqStr, sequence.toPlainString()));
+
+				fragment.setSequence(sequence);
+				updatedFragments.add(fragment);
+			}
+
+			sequence = sequence.add(increment);
+		}
+
+		if (!updatedFragments.isEmpty()) {
 			tx.begin();
+
+			// Publish the updated fragments to the database
 			try {
-				String fragmentName = String.format("id:%d, date: %s.%s.%s", fragment.getId(), fragment.getYear(), fragment.getMonth(), fragment.getDay());
-
-				BigDecimal currentSeq = fragment.getSequence();
-				if (currentSeq != null && currentSeq.compareTo(sequence) == 0) {
-					// log.info(String.format("fragment %s already has correct sequence number", fragmentName));
-				} else {
-					String currentSeqStr = (currentSeq != null) ? currentSeq.toPlainString() : "null";
-					log.info(String.format("       fragment: %s", fragmentName));
-					log.info(String.format("       %d/%d/%d: sequence %s -> %s", fragment.getYear(), fragment.getMonth(), fragment.getDay(), currentSeqStr,
-							sequence.toPlainString()));
-
-					fragment.setSequence(sequence);
+				for (Fragment fragment : updatedFragments) {
 					fragmentRepository.update(fragment);
-					updatedFragments.add(fragment);
-				}
-
-				if ((lastYear == fragment.getYear()) || (lastMonth == fragment.getMonth()) || (lastDay == fragment.getDay())) {
-					sequence.add(increment);
-				} else {
-					sequence = initial;
-					lastYear = fragment.getYear();
-					lastMonth = fragment.getMonth();
-					lastDay = fragment.getDay();
 				}
 				tx.commit();
-
 			} catch (Exception ex) {
 				tx.rollback();
 				throw ex;
 			}
 
-			// Publish the updated fragments
+			// Publish the updated fragments to the topic tree
 			for (Fragment f : updatedFragments) {
 
 				Marquee marquee = null;
@@ -334,7 +361,7 @@ public class Synchronise {
 
 	private void addNewEntries(MqttAsyncClient client, Map<String, String> topicTreeMap, Map<String, String> databaseMap) throws Exception {
 
-		log.info("addNewEntries");
+		log.debug("addNewEntries");
 		int count = 0;
 
 		// Make sure there is a matching topicTree entry for every database entry
@@ -351,12 +378,12 @@ public class Synchronise {
 				publish(client, topic, string1);
 			}
 		}
-		log.info(String.format("addNewEntries: count: %d", count));
+		log.debug(String.format("addNewEntries: count: %d", count));
 	}
 
 	private void removeOrphanEntries(MqttAsyncClient client, Map<String, String> topicTreeMap, Map<String, String> databaseMap) throws Exception {
 
-		log.info("removeOrphanEntries");
+		log.debug("removeOrphanEntries");
 		int count = 0;
 
 		// If there is an entry in the topicTree but not in the database, then delete it
@@ -376,7 +403,7 @@ public class Synchronise {
 			}
 		}
 
-		log.info(String.format("removeOrphanEntries: count: %d", count));
+		log.debug(String.format("removeOrphanEntries: count: %d", count));
 	}
 
 	private void publish(MqttAsyncClient client, String topic, String value) throws Exception {

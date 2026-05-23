@@ -67,6 +67,10 @@ public class MarqueePublishDTO extends Base implements Jsonable {
 
 	public void publish(ConcurrentHashMap<String, String> map, Long diaryId) throws Exception {
 		for (String topic : getTopics(diaryId)) {
+
+			log.debug(String.format("publishing to Map: %s --> %s", topic, toJson()));
+			log.debug("Adding marqueeId {} to databaseMap key {}, version: {}", this.getId(), topic, this.getVersion());
+
 			publisher.publish(map, topic, toJson().getBytes());
 		}
 	}

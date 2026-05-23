@@ -10,31 +10,33 @@
             <AppenderRef ref="Console"/>
         </Root>
         <!-- Log all SQL DML statements as they are executed -->
-        <Logger name="org.hibernate.SQL" level="${env:hibernate_loglevel:-OFF}"/>
+        <Logger name="org.hibernate.SQL" level="${env:HIBERNATE_LOGLEVEL:-OFF}"/>
         <!-- Log all JDBC parameters -->
-        <Logger name="org.hibernate.type" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.type" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log all SQL DDL statements as they are executed -->
-        <Logger name="org.hibernate.tool.hbm2ddl" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.tool.hbm2ddl" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log the state of all entities (max 20 entities) associated with the session at flush time -->
-        <Logger name="org.hibernate.pretty" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.pretty" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log all second-level cache activity -->
-        <Logger name="org.hibernate.cache" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.cache" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log transaction related activity -->
-        <Logger name="org.hibernate.transaction" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.transaction" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log all JDBC resource acquisition -->
-        <Logger name="org.hibernate.jdbc" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.jdbc" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log HQL and SQL ASTs during query parsing -->
-        <Logger name="org.hibernate.hql.ast.AST" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.hql.ast.AST" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log all JAAS authorisation requests -->
-        <Logger name="org.hibernate.secure" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.secure" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
         <!-- Log everything (a lot of information, but very useful for troubleshooting) -->
-        <Logger name="org.hibernate" level="${env:hibernate_loglevel:-OFF}" /> 
+        <Logger name="org.hibernate" level="${env:HIBERNATE_LOGLEVEL:-OFF}" /> 
                
-        <Logger name="org.hibernate.jpa" level="${env:hibernate_loglevel:-OFF}" />
+        <Logger name="org.hibernate.jpa" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />
                
-        <Logger name="org.hibernate.orm" level="${env:hibernate_loglevel:-OFF}" /> 
+        <Logger name="org.hibernate.orm" level="${env:HIBERNATE_LOGLEVEL:-OFF}" /> 
                
-        <Logger name="org.hibernate.engine" level="${env:hibernate_loglevel:-OFF}" />  
+        <Logger name="org.hibernate.engine" level="${env:HIBERNATE_LOGLEVEL:-OFF}" />  
+        <!--  catch all bind-parameter logging  -->
+        <Logger name="org.hibernate.orm.jdbc.bind" level="${env:HIBERNATE_LOGLEVEL:-OFF}"/>
         
     </Loggers>
 </Configuration>

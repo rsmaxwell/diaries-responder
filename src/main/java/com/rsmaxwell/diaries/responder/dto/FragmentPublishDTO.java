@@ -90,8 +90,8 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	public void publish(ConcurrentHashMap<String, String> map) throws Exception {
 		for (String topic : getTopics()) {
 
-			log.info(String.format("publishing to Map: %s --> %s", topic, toJson()));
-			log.info("Publishing fragmentId: {} to topic: {}, version: {}", this.getId(), topic, this.getVersion());
+			log.debug(String.format("publishing to Map: %s --> %s", topic, toJson()));
+			log.debug("Adding fragmentId {} to databaseMap key {}, version: {}", this.getId(), topic, this.getVersion());
 
 			publisher.publish(map, topic, toJson().getBytes());
 		}

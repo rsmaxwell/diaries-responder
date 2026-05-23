@@ -17,6 +17,7 @@ import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.model.Role;
+import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
@@ -26,6 +27,8 @@ import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
 
 import io.jsonwebtoken.Claims;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityTransaction;
 
 public class DeleteFragment extends RequestHandler {
 
@@ -44,29 +47,51 @@ public class DeleteFragment extends RequestHandler {
 		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("DeleteFragment.handleRequest: Authorization.check: OK!");
 
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
-		Fragment fragment;
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
+
+		Fragment fragment = null;
+		Marquee marquee = null;
+
 		try {
 			Long id = Utilities.getLong(args, "id");
 			fragment = context.inflateFragment(id);
 
+			Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
+			if (optionalMarqueeDTO.isPresent()) {
+				marquee = context.inflateMarquee(optionalMarqueeDTO.get());
+			}
+
 		} catch (Exception e) {
-			log.info("DeleteFragment.handleRequest: args: " + mapper.writeValueAsString(args));
+			log.info("DeleteFragment.handleRequest: bad args: {}", mapper.writeValueAsString(args));
 			throw RpcStatusException.badRequest(e.getMessage());
 		}
 
-		// First delete the fragment from the database
-		context.deleteFragment(fragment);
+		try {
+			tx.begin();
 
-		// Then remove the fragment from the topic tree
+			if (marquee != null) {
+				context.deleteMarquee(marquee);
+			}
+
+			context.deleteFragment(fragment);
+
+			tx.commit();
+
+		} catch (Exception e) {
+			log.error("UpdateFragment.handleRequest: unexpected error; rolling back transaction", e);
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw RpcStatusException.internalError(e.getMessage());
+		}
+
 		MqttAsyncClient client = context.getPublisherClient();
 
-		Marquee marquee = null;
-		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
-		if (optionalMarqueeDTO.isPresent()) {
-			MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
-			marquee = context.inflateMarquee(marqueeDTO);
+		if (marquee != null) {
 			Page page = marquee.getPage();
 			MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(marquee);
 			marqueePublishDTO.remove(client, page.getDiary().getId());

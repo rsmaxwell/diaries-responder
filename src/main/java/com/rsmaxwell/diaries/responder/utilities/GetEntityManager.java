@@ -101,9 +101,9 @@ public class GetEntityManager {
 				}
 			}
 
-			log.debug("Connection properties:");
-			for (String key : props.keySet()) {
-				log.debug(String.format("    %s : %s", key, props.get(key).toString()));
+			log.trace("Connection properties:");
+			for (Map.Entry<String, Object> entry : props.entrySet()) {
+				log.trace("    {} : {}", entry.getKey(), maskConnectionProperty(entry.getKey(), entry.getValue()));
 			}
 
 			PersistenceUnitInfoImpl info = new PersistenceUnitInfoImpl();
@@ -122,5 +122,19 @@ public class GetEntityManager {
 		}
 
 		return entityManagerFactory;
+	}
+
+	private static Object maskConnectionProperty(String key, Object value) {
+		if (key == null) {
+			return value;
+		}
+
+		String lowerKey = key.toLowerCase();
+
+		if (lowerKey.contains("password") || lowerKey.contains("secret") || lowerKey.contains("token") || lowerKey.contains("credential")) {
+			return "********";
+		}
+
+		return value;
 	}
 }

@@ -43,7 +43,7 @@ public class SynchroniseCallback extends Adapter implements MqttCallback {
 	}
 
 	public void waitForMessages() throws InterruptedException {
-		log.info("SynchroniseCallback.waitForMessages");
+		log.trace("SynchroniseCallback.waitForMessages");
 		lastMessageTime.set(System.currentTimeMillis());
 
 		while (true) {
