@@ -1,5 +1,6 @@
 package com.rsmaxwell.diaries.responder.handlers;
 
+import java.net.HttpURLConnection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,10 +91,16 @@ public class LockFragment extends RequestHandler {
 			tx.commit();
 
 		} catch (RpcStatusException e) {
-			log.warn("LockFragment.handleRequest: transaction failed; rolling back", e);
 			if (tx.isActive()) {
 				tx.rollback();
 			}
+
+			if (e.getStatus().getCode() == HttpURLConnection.HTTP_CONFLICT) {
+				log.info("LockFragment.handleRequest: lock rejected: {}", e.getMessage());
+			} else {
+				log.warn("LockFragment.handleRequest: RPC request rejected: {}", e.getMessage());
+			}
+
 			throw e;
 		} catch (Exception e) {
 			log.error("LockFragment.handleRequest: unexpected error; rolling back", e);

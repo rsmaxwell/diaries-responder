@@ -17,7 +17,6 @@ import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.model.Role;
-import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
@@ -47,7 +46,6 @@ public class DeleteFragment extends RequestHandler {
 		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("DeleteFragment.handleRequest: Authorization.check: OK!");
 
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		EntityManager em = context.getEntityManager();
