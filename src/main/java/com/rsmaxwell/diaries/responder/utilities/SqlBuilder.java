@@ -118,4 +118,33 @@ public final class SqlBuilder {
 			return parent;
 		}
 	}
+
+	public SqlBuilder and(String condition) {
+		if (condition == null || condition.isBlank()) {
+			throw new IllegalArgumentException("SqlBuilder.and() condition is blank");
+		}
+
+		if (where.isEmpty()) {
+			throw new IllegalStateException("SqlBuilder.and() called before where()");
+		}
+
+		where.add(condition);
+		return this;
+	}
+
+	public SqlBuilder or(String condition) {
+		if (condition == null || condition.isBlank()) {
+			throw new IllegalArgumentException("SqlBuilder.or() condition is blank");
+		}
+
+		if (where.isEmpty()) {
+			throw new IllegalStateException("SqlBuilder.or() called before where()");
+		}
+
+		int last = where.size() - 1;
+		String previous = where.get(last);
+
+		where.set(last, "(" + previous + ") OR (" + condition + ")");
+		return this;
+	}
 }

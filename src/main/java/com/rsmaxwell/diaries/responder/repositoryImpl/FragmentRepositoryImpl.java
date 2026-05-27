@@ -1,6 +1,7 @@
 package com.rsmaxwell.diaries.responder.repositoryImpl;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -217,6 +218,32 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		for (Object[] result : getResultList(sql)) {
 			FragmentDBDTO dto = newDTO(result);
 			list.add(dto);
+		}
+
+		return list;
+	}
+
+	@Override
+	public Iterable<FragmentDBDTO> findStaleLocks(Instant olderThan) {
+
+		long olderThanMillis = olderThan.toEpochMilli();
+
+		// @formatter:off
+	    String sql = SqlBuilder.create()
+	        .select("id, version, sequence, year, month, day, text, " +
+	                "lock_user_id, lock_username, lock_known_as, lock_timestamp, lock_session_id")
+	        .from("fragment")
+	        .where("lock_user_id is not null")
+	        .and("lock_session_id is not null")
+	        .and("lock_timestamp is not null")
+	        .and("lock_timestamp < " + olderThanMillis)
+	        .orderBy("year, month, day, sequence, id")
+	        .build();
+	    // @formatter:on
+
+		List<FragmentDBDTO> list = new ArrayList<>();
+		for (Object[] result : getResultList(sql)) {
+			list.add(newDTO(result));
 		}
 
 		return list;

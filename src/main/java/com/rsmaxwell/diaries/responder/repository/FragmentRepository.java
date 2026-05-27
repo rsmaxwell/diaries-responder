@@ -1,5 +1,7 @@
 package com.rsmaxwell.diaries.responder.repository;
 
+import java.time.Instant;
+
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 
@@ -10,4 +12,6 @@ public interface FragmentRepository extends CrudRepository<Fragment, FragmentDBD
 	// int updateWithMarquee(Marquee marquee) throws Exception;
 
 	public Iterable<FragmentDBDTO> findAllWithoutMarquee();
+
+	Iterable<FragmentDBDTO> findStaleLocks(Instant olderThan);
 }

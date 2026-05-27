@@ -1,6 +1,7 @@
 package com.rsmaxwell.diaries.responder.handlers;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +37,8 @@ public class UpdateFragment extends RequestHandler {
 	private static final Logger log = LoggerFactory.getLogger(UpdateFragment.class);
 	static private ObjectMapper mapper = new ObjectMapper();
 
+	private static final int SEQUENCE_SCALE = 4;
+
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
@@ -61,7 +64,7 @@ public class UpdateFragment extends RequestHandler {
 		try {
 			Long id = Utilities.getLong(args, "id");
 			Long version = Utilities.getLong(args, "version");
-			BigDecimal sequence = Utilities.getBigDecimal(args, "sequence");
+			BigDecimal sequence = normaliseSequence(Utilities.getBigDecimal(args, "sequence"));
 			Integer year = Utilities.getInteger(args, "year");
 			Integer month = Utilities.getInteger(args, "month");
 			Integer day = Utilities.getInteger(args, "day");
@@ -109,6 +112,12 @@ public class UpdateFragment extends RequestHandler {
 			if (count != 1) {
 				log.info("UpdateFragment.handleRequest: number of records updated: {}", count);
 			}
+
+			/*
+			 * Reload from the database so the object we publish has the same BigDecimal scale and any DB-normalised values as startup synchronisation.
+			 */
+			incomingFragment = context.inflateFragment(id);
+
 			tx.commit();
 
 		} catch (RpcStatusException e) {
@@ -147,5 +156,13 @@ public class UpdateFragment extends RequestHandler {
 		dto.publish(client);
 
 		return Response.success(incomingFragment.getId());
+	}
+
+	private static BigDecimal normaliseSequence(BigDecimal sequence) {
+		if (sequence == null) {
+			return null;
+		}
+
+		return sequence.setScale(SEQUENCE_SCALE, RoundingMode.UNNECESSARY);
 	}
 }

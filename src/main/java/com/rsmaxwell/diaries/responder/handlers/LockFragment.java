@@ -1,6 +1,7 @@
 package com.rsmaxwell.diaries.responder.handlers;
 
 import java.net.HttpURLConnection;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -76,8 +77,19 @@ public class LockFragment extends RequestHandler {
 			}
 
 			// Prevent stealing someone else’s lock
-			if (lock.isLocked() && !lock.isLockedBy(userId, sessionId)) {
-				throw RpcStatusException.conflict("Fragment is locked by another user.");
+			if (lock.isLocked()) {
+				boolean lockedByMe = lock.isLockedBy(userId, sessionId);
+				Instant now = Instant.now();
+				boolean stale = lock.isStale(now, context.getConfig().getFragmentLockTtl());
+
+				if (!lockedByMe && !stale) {
+					throw RpcStatusException.conflict("Fragment is locked by another user.");
+				}
+
+				if (stale) {
+					log.info("LockFragment.handleRequest: replacing stale lock on fragment {} held by userId={}, sessionId={}, timestamp={}", fragment.getId(),
+							lock.getLockUserId(), lock.getLockSessionId(), lock.getLockTimeStamp());
+				}
 			}
 
 			// Lock the fragment

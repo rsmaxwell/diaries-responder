@@ -8,6 +8,10 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -27,6 +31,9 @@ import com.rsmaxwell.diaries.common.config.DbConfig;
 import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
+import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
+import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.handlers.AddFragment;
 import com.rsmaxwell.diaries.responder.handlers.AddMarquee;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFile;
@@ -47,6 +54,8 @@ import com.rsmaxwell.diaries.responder.handlers.UpdateFragment;
 import com.rsmaxwell.diaries.responder.handlers.UpdateMarquee;
 import com.rsmaxwell.diaries.responder.handlers.UpdatePage;
 import com.rsmaxwell.diaries.responder.handlers.UploadFile;
+import com.rsmaxwell.diaries.responder.model.Fragment;
+import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.repository.DiaryRepository;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
@@ -68,6 +77,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.EntityTransaction;
 
 public class Responder {
 
@@ -310,18 +320,10 @@ public class Responder {
 		publisherConnOpts.setCleanStart(false);
 		publisherConnOpts.setAutomaticReconnect(true);
 
-		// @formatter:off
-//		String publisherConnOptsJson = String.format(
-//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-//		    publisherConnOpts.getUserName(),
-//		    user.getPassword(),
-//		    publisherConnOpts.isCleanStart(),
-//		    publisherConnOpts.isAutomaticReconnect()
-//		);
-//		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
-		// @formatter:on
-
 		publisherClient.connect(publisherConnOpts).waitForCompletion();
+
+		context.setPublisherClient(publisherClient);
+		releaseStaleLocks(context);
 
 		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientID_listener));
 		MqttConnectionOptions listenerConnOpts = new MqttConnectionOptions();
@@ -330,22 +332,7 @@ public class Responder {
 		listenerConnOpts.setCleanStart(false);
 		listenerConnOpts.setAutomaticReconnect(true);
 
-		// @formatter:off
-//		String listenerConnOptsJson = String.format(
-//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-//		    listenerConnOpts.getUserName(),
-//		    user.getPassword(),
-//		    listenerConnOpts.isCleanStart(),
-//		    listenerConnOpts.isAutomaticReconnect()
-//		);
-//		log.info("    listenerConnOpts: {}", listenerConnOptsJson);		
-		// @formatter:on		
-
 		listenerClient.connect(listenerConnOpts).waitForCompletion();
-
-		// log.info(String.format("subscribing to: %s", requestTopic));
-		// MqttSubscription subscription = new MqttSubscription(requestTopic);
-		// client_listener.subscribe(subscription).waitForCompletion();
 
 		// Wait till quit request received
 		messageHandler.waitForCompletion();
@@ -354,4 +341,68 @@ public class Responder {
 		listenerClient.disconnect().waitForCompletion();
 	}
 
+	private void releaseStaleLocks(DiaryContext context) throws Exception {
+
+		FragmentRepository fragmentRepository = context.getFragmentRepository();
+		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
+		MqttAsyncClient publisherClient = context.getPublisherClient();
+
+		EntityManager em = context.getEntityManager();
+		EntityTransaction tx = em.getTransaction();
+
+		Instant olderThan = Instant.now().minus(context.getConfig().getFragmentLockTtl());
+
+		List<Fragment> releasedFragments = new ArrayList<>();
+
+		try {
+			tx.begin();
+
+			Iterable<FragmentDBDTO> staleLockedFragmentDTOs = fragmentRepository.findStaleLocks(olderThan);
+
+			for (FragmentDBDTO fragmentDTO : staleLockedFragmentDTOs) {
+
+				Fragment fragment = context.inflateFragment(fragmentDTO);
+
+				log.info("Responder.releaseStaleLocks: releasing stale lock on fragment id={}, lockUserId={}, lockSessionId={}, lockTimeStamp={}", fragment.getId(),
+						fragment.getLock() == null ? null : fragment.getLock().getLockUserId(), fragment.getLock() == null ? null : fragment.getLock().getLockSessionId(),
+						fragment.getLock() == null ? null : fragment.getLock().getLockTimeStamp());
+
+				fragment.setLock(null);
+
+				int count = fragmentRepository.update(fragment);
+				if (count != 1) {
+					throw new IllegalStateException("Expected to update 1 fragment, updated " + count + " for fragment id=" + fragment.getId());
+				}
+
+				releasedFragments.add(fragment);
+			}
+
+			tx.commit();
+
+		} catch (Exception e) {
+			if (tx.isActive()) {
+				tx.rollback();
+			}
+			throw e;
+		}
+
+		/*
+		 * Publish only after the DB transaction has committed. Otherwise clients could see an unlocked fragment that was not actually committed to the database.
+		 */
+		for (Fragment fragment : releasedFragments) {
+			Marquee marquee = findAssociatedMarquee(context, marqueeRepository, fragment);
+			new FragmentPublishDTO(fragment, marquee).publish(publisherClient);
+		}
+	}
+
+	private Marquee findAssociatedMarquee(DiaryContext context, MarqueeRepository marqueeRepository, Fragment fragment) throws Exception {
+
+		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
+
+		if (optionalMarqueeDTO.isEmpty()) {
+			return null;
+		}
+
+		return context.inflateMarquee(optionalMarqueeDTO.get());
+	}
 }
