@@ -14,14 +14,13 @@ import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.responder.model.Diary;
 import com.rsmaxwell.diaries.responder.model.Fragment;
-import com.rsmaxwell.diaries.responder.model.LockInfo;
 import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.model.Role;
-import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -48,7 +47,6 @@ public class UpdateMarquee extends RequestHandler {
 		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("UpdateMarquee.handleRequest: Authorization.check: OK!");
 
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
 		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		Fragment incomingFragment;
@@ -61,9 +59,6 @@ public class UpdateMarquee extends RequestHandler {
 		EntityTransaction tx = em.getTransaction();
 
 		Fragment lockedFragment = null;
-		Marquee lockedFragmentMarquee = null;
-		boolean callerOwnsFragmentLock = false;
-		boolean fragmentUnlockedInTransaction = false;
 
 		tx.begin();
 		try {
@@ -84,19 +79,9 @@ public class UpdateMarquee extends RequestHandler {
 			originalFragment = originalMarquee.getFragment();
 
 			// (3) enforce: the fragment must be locked by this user/session
-			Long lockUserId = claims.get("userId", Long.class);
-			String lockSessionId = claims.get("sessionId", String.class);
-
-			LockInfo originalLock = originalFragment.getLock();
-			if (originalLock == null || !originalLock.isLocked()) {
-				throw RpcStatusException.badRequest("Fragment is not locked");
-			}
-			if (!originalLock.isLockedBy(lockUserId, lockSessionId)) {
-				throw RpcStatusException.conflict("Fragment is locked by another session");
-			}
+			FragmentLocking.requireLockedByCaller(originalFragment, claims);
 
 			lockedFragment = originalFragment;
-			callerOwnsFragmentLock = true;
 
 			// Do not allow this request to silently move the marquee to another fragment.
 			if (!originalFragment.getId().equals(fragmentId)) {
@@ -131,14 +116,7 @@ public class UpdateMarquee extends RequestHandler {
 			}
 
 			// (7) release the fragment lock after successful marquee update
-			originalFragment.setLock(null);
-
-			int fragmentCount = fragmentRepository.update(originalFragment);
-			if (fragmentCount != 1) {
-				log.info("UpdateMarquee.handleRequest: number of fragment records updated: {}", fragmentCount);
-			}
-
-			fragmentUnlockedInTransaction = true;
+			FragmentLocking.clearLockInCurrentTransaction(context, originalFragment);
 
 			tx.commit();
 
@@ -148,7 +126,7 @@ public class UpdateMarquee extends RequestHandler {
 				tx.rollback();
 			}
 
-			unlockFragmentAfterFailedMarqueeUpdate(context, fragmentRepository, marqueeRepository, lockedFragment, callerOwnsFragmentLock, fragmentUnlockedInTransaction);
+			FragmentLocking.unlockAfterFailedEdit(context, lockedFragment == null ? null : lockedFragment.getId(), log, "UpdateMarquee.handleRequest");
 
 			throw e;
 		} catch (Exception e) {
@@ -157,7 +135,7 @@ public class UpdateMarquee extends RequestHandler {
 				tx.rollback();
 			}
 
-			unlockFragmentAfterFailedMarqueeUpdate(context, fragmentRepository, marqueeRepository, lockedFragment, callerOwnsFragmentLock, fragmentUnlockedInTransaction);
+			FragmentLocking.unlockAfterFailedEdit(context, lockedFragment == null ? null : lockedFragment.getId(), log, "UpdateMarquee.handleRequest");
 
 			throw e;
 		}
@@ -183,45 +161,5 @@ public class UpdateMarquee extends RequestHandler {
 		dto.publish(client, diary.getId());
 
 		return Response.success(dto);
-	}
-
-	private void unlockFragmentAfterFailedMarqueeUpdate(DiaryContext context, FragmentRepository fragmentRepository, MarqueeRepository marqueeRepository, Fragment lockedFragment,
-			boolean callerOwnsFragmentLock, boolean fragmentUnlockedInTransaction) {
-
-		if (!callerOwnsFragmentLock || fragmentUnlockedInTransaction || lockedFragment == null) {
-			return;
-		}
-
-		EntityManager em = context.getEntityManager();
-		EntityTransaction tx = em.getTransaction();
-
-		try {
-			tx.begin();
-
-			Fragment fragment = context.inflateFragment(lockedFragment.getId());
-			fragment.setLock(null);
-
-			int count = fragmentRepository.update(fragment);
-			if (count != 1) {
-				log.info("UpdateMarquee.handleRequest: unlock after failed update count: {}", count);
-			}
-
-			tx.commit();
-
-			Marquee marquee = context.inflateMarquee(marqueeRepository.findByFragment(fragment).get());
-
-			MqttAsyncClient client = context.getPublisherClient();
-			log.info("UpdateMarquee.handleRequest: publishing unlocked fragment after failed marquee update");
-
-			FragmentPublishDTO dto = new FragmentPublishDTO(fragment, marquee);
-			dto.publish(client);
-
-		} catch (Exception unlockError) {
-			log.error("UpdateMarquee.handleRequest: failed to unlock fragment after failed marquee update", unlockError);
-
-			if (tx.isActive()) {
-				tx.rollback();
-			}
-		}
 	}
 }

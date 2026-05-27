@@ -1,10 +1,8 @@
 package com.rsmaxwell.diaries.responder.handlers;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
@@ -14,15 +12,15 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.LockInfo;
-import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
-import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
+import com.rsmaxwell.diaries.responder.utilities.SequenceNumber;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -37,8 +35,6 @@ public class UpdateFragment extends RequestHandler {
 	private static final Logger log = LoggerFactory.getLogger(UpdateFragment.class);
 	static private ObjectMapper mapper = new ObjectMapper();
 
-	private static final int SEQUENCE_SCALE = 4;
-
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
@@ -52,7 +48,6 @@ public class UpdateFragment extends RequestHandler {
 		log.info("UpdateFragment.handleRequest: Authorization.check: OK!");
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
@@ -64,27 +59,18 @@ public class UpdateFragment extends RequestHandler {
 		try {
 			Long id = Utilities.getLong(args, "id");
 			Long version = Utilities.getLong(args, "version");
-			BigDecimal sequence = normaliseSequence(Utilities.getBigDecimal(args, "sequence"));
+			BigDecimal sequence = SequenceNumber.normalise(Utilities.getBigDecimal(args, "sequence"));
 			Integer year = Utilities.getInteger(args, "year");
 			Integer month = Utilities.getInteger(args, "month");
 			Integer day = Utilities.getInteger(args, "day");
 			String text = Utilities.getString(args, "text");
 
-			// get the lock fields
-			Long lockUserId = claims.get("userId", Long.class);
-			String lockSessionId = claims.get("sessionId", String.class);
-
 			// (1) load original from DB (includes current lock state)
 			originalFragment = context.inflateFragment(id);
 
 			// (2) enforce: must own the lock
+			FragmentLocking.requireLockedByCaller(originalFragment, claims);
 			LockInfo originalLock = originalFragment.getLock();
-			if (originalLock == null || !originalLock.isLocked()) {
-				throw RpcStatusException.badRequest("Fragment is not locked");
-			}
-			if (!originalLock.isLockedBy(lockUserId, lockSessionId)) {
-				throw RpcStatusException.conflict("Fragment is locked by another session");
-			}
 
 			// (3) build incoming fragment WITHOUT taking lock fields from client
 			// @formatter:off
@@ -95,7 +81,7 @@ public class UpdateFragment extends RequestHandler {
 		        .month(month)
 		        .day(day)
 		        .sequence(sequence)
-		        .text(text)
+ 		        .text(text)
 		        .lock(originalLock) // carry lock forward so we can clear it after version bump
 		        .build();
 			// @formatter:on			
@@ -113,12 +99,12 @@ public class UpdateFragment extends RequestHandler {
 				log.info("UpdateFragment.handleRequest: number of records updated: {}", count);
 			}
 
+			tx.commit();
+
 			/*
 			 * Reload from the database so the object we publish has the same BigDecimal scale and any DB-normalised values as startup synchronisation.
 			 */
 			incomingFragment = context.inflateFragment(id);
-
-			tx.commit();
 
 		} catch (RpcStatusException e) {
 			log.warn("UpdateFragment.handleRequest: request failed; rolling back transaction: {}", e.getMessage(), e);
@@ -135,34 +121,21 @@ public class UpdateFragment extends RequestHandler {
 		}
 
 		// (7) get the marquee associated with the fragment (can be null)
-		Marquee marquee = null;
-		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(incomingFragment);
-		if (optionalMarqueeDTO.isPresent()) {
-			MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
-			marquee = context.inflateMarquee(marqueeDTO);
-		}
+		FragmentAndMarquee fragmentAndMarquee = FragmentLocking.findAssociatedMarquee(context, incomingFragment);
 
 		// (8) If the fragment keys have changed, then remove the fragment from the topicTree
 		MqttAsyncClient client = context.getPublisherClient();
 		if (originalFragment.keyFieldsChanged(incomingFragment)) {
 			log.info("UpdateFragment.handleRequest: removing the original fragment from the TopicTree");
-			FragmentPublishDTO dto = new FragmentPublishDTO(originalFragment, marquee);
+			FragmentPublishDTO dto = new FragmentPublishDTO(originalFragment, fragmentAndMarquee.getMarquee());
 			dto.remove(client);
 		}
 
 		// (9) publish the Fragment to the topic tree
 		log.info("UpdateFragment.handleRequest: publishing the incoming fragment to the TopicTree");
-		FragmentPublishDTO dto = new FragmentPublishDTO(incomingFragment, marquee);
+		FragmentPublishDTO dto = new FragmentPublishDTO(incomingFragment, fragmentAndMarquee.getMarquee());
 		dto.publish(client);
 
 		return Response.success(incomingFragment.getId());
-	}
-
-	private static BigDecimal normaliseSequence(BigDecimal sequence) {
-		if (sequence == null) {
-			return null;
-		}
-
-		return sequence.setScale(SEQUENCE_SCALE, RoundingMode.UNNECESSARY);
 	}
 }

@@ -2,24 +2,18 @@ package com.rsmaxwell.diaries.responder.handlers;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
-import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
-import com.rsmaxwell.diaries.responder.model.LockInfo;
-import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Role;
-import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
-import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -46,46 +40,20 @@ public class UnlockFragment extends RequestHandler {
 		Authorization.checkRoleAtLeast(claims, Role.EDITOR);
 		log.info("UnlockFragment.handleRequest: Authorization.check: OK!");
 
-		FragmentRepository fragmentRepository = context.getFragmentRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
-
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
-		Fragment fragment;
+		FragmentAndMarquee fragmentAndMarquee;
 
 		tx.begin();
 		try {
-
-			// get the incoming Fragment ID and inflate it
 			Long id = Utilities.getLong(args, "id");
-			fragment = context.inflateFragment(id);
+			Fragment fragment = context.inflateFragment(id);
 
-			// get the fields needed to check the lock
-			Long userId = claims.get("userId", Long.class);
-			String sessionId = claims.get("sessionId", String.class);
+			FragmentLocking.requireUnlockAllowed(fragment, claims);
 
-			// Ensure lock object exists
-			LockInfo lock = fragment.getLock();
-			if (lock == null) {
-				lock = new LockInfo();
-				fragment.setLock(lock);
-			}
+			fragmentAndMarquee = FragmentLocking.clearLockInCurrentTransaction(context, fragment);
 
-			// Prevent stealing someone else’s lock
-			if (lock.isLocked() && !lock.isLockedBy(userId, sessionId)) {
-				tx.rollback();
-				throw RpcStatusException.conflict("Fragment is locked by another user.");
-			}
-
-			// Unlock the fragment
-			lock.clear();
-
-			// save to database
-			int count = fragmentRepository.update(fragment);
-			if (count != 1) {
-				log.info("UnlockFragment.handleRequest: number of records updated: {}", count);
-			}
 			tx.commit();
 
 		} catch (RpcStatusException e) {
@@ -102,20 +70,10 @@ public class UnlockFragment extends RequestHandler {
 			throw e;
 		}
 
-		// get the marquee associated with the fragment (can be null)
-		Marquee marquee = null;
-		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
-		if (optionalMarqueeDTO.isPresent()) {
-			MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
-			marquee = context.inflateMarquee(marqueeDTO);
-		}
-
 		// (6) publish the unlocked Fragment to the topic tree
-		MqttAsyncClient client = context.getPublisherClient();
 		log.info("UnlockFragment.handleRequest: publishing the unlocked fragment to the TopicTree");
-		FragmentPublishDTO dto = new FragmentPublishDTO(fragment, marquee);
-		dto.publish(client);
+		FragmentLocking.publish(context, fragmentAndMarquee);
 
-		return Response.success(fragment.getId());
+		return Response.success(fragmentAndMarquee.getFragment().getId());
 	}
 }

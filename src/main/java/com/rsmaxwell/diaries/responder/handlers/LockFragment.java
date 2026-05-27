@@ -4,24 +4,20 @@ import java.net.HttpURLConnection;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
-import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.LockInfo;
-import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
-import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -49,7 +45,6 @@ public class LockFragment extends RequestHandler {
 		log.info("LockFragment.handleRequest: Authorization.check: OK!");
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
@@ -123,19 +118,8 @@ public class LockFragment extends RequestHandler {
 		}
 
 		// get the Marquee associated with the fragment (can be null)
-		Marquee marquee = null;
-		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
-		if (optionalMarqueeDTO.isPresent()) {
-			MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
-			marquee = context.inflateMarquee(marqueeDTO);
-		}
-
-		// publish the locked Fragment to the topic tree
-		MqttAsyncClient client = context.getPublisherClient();
-		log.info("LockFragment.handleRequest: publishing the locked fragment to the TopicTree");
-		FragmentPublishDTO dto = new FragmentPublishDTO(fragment, marquee);
-		dto.publish(client);
-
+		FragmentAndMarquee fragmentAndMarquee = FragmentLocking.findAssociatedMarquee(context, fragment);
+		FragmentLocking.publish(context, fragmentAndMarquee);
 		return Response.success(fragment.getId());
 	}
 }

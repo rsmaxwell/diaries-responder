@@ -11,7 +11,6 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -32,8 +31,6 @@ import com.rsmaxwell.diaries.common.config.DiariesConfig;
 import com.rsmaxwell.diaries.common.config.MqttConfig;
 import com.rsmaxwell.diaries.common.config.User;
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
-import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.handlers.AddFragment;
 import com.rsmaxwell.diaries.responder.handlers.AddMarquee;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFile;
@@ -55,7 +52,6 @@ import com.rsmaxwell.diaries.responder.handlers.UpdateMarquee;
 import com.rsmaxwell.diaries.responder.handlers.UpdatePage;
 import com.rsmaxwell.diaries.responder.handlers.UploadFile;
 import com.rsmaxwell.diaries.responder.model.Fragment;
-import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.repository.DiaryRepository;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
@@ -68,6 +64,8 @@ import com.rsmaxwell.diaries.responder.repositoryImpl.PageRepositoryImpl;
 import com.rsmaxwell.diaries.responder.repositoryImpl.PersonRepositoryImpl;
 import com.rsmaxwell.diaries.responder.sync.Synchronise;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.diaries.responder.utilities.GetEntityManager;
 import com.rsmaxwell.diaries.responder.utilities.MyMessageHandler;
 import com.rsmaxwell.mqtt.rpc.responder.MessageHandler;
@@ -344,15 +342,13 @@ public class Responder {
 	private void releaseStaleLocks(DiaryContext context) throws Exception {
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
-		MqttAsyncClient publisherClient = context.getPublisherClient();
 
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
 		Instant olderThan = Instant.now().minus(context.getConfig().getFragmentLockTtl());
 
-		List<Fragment> releasedFragments = new ArrayList<>();
+		List<FragmentAndMarquee> releasedFragments = new ArrayList<>();
 
 		try {
 			tx.begin();
@@ -367,14 +363,9 @@ public class Responder {
 						fragment.getLock() == null ? null : fragment.getLock().getLockUserId(), fragment.getLock() == null ? null : fragment.getLock().getLockSessionId(),
 						fragment.getLock() == null ? null : fragment.getLock().getLockTimeStamp());
 
-				fragment.setLock(null);
+				FragmentAndMarquee fragmentAndMarquee = FragmentLocking.clearLockInCurrentTransaction(context, fragment);
 
-				int count = fragmentRepository.update(fragment);
-				if (count != 1) {
-					throw new IllegalStateException("Expected to update 1 fragment, updated " + count + " for fragment id=" + fragment.getId());
-				}
-
-				releasedFragments.add(fragment);
+				releasedFragments.add(fragmentAndMarquee);
 			}
 
 			tx.commit();
@@ -389,20 +380,8 @@ public class Responder {
 		/*
 		 * Publish only after the DB transaction has committed. Otherwise clients could see an unlocked fragment that was not actually committed to the database.
 		 */
-		for (Fragment fragment : releasedFragments) {
-			Marquee marquee = findAssociatedMarquee(context, marqueeRepository, fragment);
-			new FragmentPublishDTO(fragment, marquee).publish(publisherClient);
+		for (FragmentAndMarquee fragmentAndMarquee : releasedFragments) {
+			FragmentLocking.publish(context, fragmentAndMarquee);
 		}
-	}
-
-	private Marquee findAssociatedMarquee(DiaryContext context, MarqueeRepository marqueeRepository, Fragment fragment) throws Exception {
-
-		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
-
-		if (optionalMarqueeDTO.isEmpty()) {
-			return null;
-		}
-
-		return context.inflateMarquee(optionalMarqueeDTO.get());
 	}
 }
