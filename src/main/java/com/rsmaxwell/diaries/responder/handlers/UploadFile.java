@@ -18,7 +18,7 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.config.DiariesConfig;
+import com.rsmaxwell.diaries.responder.config.DiariesConfig;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;

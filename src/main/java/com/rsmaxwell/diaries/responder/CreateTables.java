@@ -8,8 +8,8 @@ import org.apache.commons.cli.Options;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.config.Config;
-import com.rsmaxwell.diaries.common.config.DbConfig;
+import com.rsmaxwell.diaries.responder.config.Config;
+import com.rsmaxwell.diaries.responder.config.DbConfig;
 import com.rsmaxwell.diaries.responder.utilities.GetEntityManager;
 
 import jakarta.persistence.EntityManager;

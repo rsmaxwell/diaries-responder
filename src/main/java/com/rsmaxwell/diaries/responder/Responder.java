@@ -25,11 +25,11 @@ import org.eclipse.paho.mqttv5.common.MqttException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.config.Config;
-import com.rsmaxwell.diaries.common.config.DbConfig;
-import com.rsmaxwell.diaries.common.config.DiariesConfig;
-import com.rsmaxwell.diaries.common.config.MqttConfig;
-import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.responder.config.Config;
+import com.rsmaxwell.diaries.responder.config.DbConfig;
+import com.rsmaxwell.diaries.responder.config.DiariesConfig;
+import com.rsmaxwell.diaries.responder.config.MqttConfig;
+import com.rsmaxwell.diaries.responder.config.User;
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.handlers.AddFragment;
 import com.rsmaxwell.diaries.responder.handlers.AddMarquee;

@@ -1,5 +1,5 @@
 
-package com.rsmaxwell.diaries.response;
+package com.rsmaxwell.diaries.responder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,8 +20,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.rsmaxwell.diaries.common.config.Config;
-import com.rsmaxwell.diaries.common.config.DbConfig;
+import com.rsmaxwell.diaries.responder.config.Config;
+import com.rsmaxwell.diaries.responder.config.DbConfig;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.dto.PageDTO;
 import com.rsmaxwell.diaries.responder.dto.PersonDTO;

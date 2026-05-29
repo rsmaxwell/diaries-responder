@@ -5,13 +5,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.hibernate.Session;
+import org.hibernate.query.MutationQuery;
+import org.hibernate.query.NativeQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.rsmaxwell.diaries.responder.repository.CrudRepository;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
 
 public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudRepository<T, DTO, ID> {
 
@@ -49,29 +51,22 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	@Override
 	public long count() {
 		String sql = String.format("select count(*) from %s", getTable());
-		Query query = entityManager.createNativeQuery(sql);
-
-		@SuppressWarnings("unchecked")
-		List<Object> rows = query.getResultList();
-
-		Object one = rows.isEmpty() ? null : rows.get(0);
-		return ((Number) one).longValue();
+		Long result = getNativeSingleResult(sql, Long.class);
+		return result;
 	}
 
 	@Override
 	public int deleteById(ID id) {
-		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), id.toString());
-		Query query = entityManager.createNativeQuery(sql);
-		int count = query.executeUpdate();
+		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), quote(id));
+		int count = executeMutation(sql);
 		log.info(String.format("delete --> count: %d", count));
 		return count;
 	}
 
 	@Override
 	public int delete(T entity) {
-		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), getKeyValue(entity));
-		Query query = entityManager.createNativeQuery(sql);
-		int count = query.executeUpdate();
+		String sql = String.format("delete from %s where %s = %s", getTable(), getKeyField(), quote(getKeyValue(entity)));
+		int count = executeMutation(sql);
 		log.info(String.format("delete --> count: %d", count));
 		return count;
 	}
@@ -79,8 +74,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	@Override
 	public int deleteAll() {
 		String sql = String.format("delete from %s", getTable());
-		Query query = entityManager.createNativeQuery(sql);
-		int count = query.executeUpdate();
+		int count = executeMutation(sql);
 		log.info(String.format("deleteAll --> count: %d", count));
 		return count;
 	}
@@ -90,13 +84,8 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		String sql = String.format("select exists(select 1 from %s where %s = %s)", getTable(), getKeyField(), quote(id));
 		log.debug(String.format("sql: %s", sql));
 
-		Query query = entityManager.createNativeQuery(sql);
-
-		@SuppressWarnings("unchecked")
-		List<Object> rows = query.getResultList();
-
-		Object one = rows.isEmpty() ? null : rows.get(0);
-		return (Boolean) one;
+		Boolean result = getNativeSingleResult(sql, Boolean.class);
+		return Boolean.TRUE.equals(result);
 	}
 
 	protected String orderBy() {
@@ -110,7 +99,6 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
 	public Iterable<DTO> findAll() {
 
 		StringBuffer sql = new StringBuffer();
@@ -118,11 +106,11 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(getKeyField());
 		sql.append(",  ");
 
-		String seperator = "";
+		String separator = "";
 		for (String field : getFields()) {
-			sql.append(seperator);
+			sql.append(separator);
 			sql.append(field);
-			seperator = ", ";
+			separator = ", ";
 		}
 
 		sql.append(" from ");
@@ -134,8 +122,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			sql.append(orderClause);
 		}
 
-		Query query = entityManager.createNativeQuery(sql.toString());
-		List<Object[]> resultList = query.getResultList();
+		List<Object[]> resultList = getNativeResultList(sql.toString(), Object[].class);
 
 		List<DTO> list = new ArrayList<DTO>();
 		for (Object[] result : resultList) {
@@ -147,7 +134,6 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
 	public Optional<DTO> findById(ID id) {
 
 		List<DTO> list = new ArrayList<DTO>();
@@ -157,11 +143,11 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(getKeyField());
 		sql.append(", ");
 
-		String seperator = "";
+		String separator = "";
 		for (String field : getFields()) {
-			sql.append(seperator);
+			sql.append(separator);
 			sql.append(field);
-			seperator = ", ";
+			separator = ", ";
 		}
 
 		sql.append(" from ");
@@ -171,8 +157,7 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(" = ");
 		sql.append(quote(id));
 
-		Query query = entityManager.createNativeQuery(sql.toString());
-		List<Object[]> resultList = query.getResultList();
+		List<Object[]> resultList = getNativeResultList(sql.toString(), Object[].class);
 
 		for (Object[] result : resultList) {
 			DTO dto = newDTO(result);
@@ -192,11 +177,11 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		sql.append(getKeyField());
 		sql.append(", ");
 
-		String seperator = "";
+		String separator = "";
 		for (String field : getFields()) {
-			sql.append(seperator);
+			sql.append(separator);
 			sql.append(field);
-			seperator = ", ";
+			separator = ", ";
 		}
 
 		sql.append(" from ");
@@ -244,14 +229,16 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 		);
 		// @formatter:on
 
-		Query query = entityManager.createNativeQuery(sql);
-
-		@SuppressWarnings("unchecked")
-		List<Object> rows = query.getResultList();
+		List<Object> rows = getNativeResultList(sql, Object.class);
 		Object one = rows.isEmpty() ? null : rows.get(0);
 		Object keyValue = one;
 
-		log.info(String.format("save %s --> %s: %s", entity.getClass().getSimpleName(), getKeyField(), keyValue.toString()));
+		if (keyValue == null) {
+			throw new IllegalStateException("Insert did not return a value for " + getKeyField());
+		}
+
+		log.info(String.format("save %s --> %s: %s", entity.getClass().getSimpleName(), getKeyField(), keyValue));
+
 		setKeyValue(entity, keyValue);
 
 		return idFromResult(keyValue);
@@ -275,19 +262,16 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			separator = ", ";
 		}
 
-		String sql = String.format("update %s set %s where %s = %s", getTable(), assignments, getKeyField(), getKeyValue(entity));
+		String sql = String.format("update %s set %s where %s = %s", getTable(), assignments, getKeyField(), quote(getKeyValue(entity)));
 
-		Query query = entityManager.createNativeQuery(sql);
-		int count = query.executeUpdate();
+		int count = executeMutation(sql);
 		log.info(String.format("update --> count: %d", count));
 
 		return count;
 	}
 
-	@SuppressWarnings("unchecked")
 	public List<Object[]> getResultList(String sql) {
-		Query query = entityManager.createNativeQuery(sql);
-		return query.getResultList();
+		return getNativeResultList(sql, Object[].class);
 	}
 
 	public Optional<DTO> singleItem(List<DTO> list) {
@@ -410,5 +394,24 @@ public abstract class AbstractCrudRepository<T, DTO, ID> implements CrudReposito
 			}
 		}
 		return defaultValue;
+	}
+
+	protected Session getSession() {
+		return entityManager.unwrap(Session.class);
+	}
+
+	protected int executeMutation(String sql) {
+		MutationQuery query = getSession().createNativeMutationQuery(sql);
+		return query.executeUpdate();
+	}
+
+	protected <R> List<R> getNativeResultList(String sql, Class<R> resultClass) {
+		NativeQuery<R> query = getSession().createNativeQuery(sql, resultClass);
+		return query.getResultList();
+	}
+
+	protected <R> R getNativeSingleResult(String sql, Class<R> resultClass) {
+		NativeQuery<R> query = getSession().createNativeQuery(sql, resultClass);
+		return query.getSingleResult();
 	}
 }

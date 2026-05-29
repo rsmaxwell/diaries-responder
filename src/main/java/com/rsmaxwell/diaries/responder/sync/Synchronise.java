@@ -22,8 +22,8 @@ import org.eclipse.paho.mqttv5.common.MqttSubscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.config.Config;
-import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.responder.config.Config;
+import com.rsmaxwell.diaries.responder.config.User;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;

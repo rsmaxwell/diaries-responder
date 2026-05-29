@@ -23,9 +23,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.common.config.Config;
-import com.rsmaxwell.diaries.common.config.DbConfig;
-import com.rsmaxwell.diaries.common.config.DiariesConfig;
+import com.rsmaxwell.diaries.responder.config.Config;
+import com.rsmaxwell.diaries.responder.config.DbConfig;
+import com.rsmaxwell.diaries.responder.config.DiariesConfig;
 import com.rsmaxwell.diaries.responder.dto.DiaryDTO;
 import com.rsmaxwell.diaries.responder.dto.PageDTO;
 import com.rsmaxwell.diaries.responder.model.Diary;

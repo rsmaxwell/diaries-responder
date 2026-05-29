@@ -11,10 +11,10 @@ import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.response.SigninReply;
 import com.rsmaxwell.diaries.responder.dto.PersonDTO;
 import com.rsmaxwell.diaries.responder.model.UserStatus;
 import com.rsmaxwell.diaries.responder.repository.PersonRepository;
+import com.rsmaxwell.diaries.responder.response.SigninReply;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;

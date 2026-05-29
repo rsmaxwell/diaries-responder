@@ -29,7 +29,7 @@ import com.drew.metadata.exif.ExifSubIFDDirectory;
 import com.drew.metadata.mov.QuickTimeDirectory;
 import com.drew.metadata.mp4.Mp4Directory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rsmaxwell.diaries.common.config.DiariesConfig;
+import com.rsmaxwell.diaries.responder.config.DiariesConfig;
 import com.rsmaxwell.diaries.responder.dto.ListFilesResponse;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;

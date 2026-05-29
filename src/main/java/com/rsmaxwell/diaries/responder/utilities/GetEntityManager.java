@@ -8,9 +8,9 @@ import org.hibernate.jpa.boot.spi.Bootstrap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.config.DbConfig;
-import com.rsmaxwell.diaries.common.config.Jdbc;
-import com.rsmaxwell.diaries.common.config.User;
+import com.rsmaxwell.diaries.responder.config.DbConfig;
+import com.rsmaxwell.diaries.responder.config.Jdbc;
+import com.rsmaxwell.diaries.responder.config.User;
 import com.rsmaxwell.diaries.responder.model.Diary;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;

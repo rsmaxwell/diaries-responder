@@ -12,7 +12,7 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.config.DbConfig;
+import com.rsmaxwell.diaries.responder.config.DbConfig;
 
 public class Database {
 

@@ -30,7 +30,6 @@ dependencies {
     testImplementation libs.junit.jupiter
     testRuntimeOnly libs.junit.platform.launcher
 
-    implementation project(":diaries-common")
     implementation libs.slf4j.api
     runtimeOnly libs.log4j.slf4j2.impl
     runtimeOnly libs.log4j.core
@@ -57,8 +56,6 @@ dependencies {
     implementation libs.metadata.extractor
     implementation libs.mqtt.rpc.common
     implementation libs.mqtt.rpc.responder
-
-    implementation project(':diaries-common')
 }
 
 tasks.withType(JavaCompile).configureEach {

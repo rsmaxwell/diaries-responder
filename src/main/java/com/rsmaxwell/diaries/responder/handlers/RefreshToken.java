@@ -10,10 +10,10 @@ import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rsmaxwell.diaries.common.response.RefreshTokenReply;
 import com.rsmaxwell.diaries.responder.dto.PersonDTO;
 import com.rsmaxwell.diaries.responder.model.UserStatus;
 import com.rsmaxwell.diaries.responder.repository.PersonRepository;
+import com.rsmaxwell.diaries.responder.response.RefreshTokenReply;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.mqtt.rpc.common.Response;
