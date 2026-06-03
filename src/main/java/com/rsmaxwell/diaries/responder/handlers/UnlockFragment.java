@@ -2,12 +2,14 @@ package com.rsmaxwell.diaries.responder.handlers;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
@@ -43,12 +45,27 @@ public class UnlockFragment extends RequestHandler {
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
+		Long id = Utilities.getLong(args, "id");
 		FragmentAndMarquee fragmentAndMarquee;
 
 		tx.begin();
 		try {
-			Long id = Utilities.getLong(args, "id");
-			Fragment fragment = context.inflateFragment(id);
+			Optional<FragmentDBDTO> optionalFragmentDTO = context.getFragmentRepository().findById(id);
+			if (optionalFragmentDTO.isEmpty()) {
+				/*
+				 * Unlock is deliberately idempotent.
+				 *
+				 * This can happen when the client locks a fragment, deletes it, and then a
+				 * live-object subscription emits null for the removed retained topic. In that
+				 * case there is no lock left to clear because the fragment row has already
+				 * gone, so returning success is the least surprising behaviour.
+				 */
+				log.info("UnlockFragment.handleRequest: fragment {} does not exist; treating unlock as already complete", id);
+				tx.commit();
+				return Response.success(id);
+			}
+
+			Fragment fragment = new Fragment(optionalFragmentDTO.get());
 
 			FragmentLocking.requireUnlockAllowed(fragment, claims);
 

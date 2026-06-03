@@ -92,7 +92,7 @@ public class ListFiles extends RequestHandler {
 
 		// --- ListFiles ---
 		final Set<String> allowedExt = Set.of(".png", ".jpg", ".jpeg", ".gif", ".webp");
-		final String filesContext = "/" + Objects.requireNonNull(diariesConfig.getFiles());
+		final String filesContext = "/files";
 
 		//@formatter:off
 		List<ImageItem> items;
@@ -214,13 +214,15 @@ public class ListFiles extends RequestHandler {
 
 	/** Join URL path segments with a single slash, ignoring empty/null parts. */
 	private static String buildUrlPath(String... parts) {
-		String path = Stream.of(parts).filter(Objects::nonNull).map(s -> s.replace('\\', '/')) // defensive: never backslashes
-				.map(s -> s.replaceAll("^/+", "")) // trim leading slashes
-				.map(s -> s.replaceAll("/+$", "")) // trim trailing slashes
-				.filter(s -> !s.isEmpty()).map(ListFiles::encodePathSegment) // encode each segment
-				.collect(Collectors.joining("/"));
-
-		return "/" + path; // always return an absolute path
+		String path = Stream
+				.of(parts)
+					.filter(Objects::nonNull)
+					.flatMap(s -> Stream.of(s.replace('\\', '/').split("/+")))
+					.map(String::trim)
+					.filter(s -> !s.isEmpty())
+					.map(ListFiles::encodePathSegment)
+					.collect(Collectors.joining("/"));
+		return "/" + path;
 	}
 
 	/** Encode one URL path segment (space -> %20 instead of '+'). */
