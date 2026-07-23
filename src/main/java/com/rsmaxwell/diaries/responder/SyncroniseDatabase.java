@@ -234,8 +234,8 @@ public class SyncroniseDatabase {
 					.name(pageName)
 					.sequence(sequence)
 					.extension(pageExtension)
-					.width(info.getWidth())
-				    .height(info.getHeight())
+					.width(info.width())
+				    .height(info.height())
 				    .version(version)
 				    .build();
 			//@formatter:on
@@ -273,24 +273,35 @@ public class SyncroniseDatabase {
 
 	private ImageInfo getImageInfo(File imageFile) throws Exception {
 
-		ImageInfo info = new ImageInfo();
+	    try (ImageInputStream input = ImageIO.createImageInputStream(imageFile)) {
+	        Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
 
-		try (ImageInputStream input = ImageIO.createImageInputStream(imageFile)) {
-			Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
-			if (!readers.hasNext()) {
-				throw new Exception(String.format("No ImageReader found for the file: %s", imageFile.getAbsoluteFile()));
-			}
+	        if (!readers.hasNext()) {
+	            throw new Exception(
+	                    String.format(
+	                            "No ImageReader found for the file: %s",
+	                            imageFile.getAbsoluteFile()));
+	        }
 
-			ImageReader reader = readers.next();
-			reader.setInput(input);
-			info.setHeight(reader.getHeight(0));
-			info.setWidth(reader.getWidth(0));
-			reader.dispose();
+	        ImageReader reader = readers.next();
 
-		} catch (IOException e) {
-			System.err.println("Failed to read image dimensions: " + e.getMessage());
-		}
+	        try {
+	            reader.setInput(input);
 
-		return info;
+	            int height = reader.getHeight(0);
+	            int width = reader.getWidth(0);
+
+	            return new ImageInfo(height, width);
+	        } finally {
+	            reader.dispose();
+	        }
+
+	    } catch (IOException exception) {
+	        System.err.println(
+	                "Failed to read image dimensions: "
+	                        + exception.getMessage());
+
+	        return new ImageInfo(0, 0);
+	    }
 	}
 }

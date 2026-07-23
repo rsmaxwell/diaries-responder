@@ -360,8 +360,8 @@ public class Responder {
 				Fragment fragment = context.inflateFragment(fragmentDTO);
 
 				log.info("Responder.releaseStaleLocks: releasing stale lock on fragment id={}, lockUserId={}, lockSessionId={}, lockTimeStamp={}", fragment.getId(),
-						fragment.getLock() == null ? null : fragment.getLock().getLockUserId(), fragment.getLock() == null ? null : fragment.getLock().getLockSessionId(),
-						fragment.getLock() == null ? null : fragment.getLock().getLockTimeStamp());
+						fragment.getLock() == null ? null : fragment.getLock().lockUserId(), fragment.getLock() == null ? null : fragment.getLock().lockSessionId(),
+						fragment.getLock() == null ? null : fragment.getLock().lockTimeStamp());
 
 				FragmentAndMarquee fragmentAndMarquee = FragmentLocking.clearLockInCurrentTransaction(context, fragment);
 

@@ -106,14 +106,7 @@ public class ListFiles extends RequestHandler {
 		        .map(p -> {
 		            long mtime = lastModifiedMillis(p);
 		            String name = p.getFileName().toString();
-		            return ImageItem.builder()
-		                .name(name)
-		                .url(null)       // no URL for folders
-		                .size(0L)
-		                .mtime(mtime)
-		                .dateTaken(null)
-		                .dir(true) 
-		                .build();
+		            return ImageItem.directory(name, mtime);
 		        })
 		        .collect(Collectors.toList());
 
@@ -133,15 +126,7 @@ public class ListFiles extends RequestHandler {
 		            String name = p.getFileName().toString();
 		            String url = buildUrlPath(filesContext, subdir, name);
 		            Long dateTaken = readDateTakenMillis(p);
-
-		            return ImageItem.builder()
-		                .name(name)
-		                .url(url)
-		                .size(size)
-		                .mtime(mtime)
-		                .dateTaken(dateTaken)
-		                .dir(false)
-		                .build();
+		            return ImageItem.file(name, url, size, mtime, dateTaken);
 		        })
 		        .collect(Collectors.toList());
 

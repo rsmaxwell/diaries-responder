@@ -86,21 +86,8 @@ public class Fragment extends Base {
 	/**
 	 * Defensive copy so we don't share the same LockInfo instance between entity and DTOs. (Safer if DTOs are reused/mutated elsewhere.)
 	 */
-	private void copyLockFrom(LockInfo src) {
-		if (src == null) {
-			this.lock = null;
-			return;
-		}
-
-		// @formatter:off
-		this.lock = LockInfo.builder()
-				  .lockUserId(src.getLockUserId())
-				  .lockUserName(src.getLockUserName())
-				  .lockKnownAs(src.getLockKnownAs())
-				  .lockTimeStamp(src.getLockTimeStamp())
-				  .lockSessionId(src.getLockSessionId())
-				  .build();
-		// @formatter:on		
+	private void copyLockFrom(LockInfo source) {
+	    this.lock = source;
 	}
 
 	public boolean keyFieldsChanged(Fragment other) {

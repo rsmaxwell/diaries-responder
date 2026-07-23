@@ -65,30 +65,40 @@ public class LockFragment extends RequestHandler {
 			String sessionId = claims.get("sessionId", String.class);
 
 			// Ensure lock object exists
-			LockInfo lock = fragment.getLock();
-			if (lock == null) {
-				lock = new LockInfo();
-				fragment.setLock(lock);
+			LockInfo existingLock = fragment.getLock();
+
+			if (existingLock != null && existingLock.isLocked()) {
+			    boolean lockedByMe =
+			            existingLock.isLockedBy(userId, sessionId);
+
+			    Instant now = Instant.now();
+
+			    boolean stale = existingLock.isStale(
+			            now,
+			            context.getConfig().getFragmentLockTtl());
+
+			    if (!lockedByMe && !stale) {
+			        throw RpcStatusException.conflict(
+			                "Fragment is locked by another user.");
+			    }
+
+			    if (stale) {
+			        log.info(
+			                "LockFragment.handleRequest: replacing stale lock on fragment "
+			                        + "{} held by userId={}, sessionId={}, timestamp={}",
+			                fragment.getId(),
+			                existingLock.lockUserId(),
+			                existingLock.lockSessionId(),
+			                existingLock.lockTimeStamp());
+			    }
 			}
 
-			// Prevent stealing someone else’s lock
-			if (lock.isLocked()) {
-				boolean lockedByMe = lock.isLockedBy(userId, sessionId);
-				Instant now = Instant.now();
-				boolean stale = lock.isStale(now, context.getConfig().getFragmentLockTtl());
-
-				if (!lockedByMe && !stale) {
-					throw RpcStatusException.conflict("Fragment is locked by another user.");
-				}
-
-				if (stale) {
-					log.info("LockFragment.handleRequest: replacing stale lock on fragment {} held by userId={}, sessionId={}, timestamp={}", fragment.getId(),
-							lock.getLockUserId(), lock.getLockSessionId(), lock.getLockTimeStamp());
-				}
-			}
-
-			// Lock the fragment
-			lock.lockNow(userId, username, knownAs, sessionId);
+			fragment.setLock(
+			        LockInfo.lockedNow(
+			                userId,
+			                username,
+			                knownAs,
+			                sessionId));
 
 			// save to database
 			int count = fragmentRepository.update(fragment);

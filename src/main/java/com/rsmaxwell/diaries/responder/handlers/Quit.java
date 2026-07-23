@@ -30,6 +30,6 @@ public class Quit extends RequestHandler {
 		Authorization.checkRoleAtLeast(claims, Role.ADMIN);
 		log.info("Quit.handleRequest: Authorization.check: OK!");
 
-		return Response.quit();
+		return Response.quitting();
 	}
 }

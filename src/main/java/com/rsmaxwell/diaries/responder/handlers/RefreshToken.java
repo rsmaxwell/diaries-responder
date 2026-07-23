@@ -88,8 +88,6 @@ public class RefreshToken extends RequestHandler {
 		Integer refreshPeriod = context.getRefreshPeriod();
 		RefreshTokenReply reply = new RefreshTokenReply(token, refreshPeriod);
 
-		Response response = Response.success();
-		response.setPayload(reply);
-		return response;
+		return Response.success(reply);
 	}
 }

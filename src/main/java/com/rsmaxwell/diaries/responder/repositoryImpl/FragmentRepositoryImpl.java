@@ -16,8 +16,6 @@ import jakarta.persistence.EntityManager;
 
 public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, FragmentDBDTO, Long> implements FragmentRepository {
 
-	// private static final Logger log = LogManager.getLogger(FragmentRepositoryImpl.class);
-
 	public FragmentRepositoryImpl(EntityManager entityManager) {
 		super(entityManager);
 	}
@@ -79,11 +77,11 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 			list.add(null);
 			list.add(null);
 		} else {
-			list.add(lock.getLockUserId());
-			list.add(lock.getLockUserName());
-			list.add(lock.getLockKnownAs());
-			list.add(lock.getLockTimeStamp());
-			list.add(lock.getLockSessionId());
+			list.add(lock.lockUserId());
+			list.add(lock.lockUserName());
+			list.add(lock.lockKnownAs());
+			list.add(lock.lockTimeStamp());
+			list.add(lock.lockSessionId());
 		}
 
 		return list;
@@ -109,13 +107,12 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 
 		//@formatter:off		
 		if (lockUserId != null) {
-			lock = LockInfo.builder()
-				.lockUserId(lockUserId)
-				.lockUserName(lockUserName)
-				.lockKnownAs(lockKnownAs)
-				.lockTimeStamp(lockTimeStamp)
-				.lockSessionId(lockSessionId)
-				.build();
+			lock = new LockInfo(
+			        lockUserId,
+			        lockUserName,
+			        lockKnownAs,
+			        lockTimeStamp,
+			        lockSessionId);
 		}
 		
 		return FragmentDBDTO.builder()
