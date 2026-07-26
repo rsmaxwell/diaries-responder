@@ -8,6 +8,9 @@ plugins {
 def projectVersion = findProperty('projectVersion') ?: '0.0.1-SNAPSHOT'
 def repositoryName = findProperty('repositoryName') ?: 'snapshots'
 def responderMainClass = 'com.rsmaxwell.diaries.responder.Responder'
+def mavenUserProperty = providers.gradleProperty('mavenUser')
+def mavenPasswordProperty = providers.gradleProperty('mavenPassword')
+
 
 group = projectGroupId
 version = projectVersion
@@ -102,11 +105,22 @@ publishing {
 
     repositories {
         maven {
+            url = uri("${mavenRepositoryBaseURL}/${repositoryName}")
+
             credentials {
-                username = mavenUser
-                password = mavenPassword
+                username = mavenUserProperty.orNull
+                password = mavenPasswordProperty.orNull
             }
-            url = "${mavenRepositoryBaseURL}/${repositoryName}"
+        }
+    }
+}
+
+tasks.withType(PublishToMavenRepository).configureEach {
+    doFirst {
+        if (!mavenUserProperty.isPresent() || !mavenPasswordProperty.isPresent()) {
+            throw new GradleException(
+                'Publishing requires mavenUser and mavenPassword in ~/.gradle/gradle.properties'
+            )
         }
     }
 }
