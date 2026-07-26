@@ -36,6 +36,7 @@ import com.rsmaxwell.diaries.responder.handlers.AddMarquee;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFile;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFragment;
 import com.rsmaxwell.diaries.responder.handlers.DeleteMarquee;
+import com.rsmaxwell.diaries.responder.handlers.GetVersion;
 import com.rsmaxwell.diaries.responder.handlers.ListFiles;
 import com.rsmaxwell.diaries.responder.handlers.LockFragment;
 import com.rsmaxwell.diaries.responder.handlers.NormaliseDiaries;
@@ -88,6 +89,7 @@ public class Responder {
 	static MyMessageHandler myMessageHandler = new MyMessageHandler(messageHandler);
 
 	static {
+		messageHandler.putHandler("getVersion", new GetVersion());
 		messageHandler.putHandler("register", new Register());
 		messageHandler.putHandler("signin", new Signin());
 		messageHandler.putHandler("refreshToken", new RefreshToken());
