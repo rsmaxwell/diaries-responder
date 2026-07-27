@@ -87,17 +87,43 @@ def findLatestReleaseVersion = {
 }
 
 /*
+ * Return true when the Git working tree contains changes.
+ *
+ * This includes:
+ *
+ * - modified tracked files;
+ * - staged changes;
+ * - deleted files;
+ * - untracked files.
+ *
+ * git status --porcelain produces no output for a clean working tree.
+ */
+def isWorkingTreeDirty = {
+    def status = runGitCommand([
+        'status',
+        '--porcelain'
+    ])
+
+    return !status.isEmpty()
+}
+
+/*
  * Calculate the version following the existing prepare.sh rules:
  *
- * - HEAD tagged v0.0.7       -> 0.0.7
+ * - Clean HEAD tagged v0.0.7 -> 0.0.7
+ * - Dirty HEAD tagged v0.0.7 -> 0.0.8-SNAPSHOT
  * - Jenkins build 123        -> 0.0.8-build-123
  * - Local untagged build     -> 0.0.8-SNAPSHOT
  * - No previous release tag  -> 0.0.1-SNAPSHOT
+ *
+ * A tagged commit is treated as the exact release only when the working tree
+ * is clean. Local modifications mean the source no longer exactly represents
+ * the tagged release.
  */
 def calculateBuildVersion = {
     def exactReleaseVersion = findExactReleaseVersion()
 
-    if (exactReleaseVersion) {
+    if (exactReleaseVersion && !isWorkingTreeDirty()) {
         return exactReleaseVersion
     }
 
