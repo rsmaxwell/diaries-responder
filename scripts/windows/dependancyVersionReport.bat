@@ -10,11 +10,14 @@ set "EXIT_CODE=0"
 
 
 
-@echo on
-call gradlew.bat :diaries-responder:clean :diaries-responder:build --info
-@echo off
+
+
+echo on
+gradlew.bat :diaries-responder:dependencyUpdates --no-parallel
+echo off
 
 set "EXIT_CODE=%ERRORLEVEL%"
 
+:cleanup
 popd
-exit /b %EXIT_CODE%
+endlocal & exit /b %EXIT_CODE%
