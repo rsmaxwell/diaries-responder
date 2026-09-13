@@ -79,16 +79,10 @@ public class ListFiles extends RequestHandler {
 		// --- Inputs ---
 		final String subdir = Utilities.getStringOrDefault(args, "subdir", ""); // optional
 
-		// ---- Sanitise sub-dir ----
-		Path safeSubdir = Paths.get(subdir == null ? "" : subdir).normalize();
-		if (safeSubdir.isAbsolute() || safeSubdir.toString().contains("..")) {
-			throw RpcStatusException.badRequest("Invalid 'subdir'.");
-		}
-
-		Path targetDir = filesDir.resolve(safeSubdir).normalize();
-		if (!targetDir.startsWith(filesDir)) {
-			throw RpcStatusException.badRequest("Resolved path escapes uploads root.");
-		}
+        var paths = new com.rsmaxwell.diaries.responder.utilities.ImagePathPolicy(filesDir);
+        Path targetDir;
+        try { targetDir = paths.resolveDirectory(subdir); }
+        catch (IOException | IllegalArgumentException failure) { throw RpcStatusException.badRequest("Invalid subdir."); }
 
 		// --- ListFiles ---
 		final Set<String> allowedExt = Set.of(".png", ".jpg", ".jpeg", ".gif", ".webp");
@@ -97,7 +91,11 @@ public class ListFiles extends RequestHandler {
 		//@formatter:off
 		List<ImageItem> items;
 		try (Stream<Path> listing = Files.list(targetDir)) {
-		    List<Path> children = listing.collect(Collectors.toList());
+		    List<Path> children = listing.filter(path -> {
+                try { paths.resolve(paths.root().relativize(path.toAbsolutePath().normalize()).toString());
+                    return true;
+                } catch (IOException | IllegalArgumentException failure) { return false; }
+            }).collect(Collectors.toList());
 
 		    // Directories first (alpha)
 		    List<ImageItem> dirItems = children.stream()
@@ -137,7 +135,7 @@ public class ListFiles extends RequestHandler {
 		//@formatter:on
 
 		// --- Success payload ---
-		ListFilesResponse response = new ListFilesResponse(safeSubdir, items);
+		ListFilesResponse response = new ListFilesResponse(paths.root().relativize(targetDir), items);
 		return Response.success(response);
 	}
 

@@ -36,6 +36,7 @@ public class PackagedInspectionProbe {
                 }
             };
             var service = new ImageCatalogueService(paths, inspector, catalogue, dto -> { throw new AssertionError("publication after rollback"); });
+            service.verifyStorageCapabilities();
             Files.writeString(root.resolve("image.png"), "original");
             Path fixture = fixtures.resolve("sample.png");
             var upload = service.stage(Files.newInputStream(fixture), "", "image.png", "image/png", Files.size(fixture), null);

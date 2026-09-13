@@ -200,4 +200,158 @@ class ImageWiringIntegrationTest {
 			assertEquals(expected, Responder.createContext(config, factory, reader).loadFromDatabase());
 		}
 	}
+    @Test
+    void uploadGuardUsesPostgresUnicodeIdentityWithoutChangingRows(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        var cfg=new Config();
+        var files=new com.rsmaxwell.diaries.responder.config.DiariesConfig();
+        files.setRoot(root.toString()); files.setFiles("files"); cfg.setDiaries(files);
+        var uploadContext=new DiaryContext(); uploadContext.setConfig(cfg); uploadContext.setEntityManagerFactory(factory);
+        uploadContext.setSecret(java.util.Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes()));
+        String token=com.rsmaxwell.diaries.responder.utilities.Authorization.getTokenWithClaims(uploadContext.getSecret(),"access",5,
+            java.time.temporal.ChronoUnit.MINUTES,Map.of("status","ACTIVE","role","EDITOR"));
+        var properties=List.of(new org.eclipse.paho.mqttv5.common.packet.UserProperty("accessToken",token));
+        var directory=java.nio.file.Files.createDirectories(root.resolve("files/maps"));
+        var target=directory.resolve("Caf\u00e9 50%_1.png"); java.nio.file.Files.writeString(target,"original");
+        Image saved=context.saveImage(candidate("maps/Caf\u00e9 50%_1.png"));
+        String before=new ImagePublishDTO(saved).toJson();
+        var args=new HashMap<String,Object>();
+        args.put("contentType","application/octet-stream"); args.put("bytes","bmV3"); args.put("size",3L);
+        args.put("subdir","MAPS\\."); args.put("name","CAFE\u0301 50%_1.PNG");
+        for(boolean overwrite:List.of(false,true)) {
+            args.put("overwrite",overwrite);
+            var failure=assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+                () -> new com.rsmaxwell.diaries.responder.handlers.UploadFile().handleRequest(uploadContext,args,properties));
+            assertEquals(409,failure.getStatus().code());
+            assertEquals("original",java.nio.file.Files.readString(target));
+        }
+        java.nio.file.Files.delete(target);
+        assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+            () -> new com.rsmaxwell.diaries.responder.handlers.UploadFile().handleRequest(uploadContext,args,properties));
+        assertFalse(java.nio.file.Files.exists(target));
+        // SQL wildcard characters remain literal: this different path is not owned.
+        args.put("subdir","maps"); args.put("name","Cafe 50ZZ1.png");
+        new com.rsmaxwell.diaries.responder.handlers.UploadFile().handleRequest(uploadContext,args,properties);
+        assertEquals("new",java.nio.file.Files.readString(directory.resolve("Cafe 50ZZ1.png")));
+        assertEquals(1,context.getImageRepository().count());
+        assertEquals(before,new ImagePublishDTO(context.inflateImage(saved.getId())).toJson());
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named="DIARIES_IMAGE_MQTT_TEST_URL", matches=".+")
+    void uploadCommitsPublishesAndReplaysAfterPublisherFailure(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        String broker=System.getenv("DIARIES_IMAGE_MQTT_TEST_URL");
+        assertTrue(broker.matches("tcp://127\\.0\\.0\\.1:[0-9]+"));
+        var cfg=new Config(); var files=new com.rsmaxwell.diaries.responder.config.DiariesConfig();
+        files.setRoot(root.toString()); files.setFiles("files"); cfg.setDiaries(files);
+        java.nio.file.Files.createDirectory(root.resolve("files"));
+        var uploadContext=new DiaryContext(); uploadContext.setConfig(cfg); uploadContext.setEntityManagerFactory(factory);
+        uploadContext.setSecret(java.util.Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes()));
+        String token=com.rsmaxwell.diaries.responder.utilities.Authorization.getTokenWithClaims(uploadContext.getSecret(),"access",5,
+            java.time.temporal.ChronoUnit.MINUTES,Map.of("status","ACTIVE","role","EDITOR"));
+        var properties=List.of(new org.eclipse.paho.mqttv5.common.packet.UserProperty("accessToken",token));
+        var options=new org.eclipse.paho.mqttv5.client.MqttConnectionOptions();
+        options.setUserName("diaries-responder"); options.setPassword("phase4-fixture".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var publisher=new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"upload-pub-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        var observer=new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"upload-sub-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        try {
+            publisher.connect(options).waitForCompletion(10000); uploadContext.setPublisherClient(publisher);
+            byte[] bytes;
+            try(var in=getClass().getResourceAsStream("/image-inspection/sample.webp")){bytes=in.readAllBytes();}
+            var args=new HashMap<String,Object>(); args.put("name","image.txt"); args.put("contentType","application/octet-stream");
+            args.put("bytes",java.util.Base64.getEncoder().encodeToString(bytes)); args.put("size",(long)bytes.length);
+            var handler=new com.rsmaxwell.diaries.responder.handlers.UploadFile() {
+                @Override protected com.rsmaxwell.diaries.responder.utilities.ImageCatalogueService.Publication uploadPublication(DiaryContext ctx) {
+                    var real=super.uploadPublication(ctx);
+                    return dto -> {
+                        try(var reader=factory.createEntityManager()) { assertNotNull(reader.find(Image.class,dto.getId()),"row must be committed before MQTT"); }
+                        real.publish(dto);
+                    };
+                }
+            };
+            var response=(com.rsmaxwell.diaries.responder.dto.UploadFileResponse)handler.handleRequest(uploadContext,args,properties).payload();
+            assertEquals(1,context.getImageRepository().count()); assertEquals(response.imageId(),response.image().getId());
+            assertEquals("image/webp",response.image().getMimeType());
+            assertArrayEquals(bytes,java.nio.file.Files.readAllBytes(root.resolve("files/image.txt")));
+            observer.connect(options).waitForCompletion(10000);
+            var events=new java.util.concurrent.LinkedBlockingQueue<org.eclipse.paho.mqttv5.common.MqttMessage>();
+            observer.setCallback(new com.rsmaxwell.mqtt.rpc.common.Adapter() {
+                @Override public void messageArrived(String topic,org.eclipse.paho.mqttv5.common.MqttMessage message) { events.add(message); }
+            });
+            observer.subscribe(new org.eclipse.paho.mqttv5.common.MqttSubscription("diaries/images/"+response.imageId(),1)).waitForCompletion(10000);
+            var retained=events.poll(5,java.util.concurrent.TimeUnit.SECONDS); assertNotNull(retained);
+            assertTrue(retained.isRetained()); assertEquals(1,retained.getQos());
+            assertEquals(response.image().toJson(),new String(retained.getPayload(),java.nio.charset.StandardCharsets.UTF_8));
+            for(boolean overwrite:List.of(false,true)) {
+                args.put("overwrite",overwrite);
+                assertEquals(409,assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+                    ()->handler.handleRequest(uploadContext,args,properties)).getStatus().code());
+            }
+            var deletionFailure=assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+                ()->new com.rsmaxwell.diaries.responder.handlers.DeleteFile().handleRequest(uploadContext,Map.of("name","image.txt"),properties));
+            assertEquals(409,deletionFailure.getStatus().code());
+            assertArrayEquals(bytes,java.nio.file.Files.readAllBytes(root.resolve("files/image.txt")));
+            assertNull(events.poll(250,java.util.concurrent.TimeUnit.MILLISECONDS)); assertEquals(1,context.getImageRepository().count());
+            publisher.disconnect().waitForCompletion(10000);
+            args.put("name","recover.webp");
+            var failure=assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+                ()->handler.handleRequest(uploadContext,args,properties));
+            assertEquals(500,failure.getStatus().code()); assertTrue(failure.getMessage().contains("committed"));
+            assertEquals(2,context.getImageRepository().count());
+            assertArrayEquals(bytes,java.nio.file.Files.readAllBytes(root.resolve("files/recover.webp")));
+            Image recover=new Image(context.getImageRepository().findByRelativePath("recover.webp").orElseThrow());
+            String topic="diaries/images/"+recover.getId();
+            Map<String,String> replay=context.loadFromDatabase();
+            assertEquals(new ImagePublishDTO(recover).toJson(),replay.get(topic));
+            publisher.connect(options).waitForCompletion(10000);
+            publisher.publish(topic,replay.get(topic).getBytes(java.nio.charset.StandardCharsets.UTF_8),1,true).waitForCompletion(10000);
+            observer.subscribe(new org.eclipse.paho.mqttv5.common.MqttSubscription(topic,1)).waitForCompletion(10000);
+            var repaired=events.poll(5,java.util.concurrent.TimeUnit.SECONDS); assertNotNull(repaired); assertTrue(repaired.isRetained());
+            assertEquals(replay.get(topic),new String(repaired.getPayload(),java.nio.charset.StandardCharsets.UTF_8));
+            // Remove only this test's retained fixtures before its database cleanup.
+            for(Long id:List.of(response.imageId(),recover.getId())) publisher.publish("diaries/images/"+id,new byte[0],1,true).waitForCompletion(10000);
+        } finally {
+            if(observer.isConnected()) observer.disconnect().waitForCompletion(10000); observer.close();
+            if(publisher.isConnected()) publisher.disconnect().waitForCompletion(10000); publisher.close();
+        }
+    }
+
+    @Test
+    void deleteGuardUsesLiteralPostgresPrefixesAndPreservesCatalogue(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        var cfg=new Config(); var files=new com.rsmaxwell.diaries.responder.config.DiariesConfig();
+        files.setRoot(root.toString()); files.setFiles("files"); cfg.setDiaries(files);
+        var deleteContext=new DiaryContext(); deleteContext.setConfig(cfg); deleteContext.setEntityManagerFactory(factory);
+        deleteContext.setSecret(java.util.Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes()));
+        String token=com.rsmaxwell.diaries.responder.utilities.Authorization.getTokenWithClaims(deleteContext.getSecret(),"access",5,
+            java.time.temporal.ChronoUnit.MINUTES,Map.of("status","ACTIVE","role","EDITOR"));
+        var properties=List.of(new org.eclipse.paho.mqttv5.common.packet.UserProperty("accessToken",token));
+        var directory=java.nio.file.Files.createDirectories(root.resolve("files/maps%_!"));
+        var target=java.nio.file.Files.writeString(directory.resolve("Caf\u00e9.png"),"original");
+        Image saved=context.saveImage(candidate("maps%_!/Caf\u00e9.png"));
+        String before=new ImagePublishDTO(saved).toJson();
+        var handler=new com.rsmaxwell.diaries.responder.handlers.DeleteFile();
+        for(var args:List.of(Map.of("subdir","maps%_!","name","Caf\u00e9.png"),
+                Map.of("subdir","MAPS%_!\\.","name","CAFE\u0301.PNG"),Map.of("name","maps%_!"),Map.of("name","MAPS%_!"))) {
+            var failure=assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+                ()->handler.handleRequest(deleteContext,new HashMap<String,Object>(args),properties));
+            assertEquals(409,failure.getStatus().code()); assertFalse(failure.getMessage().contains(root.toString()));
+            assertEquals("original",java.nio.file.Files.readString(target));
+        }
+        java.nio.file.Files.delete(target);
+        assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+            ()->handler.handleRequest(deleteContext,Map.of("name","maps%_!"),properties));
+        java.nio.file.Files.delete(directory);
+        assertThrows(com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException.class,
+            ()->handler.handleRequest(deleteContext,Map.of("name","maps%_!"),properties));
+        // SQL wildcard and escape characters are literal; boundary-similar names are unrelated.
+        for(String name:List.of("mapsZZ!","maps%_!suffix")) {
+            java.nio.file.Files.createDirectory(root.resolve("files").resolve(name));
+            handler.handleRequest(deleteContext,Map.of("name",name),properties);
+            assertFalse(java.nio.file.Files.exists(root.resolve("files").resolve(name)));
+        }
+        handler.handleRequest(deleteContext,Map.of("subdir","missing/nested","name","absent"),properties);
+        assertFalse(java.nio.file.Files.exists(root.resolve("files/missing")));
+        assertEquals(1,context.getImageRepository().count());
+        assertEquals(before,new ImagePublishDTO(context.inflateImage(saved.getId())).toJson());
+    }
+
 }

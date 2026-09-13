@@ -183,4 +183,39 @@ class ImageCatalogueServiceTest {
         assertEquals(List.of("commit", "publish"), events);
         noStagedBytes();
     }
+    @Test void deletionWaitsForUploadCommitAndCannotDeleteItsWinner() throws Exception {
+        var promoted=new java.util.concurrent.CountDownLatch(1);
+        var release=new java.util.concurrent.CountDownLatch(1);
+        var firstGuard=new java.util.concurrent.CountDownLatch(1);
+        var store=new Catalogue() {
+            public boolean owns(String path) throws Exception { return catalogue.owns(path); }
+            public boolean ownsAtOrBelow(String path) throws Exception {
+                boolean result=owns(path); firstGuard.countDown(); return result;
+            }
+            public Image insert(Image image) throws WriteFailedException {
+                promoted.countDown();
+                try { if(!release.await(10,java.util.concurrent.TimeUnit.SECONDS)) throw new IOException("test gate timeout"); }
+                catch(Exception failure) { throw new WriteFailedException(false,failure); }
+                return catalogue.insert(image);
+            }
+        };
+        var service=service(store,dto->events.add("publish"));
+        var upload=stage(service,"winner.png");
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var writer=pool.submit(()->service.complete(upload,false));
+            try {
+                assertTrue(promoted.await(5,java.util.concurrent.TimeUnit.SECONDS));
+                var deletion=pool.submit(()-> {
+                    try { service.deleteUncatalogued("winner.png"); return null; }
+                    catch(Exception failure) { return failure; }
+                });
+                assertTrue(firstGuard.await(5,java.util.concurrent.TimeUnit.SECONDS));
+                release.countDown(); assertTrue(writer.get(10,java.util.concurrent.TimeUnit.SECONDS).isPresent());
+                assertInstanceOf(java.nio.file.FileAlreadyExistsException.class,deletion.get(10,java.util.concurrent.TimeUnit.SECONDS));
+            } finally { release.countDown(); }
+        }
+        assertArrayEquals(image(),Files.readAllBytes(root.resolve("winner.png")));
+        assertEquals(1,rows.size()); assertEquals(List.of("commit","publish"),events); noStagedBytes();
+    }
+
 }

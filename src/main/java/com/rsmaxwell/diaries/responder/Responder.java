@@ -198,7 +198,7 @@ public class Responder {
 	/**
 	 * Creates a handler that serves files from {@code baseDir} under the URL {@code contextName}. Prevents path traversal and returns 404 for non-existing files.
 	 */
-	private static HttpHandler staticFileHandler(String contextName, Path baseDir) {
+	static HttpHandler staticFileHandler(String contextName, Path baseDir) {
 		return (HttpExchange exchange) -> {
 			try {
 				// Only allow GET/HEAD
@@ -216,12 +216,14 @@ public class Responder {
 
 				// Strip the context prefix to get a relative path under baseDir
 				String rel = fullPath.substring(contextName.length()); // e.g. "/foo/bar.jpg"
-				// Normalise and prevent traversal
-				Path resolved = baseDir.resolve(rel.replaceFirst("^/", "")).normalize();
-				if (!resolved.startsWith(baseDir)) {
-					exchange.sendResponseHeaders(403, -1); // Forbidden
-					return;
-				}
+                Path resolved;
+                try {
+                    var policy = new com.rsmaxwell.diaries.responder.utilities.ImagePathPolicy(baseDir);
+                    resolved = policy.resolve(rel.replaceFirst("^/", ""));
+                } catch (IllegalArgumentException | IOException rejected) {
+                    exchange.sendResponseHeaders(404, -1);
+                    return;
+                }
 
 				if (!Files.isRegularFile(resolved)) {
 					exchange.sendResponseHeaders(404, -1);

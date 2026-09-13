@@ -29,6 +29,10 @@ public final class ImageCatalogueService {
 
     public interface Catalogue {
         boolean owns(String canonicalPath) throws Exception;
+        /** Deletion must protect exact paths and slash-delimited descendants, even if bytes are missing. */
+        default boolean ownsAtOrBelow(String canonicalPath) throws Exception {
+            throw new IllegalStateException("Catalogue descendant guard is not configured");
+        }
         /** Return only after commit; unknown outcomes must be explicitly distinguished. */
         Image insert(Image image) throws WriteFailedException;
     }
@@ -69,11 +73,30 @@ public final class ImageCatalogueService {
         this.publisher = java.util.Objects.requireNonNull(publisher);
     }
 
+    /** Staging-only use during Phase 6.1; cannot accidentally register or publish an Image. */
+    public ImageCatalogueService(ImagePathPolicy paths, ImageMetadataInspector inspector) {
+        this.paths = java.util.Objects.requireNonNull(paths);
+        this.inspector = java.util.Objects.requireNonNull(inspector);
+        this.catalogue = null;
+        this.publisher = null;
+    }
+
+    /** Guarded generic promotion before Phase 6.3 enables Image registration. */
+    public ImageCatalogueService(ImagePathPolicy paths, ImageMetadataInspector inspector, Catalogue catalogue) {
+        this.paths = java.util.Objects.requireNonNull(paths);
+        this.inspector = java.util.Objects.requireNonNull(inspector);
+        this.catalogue = java.util.Objects.requireNonNull(catalogue);
+        this.publisher = null;
+    }
+
     /** Each call owns a fresh EntityManager, so concurrent requests never share one. */
     public static Catalogue jpaCatalogue(EntityManagerFactory factory) {
         return new Catalogue() {
             @Override public boolean owns(String path) {
                 try (var em = factory.createEntityManager()) { return new ImageRepositoryImpl(em).findByRelativePath(path).isPresent(); }
+            }
+            @Override public boolean ownsAtOrBelow(String path) {
+                try (var em = factory.createEntityManager()) { return new ImageRepositoryImpl(em).existsAtOrBelow(path); }
             }
             @Override public Image insert(Image candidate) throws WriteFailedException {
                 boolean commitStarted = false;
@@ -129,8 +152,41 @@ public final class ImageCatalogueService {
         }
     }
 
+    /** Exercise required filesystem primitives using private disposable files on the actual mount. */
+    public void verifyStorageCapabilities() throws IOException {
+        synchronized (PROCESS_LOCK) {
+            Path work = workDirectory();
+            Path source = privateFile(work, ".probe");
+            Path link = source.resolveSibling(source.getFileName() + ".link");
+            Path moved = source.resolveSibling(source.getFileName() + ".moved");
+            try {
+                try (var channel = FileChannel.open(source, StandardOpenOption.WRITE);
+                        var lock = channel.tryLock()) {
+                    if (lock == null) throw new IOException("Filesystem locking unavailable");
+                }
+                Files.createLink(link, source);
+                if (!Files.isSameFile(source, link)) throw new IOException("Filesystem hard links unavailable");
+                Files.move(link, moved, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(moved);
+                Files.deleteIfExists(link);
+                Files.deleteIfExists(source);
+            }
+        }
+    }
+
     /** Supported images return their committed row; generic files return Optional.empty(). */
     public Optional<Image> complete(ResolvedUpload upload, boolean overwrite) throws Exception {
+        if (publisher == null) throw new IllegalStateException("Catalogue publication is not configured");
+        return complete(upload, overwrite, true);
+    }
+
+    public void promoteUncatalogued(ResolvedUpload upload, boolean overwrite) throws Exception {
+        complete(upload, overwrite, false);
+    }
+
+    private Optional<Image> complete(ResolvedUpload upload, boolean overwrite, boolean registerImage) throws Exception {
+        if (catalogue == null) throw new IllegalStateException("Catalogue completion is not configured");
         Exception primary = null;
         try {
             synchronized (PROCESS_LOCK) {
@@ -140,7 +196,7 @@ public final class ImageCatalogueService {
                 if (Files.exists(lockPath, LinkOption.NOFOLLOW_LINKS)) ImagePathPolicy.verifyEntry(lockPath);
                 try (var channel = FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
                         var lock = channel.lock()) {
-                    return completeLocked(upload, overwrite, work);
+                    return completeLocked(upload, overwrite, work, registerImage);
                 }
             }
         } catch (Exception failure) {
@@ -152,7 +208,7 @@ public final class ImageCatalogueService {
         }
     }
 
-    private Optional<Image> completeLocked(ResolvedUpload upload, boolean overwrite, Path work) throws Exception {
+    private Optional<Image> completeLocked(ResolvedUpload upload, boolean overwrite, Path work, boolean registerImage) throws Exception {
         if (catalogue.owns(upload.relativePath())) throw new java.nio.file.FileAlreadyExistsException(upload.relativePath(), null, "Path belongs to the Image catalogue");
         Path target = paths.resolve(upload.relativePath());
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)
@@ -179,7 +235,7 @@ public final class ImageCatalogueService {
             Files.createLink(target, upload.stagedFile());
             promoted = true;
             Optional<Image> result = Optional.empty();
-            if (upload.inspection().image().isPresent()) {
+            if (registerImage && upload.inspection().image().isPresent()) {
                 InspectedImage metadata = upload.inspection().image().orElseThrow();
                 Image candidate = Image.builder().relativePath(upload.relativePath()).originalFilename(upload.originalFilename())
                         .mimeType(metadata.mimeType()).width(metadata.width()).height(metadata.height()).checksum(metadata.checksum()).build();
@@ -228,6 +284,28 @@ public final class ImageCatalogueService {
         }
     }
 
+    /** Non-recursive generic deletion, serialized with upload promotion and catalogue commit. */
+    public Path deleteUncatalogued(String input) throws Exception {
+        if (catalogue == null) throw new IllegalStateException("Catalogue deletion guard is not configured");
+        String canonical = paths.canonicalPath(input);
+        // Database identity comes before resolving case aliases or treating missing bytes as absent.
+        if (catalogue.ownsAtOrBelow(canonical)) throw new java.nio.file.FileAlreadyExistsException(canonical);
+        Path target = paths.resolve(canonical);
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) return target;
+        synchronized (PROCESS_LOCK) {
+            Path work = workDirectory();
+            Path lockPath = work.resolve("catalogue.lock");
+            if (Files.exists(lockPath, LinkOption.NOFOLLOW_LINKS)) ImagePathPolicy.verifyEntry(lockPath);
+            try (var channel = FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
+                    var lock = channel.lock()) {
+                if (catalogue.ownsAtOrBelow(canonical)) throw new java.nio.file.FileAlreadyExistsException(canonical);
+                target = paths.resolve(canonical);
+                Files.deleteIfExists(target);
+                return target;
+            }
+        }
+    }
+
     public void discard(ResolvedUpload upload) throws IOException {
         Path work = workDirectory();
         if (!upload.stagedFile().getParent().equals(work)) throw new IOException("Foreign staging file");
@@ -255,6 +333,9 @@ public final class ImageCatalogueService {
             }
             ImagePathPolicy.verifyEntry(work);
             if (!Files.isDirectory(work, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Staging area is not a directory");
+            if (Files.getFileStore(work).supportsFileAttributeView("posix")
+                    && !PosixFilePermissions.toString(Files.getPosixFilePermissions(work)).equals("rwx------"))
+                throw new IOException("Staging directory requires owner-only permissions");
             return work;
         }
     }

@@ -368,9 +368,58 @@ critical section and a shared filesystem lock. The filesystem must support
 hard links, atomic moves and reliable locks; unsupported operations fail closed.
 Verify these properties on the deployment mount before activation. Arbitrary
 external writers must not mutate the root or staging area during operations.
-Phases 6/7 must wire the handlers to these services and exclude the reserved
-staging directory from listing, deletion and HTTP serving before activation.
-No existing RPC handler uses these new services yet.
+Phase 6.1 wires UploadFile to shared staging: bounded basic-base64 decoding,
+one streaming SHA-256 calculation, size/checksum/content validation and cleanup
+before promotion. The five existing response fields remain
+`name`, `subdir`, `size`, `path`, `url`; normalized subdirectories use `/`.
+UploadFile no longer logs names, uploaded bytes or the configured storage path.
+Phase 6.3 enables full catalogue completion. A supported image commits one
+Image row, then publishes its metadata at `diaries/images/{id}` with QoS 1 and
+retain. UploadFile waits up to ten seconds for acknowledgement and rejects
+broker failure reason codes. The response adds `imageId` and the ten-field
+`image` DTO. Generic non-image octet-stream uploads have explicit null values
+for both fields and create no row or topic. Only the outer compatibility
+response contains an absolute path; it never enters Image persistence/replay.
+Publication failure returns an internal error identifying the committed Image
+and replay requirement. It preserves the file and row; retry conflicts instead
+of duplicating them. Definitive insert failure compensates the file change.
+Unknown commit outcomes retain recovery files and require administrator review.
+
+Phase 6.2 checks catalogue ownership using the PostgreSQL path
+identity before staging, then repeats that check under the shared filesystem
+lock before promotion. Catalogued paths (including NFC/case/separator aliases
+and missing backing files) reject both overwrite modes with conflict status.
+An unavailable catalogue fails closed. Uncatalogued files retain ordinary
+overwrite behaviour, through atomic no-replace promotion and backup restoration
+in the shared service. UploadFile uses its full completion mode so the backup
+survives until Image creation commits.
+
+Phase 7 makes generic DeleteFile catalogue-aware. It queries the repository's
+exact-or-descendant guard before resolving filesystem aliases or returning
+not-found success, then repeats the guard under the same filesystem lock as
+upload promotion/commit. Catalogued files and directory prefixes remain
+protected even if backing files/directories are missing. SQL `%`, `_` and `!`
+characters are literal in the prefix lookup; only slash-delimited descendants
+count. Conflicts return status 409 and the normalized relative path, without
+an absolute host path. An unavailable catalogue fails closed.
+
+Uncatalogued missing paths remain idempotent and create no directories.
+Uncatalogued regular files and empty directories can be deleted; deletion is
+non-recursive, and nonempty directories return conflict. Successful replies
+retain `name`, `subdir` and the legacy absolute `path`, with `/` separators in
+the subdirectory. Generic deletion never writes Image rows or publishes
+tombstones. Catalogue removal remains administrator-controlled; there is no
+public DeleteImage RPC. Reconciliation and deployment remain later phases.
+
+ListFiles hides reserved staging entries, and ListFiles/DeleteFile and both
+responder HTTP static routes reject reserved paths and symlink aliases through
+the shared path policy. Before staging, UploadFile probes hard links, atomic
+moves and locking using disposable private files on its configured mount;
+failures reject the upload. Existing POSIX staging must have mode 0700.
+An operator must still verify that root ownership/Windows ACLs allow only
+trusted writers and that any external static server also blocks staging before
+deployment. The source workspace contains no separately managed production
+nginx/Ansible configuration to update. No live NAS probe was performed.
 
 Phase 5 tests cover path attacks, content detection, concurrent uploads,
 rollback/backup restoration, uncertain commits and post-commit publication.
