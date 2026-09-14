@@ -284,6 +284,17 @@ public final class ImageCatalogueService {
         }
     }
 
+    /** Serializes administrative reconciliation with upload promotion and generic deletion. */
+    public <T> T withCatalogueLock(java.util.concurrent.Callable<T> action) throws Exception {
+        synchronized (PROCESS_LOCK) {
+            Path work = workDirectory();
+            Path lockPath = work.resolve("catalogue.lock");
+            if (Files.exists(lockPath, LinkOption.NOFOLLOW_LINKS)) ImagePathPolicy.verifyEntry(lockPath);
+            try (var channel = FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
+                    var lock = channel.lock()) { return action.call(); }
+        }
+    }
+
     /** Non-recursive generic deletion, serialized with upload promotion and catalogue commit. */
     public Path deleteUncatalogued(String input) throws Exception {
         if (catalogue == null) throw new IllegalStateException("Catalogue deletion guard is not configured");

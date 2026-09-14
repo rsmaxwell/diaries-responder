@@ -126,6 +126,8 @@ class ImageCatalogueMqttIntegrationTest {
 	private static void observe(MqttAsyncClient client, BlockingQueue<Publication> events) throws Exception {
 		client.setCallback(new Adapter() {
 			@Override public void messageArrived(String topic, MqttMessage message) {
+				// Drain checkpoints are transient protocol traffic, never catalogue state.
+				if (!message.isRetained() && topic.startsWith("diaries/diaries/_sync/")) return;
 				events.add(new Publication(topic, new String(message.getPayload(), StandardCharsets.UTF_8),
 						message.getQos(), message.isRetained()));
 			}

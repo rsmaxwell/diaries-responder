@@ -354,4 +354,48 @@ class ImageWiringIntegrationTest {
         assertEquals(before,new ImagePublishDTO(context.inflateImage(saved.getId())).toJson());
     }
 
+
+    @org.junit.jupiter.params.ParameterizedTest(name="startup replay with {0} Images")
+    @org.junit.jupiter.params.provider.ValueSource(ints={0,1,3})
+    @EnabledIfEnvironmentVariable(named="DIARIES_IMAGE_MQTT_TEST_URL", matches=".+")
+    void startupReconcilesZeroOneAndMultipleImagesAgainstActualDatabaseAndBroker(int count) throws Exception {
+        String broker=System.getenv("DIARIES_IMAGE_MQTT_TEST_URL");
+        assertTrue(broker.matches("tcp://127\\.0\\.0\\.1:[0-9]+"));
+        Map<String,String> expectedImages=new java.util.TreeMap<>();
+        for(int i=0;i<count;i++) {
+            Image image=context.saveImage(candidate("startup/image-"+i+".png"));
+            expectedImages.put("diaries/images/"+image.getId(),new ImagePublishDTO(image).toJson());
+        }
+        var user=new User();user.setUsername("diaries-responder");user.setPassword("phase4-fixture");
+        var syncConfig=new Config();syncConfig.setNormaliseOnStartup(false);
+        // A new persistence context follows the same factory/wiring and synchronization path as startup.
+        try(EntityManager fresh=factory.createEntityManager()) {
+            DiaryContext restarted=Responder.createContext(config,factory,fresh);
+            assertEquals(count,restarted.getImageRepository().count());
+            new com.rsmaxwell.diaries.responder.sync.Synchronise().perform(syncConfig,restarted,broker,user);
+            assertEquals(count,restarted.getImageRepository().count());
+        }
+        var messages=new java.util.concurrent.LinkedBlockingQueue<Map.Entry<String,org.eclipse.paho.mqttv5.common.MqttMessage>>();
+        var observer=new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"startup-proof-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        try {
+            observer.setCallback(new com.rsmaxwell.mqtt.rpc.common.Adapter(){
+                @Override public void messageArrived(String topic,org.eclipse.paho.mqttv5.common.MqttMessage message){messages.add(Map.entry(topic,message));}
+            });
+            var options=new org.eclipse.paho.mqttv5.client.MqttConnectionOptions();options.setCleanStart(true);
+            options.setUserName(user.getUsername());options.setPassword(user.getPassword().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            observer.connect(options).waitForCompletion(10000);
+            observer.subscribe(new org.eclipse.paho.mqttv5.common.MqttSubscription("diaries/images/#",1)).waitForCompletion(10000);
+            Map<String,String> retained=new java.util.TreeMap<>();
+            Map.Entry<String,org.eclipse.paho.mqttv5.common.MqttMessage> message;
+            while((message=messages.poll(1200,java.util.concurrent.TimeUnit.MILLISECONDS))!=null) {
+                assertTrue(message.getValue().isRetained());assertEquals(1,message.getValue().getQos());
+                assertNull(retained.put(message.getKey(),new String(message.getValue().getPayload(),java.nio.charset.StandardCharsets.UTF_8)));
+            }
+            assertEquals(expectedImages,retained);
+            assertEquals(chronologyBefore,chronology());
+        } finally {
+            if(observer.isConnected())observer.disconnect().waitForCompletion(5000);
+            observer.close();
+        }
+    }
 }

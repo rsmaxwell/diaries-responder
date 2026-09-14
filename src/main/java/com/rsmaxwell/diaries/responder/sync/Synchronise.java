@@ -51,102 +51,57 @@ public class Synchronise {
 	static final String clientID_sync_pub = "syncronise-pub";
 	static final String clientID_sync_sub = "syncronise-sub";
 
-	private static final String[] topicFilters = { "diaries/#", "diaries/dates/#", "diaries/pages/#", "diaries/fragments/#", "diaries/marquees/#" };
+	// One wildcard covers every canonical and legacy topic without requesting overlapping replays.
+	private static final String[] topicFilters = { "diaries/#" };
 
-	public void perform(Config config, DiaryContext context, String server, User user) throws Exception {
+    public void perform(Config config, DiaryContext context, String server, User user) throws Exception {
+        String suffix=java.util.UUID.randomUUID().toString();
+        MqttAsyncClient publisher=new MqttAsyncClient(server,clientID_sync_pub+"-"+suffix,new MemoryPersistence());
+        MqttAsyncClient subscriber=new MqttAsyncClient(server,clientID_sync_sub+"-"+suffix,new MemoryPersistence());
+        try {
+            MqttConnectionOptions options=new MqttConnectionOptions();
+            options.setUserName(user.getUsername());
+            options.setPassword(user.getPassword().getBytes(StandardCharsets.UTF_8));
+            options.setCleanStart(true);
+            // A broken snapshot must fail rather than silently reconnect with incomplete state.
+            options.setAutomaticReconnect(false);
+            publisher.connect(options).waitForCompletion(10000);
+            ConcurrentHashMap<String,String> topicTreeMap=new ConcurrentHashMap<>();
+            SynchroniseCallback sync=new SynchroniseCallback(topicTreeMap);
+            subscriber.setCallback(sync);
+            subscriber.connect(options).waitForCompletion(10000);
+            // This temporary snapshot reader uses QoS 0 to avoid Mosquitto's finite QoS 1/2
+            // replay queue. A non-retained marker confirms the stream drained. Publications
+            // and ordinary subscribers retain their QoS 1 contract.
+            for(String topic:topicFilters)subscriber.subscribe(new MqttSubscription(topic,0)).waitForCompletion(10000);
+            sync.awaitDrained(publisher);
+            Map<String,String> databaseMap=context.loadFromDatabase();
+            log.info("sizeof(topicTreeMap) = {}",topicTreeMap.size());
+            log.info("sizeof(databaseMap) = {}",databaseMap.size());
+            addNewEntries(publisher,topicTreeMap,databaseMap);
+            removeOrphanEntries(publisher,topicTreeMap,databaseMap);
+            if(config.isNormaliseOnStartup()) {
+                sync.awaitDrained(publisher);
+                normaliseDiarySequence(publisher,context);
+                normalisePageSequence(publisher,context);
+                normaliseFragmentSequence(publisher,context);
+            }
+            sync.awaitDrained(publisher);
+            validateMapKeys(topicTreeMap,databaseMap);
+        } finally {
+            closeSyncClient(subscriber);
+            closeSyncClient(publisher);
+        }
+    }
 
-		// Setup the Publish Client
-		String clientId_pub = clientID_sync_pub + "-" + System.currentTimeMillis();
-		MqttClientPersistence pubPersistence = new MemoryPersistence();
-		MqttAsyncClient client_pub = new MqttAsyncClient(server, clientId_pub, pubPersistence);
-
-		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientId_pub));
-		MqttConnectionOptions connOpts_pub = new MqttConnectionOptions();
-		connOpts_pub.setUserName(user.getUsername());
-		connOpts_pub.setPassword(user.getPassword().getBytes());
-		connOpts_pub.setCleanStart(true);
-		connOpts_pub.setAutomaticReconnect(true);
-		connOpts_pub.setReceiveMaximum(20);
-
-		// @formatter:off
-//		String publisherConnOptsJson = String.format(
-//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-//		    connOpts_pub.getUserName(),
-//		    user.getPassword(),
-//		    connOpts_pub.isCleanStart(),
-//		    connOpts_pub.isAutomaticReconnect()
-//		);
-//		log.info("    publisherConnOpts: {}", publisherConnOptsJson);		
-		// @formatter:on		
-
-		client_pub.connect(connOpts_pub).waitForCompletion();
-
-		// Setup the Subscribe Client
-		String clientId_sub = clientID_sync_sub + "-" + System.currentTimeMillis();
-		MqttClientPersistence subPersistence = new MemoryPersistence();
-		MqttAsyncClient client_sub = new MqttAsyncClient(server, clientId_sub, subPersistence);
-
-		log.info(String.format("Connecting to broker '%s' as '%s'", server, clientId_sub));
-		MqttConnectionOptions connOpts_sub = new MqttConnectionOptions();
-		connOpts_sub.setUserName(user.getUsername());
-		connOpts_sub.setPassword(user.getPassword().getBytes());
-		connOpts_sub.setCleanStart(true);
-		connOpts_sub.setAutomaticReconnect(true);
-
-		// @formatter:off
-//		String subscriberConnOptsJson = String.format(
-//		    "{\"userName\":\"%s\",\"password\":\"%s\",\"cleanStart\":%s,\"automaticReconnect\":%s}",
-//		    connOpts_sub.getUserName(),
-//		    user.getPassword(),
-//		    connOpts_sub.isCleanStart(),
-//		    connOpts_sub.isAutomaticReconnect()
-//		);
-//		log.info("    subscriberConnOptsJson: {}", subscriberConnOptsJson);		
-		// @formatter:on		
-
-		client_sub.connect(connOpts_sub).waitForCompletion();
-
-		// Set up the callback and subscribe to all the topics
-		ConcurrentHashMap<String, String> topicTreeMap = new ConcurrentHashMap<>();
-		SynchroniseCallback sync = new SynchroniseCallback(topicTreeMap);
-		client_sub.setCallback(sync);
-
-		for (String topic : topicFilters) {
-			MqttSubscription sub = new MqttSubscription(topic, 1);
-			log.debug(String.format("SUBSCRIBED %s", sub));
-			client_sub.subscribe(sub).waitForCompletion();
-			// sync.waitForMessages();
-		}
-
-		Map<String, String> databaseMap = context.loadFromDatabase();
-		// SUBACK does not mean the asynchronous retained replay has been consumed.
-		// Wait before comparing, including when the database catalogue is empty.
-		sync.waitForMessages();
-
-		log.info("sizeof(topicTreeMap) = {}", topicTreeMap.size());
-		log.info("sizeof(databaseMap) = {}", databaseMap.size());
-
-		addNewEntries(client_pub, topicTreeMap, databaseMap);
-		removeOrphanEntries(client_pub, topicTreeMap, databaseMap);
-
-		// Wait for broker to actually drop the retained messages
-		if (config.isNormaliseOnStartup()) {
-			log.debug("Normalising sequence numbers");
-			sync.waitForMessages();
-			normaliseDiarySequence(client_pub, context);
-			normalisePageSequence(client_pub, context);
-			normaliseFragmentSequence(client_pub, context);
-		}
-
-		// Wait again for those publishes to arrive
-		sync.waitForMessages();
-
-		validateMapKeys(topicTreeMap, databaseMap);
-
-		client_sub.unsubscribe(topicFilters).waitForCompletion();
-		client_sub.disconnect().waitForCompletion();
-		client_pub.disconnect().waitForCompletion();
-	}
+    private static void closeSyncClient(MqttAsyncClient client) {
+        try { if(client.isConnected())client.disconnect().waitForCompletion(5000); }
+        catch(Exception failure){log.warn("Could not disconnect synchronization client",failure);}
+        finally {
+            try {client.close();}
+            catch(Exception failure){log.warn("Could not close synchronization client",failure);}
+        }
+    }
 
 	private void normaliseDiarySequence(MqttAsyncClient client, DiaryContext context) throws Exception {
 		log.debug("normaliseDiarySequence");

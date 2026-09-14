@@ -457,6 +457,27 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.register('migration0024ImageCatalogue', JavaExec) {
+    group = 'migration'
+    description = 'Dry-run or reviewed apply of the existing-file Image catalogue.'
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.rsmaxwell.diaries.responder.migration.migration0024.Migration0024ImageCatalogue'
+    doFirst {
+        def configFile = providers.gradleProperty('migrationConfig').orNull
+        def outputDirectory = providers.gradleProperty('migrationOutput').orNull
+        def mode = providers.gradleProperty('migrationMode').getOrElse('dry-run')
+        def plan = providers.gradleProperty('migrationPlan').orNull
+        def candidates = providers.gradleProperty('migration0022Candidates').orNull
+        if (!configFile || !outputDirectory || !(mode in ['dry-run', 'apply']) || (mode == 'apply' && !plan)) {
+            throw new GradleException('Requires -PmigrationConfig=<file> -PmigrationOutput=<empty-directory>; apply additionally requires -PmigrationPlan=<reviewed-dry-run-plan>')
+        }
+        args '--config', configFile, '--output', outputDirectory, '--mode', mode
+        if (plan) args '--plan', plan
+        if (candidates) args '--0022-candidates', candidates
+    }
+}
+
 tasks.register('migration0022Inventory', JavaExec) {
     group = 'migration'
     description = 'Produces the read-only 0022 Fragment migration inventory.'

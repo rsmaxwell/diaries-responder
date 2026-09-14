@@ -334,11 +334,17 @@ altText. It contains no file bytes or resolved URL/absolute storage path.
 The synchroniser waits for retained replay before comparing with database
 state, publishes differences in topic order with QoS 1 and retain, and removes
 stale topics using empty retained payloads. Unchanged topics are not republished.
+Its temporary snapshot subscriber uses one `diaries/#` subscription at QoS 0
+to avoid Mosquitto's finite queue for QoS 1/2 replay. A unique, non-retained
+`diaries/diaries/_sync/{run}/{checkpoint}` marker confirms that the stream has
+drained; missing markers and disconnected snapshots fail startup. These markers
+use the existing responder ACL and are excluded from the snapshot. Canonical
+object publications and ordinary subscribers keep their existing QoS contract.
 The shared local broker ACL grants only the responder read/write access to
 `diaries/images/+`; reload that ACL before starting the updated responder.
 Production ACL deployment remains part of 0024 Phase 11. Client and web do not
-subscribe to the Image catalogue yet. Upload orchestration remains a later
-phase; the registration helpers themselves do not publish or touch files.
+subscribe to the Image catalogue yet. Upload orchestration is implemented in
+Phase 6; the registration helpers themselves do not publish or touch files.
 
 0024 Phase 5 adds shared services for the subsequent handler integration:
 
@@ -409,7 +415,7 @@ non-recursive, and nonempty directories return conflict. Successful replies
 retain `name`, `subdir` and the legacy absolute `path`, with `/` separators in
 the subdirectory. Generic deletion never writes Image rows or publishes
 tombstones. Catalogue removal remains administrator-controlled; there is no
-public DeleteImage RPC. Reconciliation and deployment remain later phases.
+public DeleteImage RPC. Phase 8 provides the administrative reconciliation command described below; deployment remains a later phase.
 
 ListFiles hides reserved staging entries, and ListFiles/DeleteFile and both
 responder HTTP static routes reject reserved paths and symlink aliases through
@@ -528,3 +534,43 @@ See also:
 ../ARCHITECTURE.md
 ../diaries-client/README.md
 ```
+
+
+### Existing-file Image reconciliation (0024 Phase 8)
+
+Run `:diaries-responder:migration0024ImageCatalogue` with `-PmigrationConfig`
+and a new empty `-PmigrationOutput` directory. It defaults to dry-run and emits
+a two-way file/database inventory, conflicts, a create plan and hashed evidence.
+For apply, also supply `-PmigrationMode=apply` and
+`-PmigrationPlan=<reviewed-dry-run/0024-create-plan.json>`. Optional
+`-Pmigration0022Candidates` cross-references frozen legacy candidates without
+editing Fragment content or deciding conversion.
+
+Apply checks reviewed input identities and fingerprints, locks normal catalogue
+file operations and Image writes, and inserts safe missing rows in one database
+transaction. It never repairs images or overwrites existing metadata. Stop
+external writers during reconciliation. Normal responder startup subsequently
+replays committed Image topics. Use a separate output directory for every run.
+
+The actual-copy proof and operational details, including excluded legacy images
+and retry/failure handling, are recorded in
+[0024 Phase 8 evidence](../change-control/in-progress/0024-FEAT%20-%20introduce%20reusable%20persistent%20Image%20catalogue/evidence/phase-08-reconciliation/README.md).
+
+### Image catalogue automated validation (0024 Phase 9)
+
+From `diaries`, run in PowerShell 7 with Docker, the Java/Node build prerequisites,
+installed client dependencies and Chrome/Edge available:
+
+```powershell
+.\scripts\windows\validation\test-image-catalogue.ps1 `
+  -BackupFile .\data\database-backups\development-infrastructure\diaries-development-20260912-203528.dump `
+  -EvidenceDirectory .\diaries-responder\build\image-validation-new-run
+```
+
+Use a new evidence directory for every run. The script creates disposable SQL,
+JPA and MQTT fixtures, restores the supplied backup only into those fixtures,
+enables database/broker integration tests, and runs responder/web tests and
+builds plus Angular tests and its production build. It rejects failed or skipped
+tests, checks diffs, stops its own containers, and hashes the resulting evidence.
+No live configuration or Files root is accepted. See the
+[Phase 9 evidence and coverage](../change-control/in-progress/0024-FEAT%20-%20introduce%20reusable%20persistent%20Image%20catalogue/evidence/phase-09-validation/README.md).

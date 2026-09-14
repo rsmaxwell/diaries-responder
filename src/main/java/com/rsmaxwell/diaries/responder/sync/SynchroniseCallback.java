@@ -1,66 +1,55 @@
 package com.rsmaxwell.diaries.responder.sync;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.eclipse.paho.mqttv5.client.IMqttToken;
-import org.eclipse.paho.mqttv5.client.MqttCallback;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
+import org.eclipse.paho.mqttv5.client.MqttDisconnectResponse;
 import org.eclipse.paho.mqttv5.common.MqttMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.rsmaxwell.mqtt.rpc.common.Adapter;
 
-public class SynchroniseCallback extends Adapter implements MqttCallback {
+/** Collects a temporary retained snapshot and acknowledges explicit stream-drain markers. */
+public class SynchroniseCallback extends Adapter {
+    private final Map<String,String> topicMap;
+    private final String barrierPrefix="diaries/diaries/_sync/"+UUID.randomUUID()+"/";
+    private record PendingBarrier(String topic,CountDownLatch latch) { }
+    private volatile PendingBarrier barrier;
+    private volatile boolean disconnected;
 
-	private static final Logger log = LoggerFactory.getLogger(SynchroniseCallback.class);
+    public SynchroniseCallback(Map<String,String> topicMap) { this.topicMap=topicMap; }
 
-	private final AtomicLong lastMessageTime = new AtomicLong(System.currentTimeMillis());
+    @Override public void messageArrived(String topic,MqttMessage message) {
+        if(topic.startsWith(barrierPrefix)) {
+            PendingBarrier pending=barrier;
+            if(pending!=null && topic.equals(pending.topic()))pending.latch().countDown();
+            return;
+        }
+        byte[] payload=message.getPayload();
+        if(payload==null || payload.length==0)topicMap.remove(topic);
+        else topicMap.put(topic,new String(payload,StandardCharsets.UTF_8));
+    }
 
-	private static final long QUIET_PERIOD_MS = 1000; // consider done after 1 second of inactivity
-	private static final long CHECK_INTERVAL_MS = 200; // how often to check
+    @Override public void disconnected(MqttDisconnectResponse response) {
+        disconnected=true;
+        PendingBarrier pending=barrier;
+        if(pending!=null)pending.latch().countDown();
+    }
 
-	private Map<String, String> topicMap;
+    public void awaitDrained(MqttAsyncClient publisher) throws Exception {
+        awaitDrained(topic->publisher.publish(topic,new byte[]{1},1,false).waitForCompletion(10000),30000);
+    }
 
-	public SynchroniseCallback(Map<String, String> topicMap) {
-		this.topicMap = topicMap;
-	}
+    @FunctionalInterface interface BarrierPublisher { void publish(String topic) throws Exception; }
 
-	@Override
-	public void messageArrived(String topic, MqttMessage message) {
-
-		lastMessageTime.set(System.currentTimeMillis());
-
-		byte[] payload = message.getPayload();
-
-		if (payload == null || payload.length == 0) {
-			topicMap.remove(topic);
-			// log.info(String.format("Deleted topic: %s, retained=%b, (empty payload)", topic, message.isRetained()));
-		} else {
-			topicMap.put(topic, new String(payload));
-			// log.info(String.format("Received topic: %s, retained=%b, %s", topic, message.isRetained(), new String(payload)));
-		}
-	}
-
-	public void waitForMessages() throws InterruptedException {
-		log.trace("SynchroniseCallback.waitForMessages");
-		lastMessageTime.set(System.currentTimeMillis());
-
-		while (true) {
-			Thread.sleep(CHECK_INTERVAL_MS);
-			long idle = System.currentTimeMillis() - lastMessageTime.get();
-
-			if (idle > QUIET_PERIOD_MS) {
-				break; // Done receiving retained messages
-			}
-		}
-	}
-
-	@Override
-	public void deliveryComplete(IMqttToken token) {
-	}
-
-	@Override
-	public void connectComplete(boolean reconnect, String serverURI) {
-	}
+    void awaitDrained(BarrierPublisher publisher,long timeoutMillis) throws Exception {
+        if(disconnected)throw new IllegalStateException("Snapshot connection was lost");
+        PendingBarrier pending=new PendingBarrier(barrierPrefix+UUID.randomUUID(),new CountDownLatch(1));
+        barrier=pending;
+        publisher.publish(pending.topic());
+        if(!pending.latch().await(timeoutMillis,TimeUnit.MILLISECONDS))throw new TimeoutException("Retained snapshot drain marker was not received");
+        if(disconnected)throw new IllegalStateException("Snapshot connection was lost");
+    }
 }
