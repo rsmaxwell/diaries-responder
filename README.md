@@ -538,6 +538,62 @@ See also:
 
 ### Existing-file Image reconciliation (0024 Phase 8)
 
+For development-infrastructure on Windows, use
+`diaries-responder/scripts/windows/migration0024ImageCatalogue.bat` from the
+top-level project. It uses `%USERPROFILE%\.diaries\responder.json`, matching
+`diaries-responder/scripts/windows/run-responder.bat`, and accepts
+`DIARIES_RESPONDER_CONFIG_FILE` as an explicit override. Paths are relative to
+the caller's directory. The only required argument is the mode:
+
+```bat
+diaries-responder\scripts\windows\migration0024ImageCatalogue.bat dry-run
+diaries-responder\scripts\windows\migration0024ImageCatalogue.bat apply
+```
+
+The script creates or uses `%USERPROFILE%\temp\dry-run` and
+`%USERPROFILE%\temp\apply`. Dry-run writes its reviewed plan to
+`%USERPROFILE%\temp\dry-run\0024-create-plan.json`; apply selects that file
+automatically. The directory for the requested mode must be empty. Archive and
+empty both evidence directories before starting another complete reconciliation.
+An optional 0022 candidate CSV may follow the mode; when supplied for dry-run,
+supply the same unchanged file for apply.
+
+The three local modes use the same database data directory when `local.env`
+sets `DIARIES_DB_DATA_DIR=./data/database/common`, and their responder
+configurations address the same physical NAS Files tree. Run the local
+reconciliation once through development-infrastructure. Do not apply it again in
+local-docker-build or local-published-smoke. When either Docker mode starts, its
+responder reads the shared Image rows and replays the catalogue into that mode's
+own retained MQTT tree. The modes must not run their PostgreSQL containers
+concurrently against the shared data directory.
+
+A reconciliation plan is bound to its database identity and Files-root identity.
+The development configuration sees the NAS through a Windows path, while the
+Docker configurations see `/data/files`; consequently, a development plan must
+not be applied from a Docker container.
+
+For production, the Diaries playbook installs
+`migration0024ImageCatalogue.sh` under the production project's `scripts`
+directory. It accepts the same mode and optional candidate arguments as the
+Windows script and writes evidence beneath `${HOME}/temp/dry-run` and
+`${HOME}/temp/apply`; `DIARIES_MIGRATION0024_EVIDENCE_ROOT` can override that
+root. The script runs the migration in a disposable container using the deployed
+responder service's image, `/config/responder.json`, database network and Files
+mounts. The database service must remain running. Apply refuses to run while the
+normal responder service is running, preventing normal responder writes from
+racing the reviewed migration. The live production run remains Phase 11 work.
+
+The final candidate CSV is optional, but use the same file for dry-run and apply
+when cross-referencing 0022. Review the dry-run plan and conflicts before apply.
+Each script runs only the requested mode and does not restart the responder.
+Arrange a writer-free maintenance window for apply; after it commits, normal
+responder startup replays the retained Image topics.
+Reconciliation is idempotent for unchanged inputs: a second dry-run plans zero
+new rows, and a same-plan apply accepts matching rows without inserting them
+again. A changed file, configuration or unrelated catalogue row requires a fresh
+dry-run and review. Archive the prior evidence before emptying the fixed output
+directories for another run.
+
 Run `:diaries-responder:migration0024ImageCatalogue` with `-PmigrationConfig`
 and a new empty `-PmigrationOutput` directory. It defaults to dry-run and emits
 a two-way file/database inventory, conflicts, a create plan and hashed evidence.
