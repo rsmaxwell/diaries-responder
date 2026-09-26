@@ -319,7 +319,7 @@ repository is installed in `DiaryContext` during startup. Apply the explicit
 0024 Phase 2 schema migration before running with Hibernate schema validation;
 keep Hibernate DDL configuration at `validate` or `none`, not automatic schema
 creation/update. The migration runbook is in the parent repository's
-`change-control/in-progress/0024-FEAT - introduce reusable persistent Image catalogue/migration/README.md`.
+`change-control/complete/0024-FEAT - introduce reusable persistent Image catalogue/migration/README.md`.
 
 `DiaryContext.inflateImage` loads independent Image metadata. `saveImage`
 returns a committed copy without changing the caller's candidate; `updateImage`
@@ -610,7 +610,7 @@ replays committed Image topics. Use a separate output directory for every run.
 
 The actual-copy proof and operational details, including excluded legacy images
 and retry/failure handling, are recorded in
-[0024 Phase 8 evidence](../change-control/in-progress/0024-FEAT%20-%20introduce%20reusable%20persistent%20Image%20catalogue/evidence/phase-08-reconciliation/README.md).
+[0024 Phase 8 evidence](../change-control/complete/0024-FEAT%20-%20introduce%20reusable%20persistent%20Image%20catalogue/evidence/phase-08-reconciliation/README.md).
 
 ### Image catalogue automated validation (0024 Phase 9)
 
@@ -629,4 +629,4 @@ enables database/broker integration tests, and runs responder/web tests and
 builds plus Angular tests and its production build. It rejects failed or skipped
 tests, checks diffs, stops its own containers, and hashes the resulting evidence.
 No live configuration or Files root is accepted. See the
-[Phase 9 evidence and coverage](../change-control/in-progress/0024-FEAT%20-%20introduce%20reusable%20persistent%20Image%20catalogue/evidence/phase-09-validation/README.md).
+[Phase 9 evidence and coverage](../change-control/complete/0024-FEAT%20-%20introduce%20reusable%20persistent%20Image%20catalogue/evidence/phase-09-validation/README.md).
