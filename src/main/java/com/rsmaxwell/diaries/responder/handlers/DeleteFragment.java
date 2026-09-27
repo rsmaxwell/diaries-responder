@@ -2,7 +2,6 @@ package com.rsmaxwell.diaries.responder.handlers;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.common.packet.UserProperty;
@@ -11,7 +10,6 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.dto.MarqueePublishDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Marquee;
@@ -54,37 +52,28 @@ public class DeleteFragment extends RequestHandler {
 		Fragment fragment = null;
 		Marquee marquee = null;
 
+		if (tx.isActive()) throw new IllegalStateException("DeleteFragment owns its transaction");
+		tx.begin();
 		try {
 			Long id = Utilities.getLong(args, "id");
-			fragment = context.inflateFragment(id);
-
-			Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
-			if (optionalMarqueeDTO.isPresent()) {
-				marquee = context.inflateMarquee(optionalMarqueeDTO.get());
-			}
-
-		} catch (Exception e) {
-			log.info("DeleteFragment.handleRequest: bad args: {}", mapper.writeValueAsString(args));
-			throw RpcStatusException.badRequest(e.getMessage());
-		}
-
-		try {
-			tx.begin();
-
-			if (marquee != null) {
-				context.deleteMarquee(marquee);
-			}
-
-			context.deleteFragment(fragment);
-
+			if (em.createNativeQuery("select id from fragment where id = :id for update", Long.class)
+					.setParameter("id", id).getResultList().isEmpty())
+				throw RpcStatusException.badRequest("Fragment not found");
+			var state = context.resolveFragmentState(context.inflateFragment(id));
+			fragment = state.getFragment();
+			marquee = state.getMarquee();
+			if (fragment.getType() == com.rsmaxwell.diaries.responder.model.FragmentType.IMAGE && marquee != null)
+				throw RpcStatusException.conflict("Remove the invalid Marquee with deleteMarquee before deleting this IMAGE Fragment");
+			if (marquee != null && marqueeRepository.delete(marquee) != 1)
+				throw RpcStatusException.conflict("Marquee changed during deletion");
+			if (context.deleteFragment(fragment) != 1)
+				throw RpcStatusException.conflict("Fragment changed during deletion");
 			tx.commit();
-
-		} catch (Exception e) {
-			log.error("UpdateFragment.handleRequest: unexpected error; rolling back transaction", e);
-			if (tx.isActive()) {
-				tx.rollback();
-			}
-			throw RpcStatusException.internalError(e.getMessage());
+		} catch (Exception failure) {
+			if (tx.isActive()) tx.rollback();
+			if (failure instanceof RpcStatusException status) throw status;
+			log.error("DeleteFragment failed", failure);
+			throw RpcStatusException.internalError("Unable to delete Fragment");
 		}
 
 		MqttAsyncClient client = context.getPublisherClient();

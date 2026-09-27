@@ -1,17 +1,14 @@
 package com.rsmaxwell.diaries.responder.utilities;
 
-import java.util.Optional;
 
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.slf4j.Logger;
 
 import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
+import com.rsmaxwell.diaries.responder.model.FragmentType;
 import com.rsmaxwell.diaries.responder.model.LockInfo;
-import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
-import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 
 import io.jsonwebtoken.Claims;
@@ -21,6 +18,13 @@ import jakarta.persistence.EntityTransaction;
 public final class FragmentLocking {
 
 	private FragmentLocking() {
+	}
+
+	/** Null type remains compatible with legacy MARQUEE candidates. */
+	public static void requireMarqueeCompatible(Fragment fragment) throws RpcStatusException {
+		if ((fragment.getType() != null && fragment.getType() != FragmentType.MARQUEE)
+				|| fragment.getImageId() != null)
+			throw RpcStatusException.badRequest("Marquee requires a MARQUEE-compatible Fragment without an Image reference");
 	}
 
 	public static void requireLockedByCaller(Fragment fragment, Claims claims) throws Exception {
@@ -53,21 +57,7 @@ public final class FragmentLocking {
 		}
 	}
 
-	public static FragmentAndMarquee findAssociatedMarquee(DiaryContext context, Fragment fragment) throws Exception {
-
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
-
-		Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
-
-		Marquee marquee = null;
-		if (optionalMarqueeDTO.isPresent()) {
-			marquee = context.inflateMarquee(optionalMarqueeDTO.get());
-		}
-
-		return new FragmentAndMarquee(fragment, marquee);
-	}
-
-	public static FragmentAndMarquee clearLockInCurrentTransaction(DiaryContext context, Fragment fragment) throws Exception {
+	public static ResolvedFragmentState clearLockInCurrentTransaction(DiaryContext context, Fragment fragment) throws Exception {
 
 		FragmentRepository fragmentRepository = context.getFragmentRepository();
 
@@ -78,14 +68,14 @@ public final class FragmentLocking {
 			throw new IllegalStateException("Expected to update 1 fragment, updated " + count + " for fragment id=" + fragment.getId());
 		}
 
-		return findAssociatedMarquee(context, fragment);
+		return context.resolveFragmentState(fragment);
 	}
 
-	public static void publish(DiaryContext context, FragmentAndMarquee fragmentAndMarquee) throws Exception {
+	public static void publish(DiaryContext context, ResolvedFragmentState resolvedState) throws Exception {
 
 		MqttAsyncClient client = context.getPublisherClient();
 
-		FragmentPublishDTO dto = new FragmentPublishDTO(fragmentAndMarquee.getFragment(), fragmentAndMarquee.getMarquee());
+		FragmentPublishDTO dto = new FragmentPublishDTO(resolvedState.getFragment(), resolvedState.getMarquee());
 
 		dto.publish(client);
 	}
@@ -99,13 +89,13 @@ public final class FragmentLocking {
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
-		FragmentAndMarquee fragmentAndMarquee = null;
+		ResolvedFragmentState resolvedState = null;
 
 		try {
 			tx.begin();
 
 			Fragment fragment = context.inflateFragment(fragmentId);
-			fragmentAndMarquee = clearLockInCurrentTransaction(context, fragment);
+			resolvedState = clearLockInCurrentTransaction(context, fragment);
 
 			tx.commit();
 
@@ -119,7 +109,7 @@ public final class FragmentLocking {
 		}
 
 		try {
-			publish(context, fragmentAndMarquee);
+			publish(context, resolvedState);
 		} catch (Exception publishError) {
 			log.error("{}: failed to publish unlocked fragment id={}", reason, fragmentId, publishError);
 		}

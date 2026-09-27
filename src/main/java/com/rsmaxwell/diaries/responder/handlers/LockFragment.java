@@ -16,7 +16,7 @@ import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
-import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.ResolvedFragmentState;
 import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
@@ -56,6 +56,9 @@ public class LockFragment extends RequestHandler {
 
 			// get the incoming Fragment ID and inflate it
 			Long id = Utilities.getLong(args, "id");
+			if (em.createNativeQuery("select id from fragment where id = :id for update", Long.class)
+					.setParameter("id", id).getResultList().isEmpty())
+				throw RpcStatusException.badRequest("Fragment not found");
 			fragment = context.inflateFragment(id);
 
 			// get the fields needed to make the lock
@@ -128,8 +131,8 @@ public class LockFragment extends RequestHandler {
 		}
 
 		// get the Marquee associated with the fragment (can be null)
-		FragmentAndMarquee fragmentAndMarquee = FragmentLocking.findAssociatedMarquee(context, fragment);
-		FragmentLocking.publish(context, fragmentAndMarquee);
+		ResolvedFragmentState resolvedState = context.resolveFragmentState(fragment);
+		FragmentLocking.publish(context, resolvedState);
 		return Response.success(fragment.getId());
 	}
 }

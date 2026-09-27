@@ -119,9 +119,10 @@ class RetainedStateDtoContractTest {
 		JsonNode payload = onlyPayload(topics);
 		assertFields(payload,
 				"id", "version", "pageId", "type", "year", "month", "day", "sequence",
-				"text", "marqueeId", "lock");
+				"text", "imageId", "marqueeId", "lock");
 		assertEquals(22L, payload.get("pageId").longValue());
 		assertEquals("MARQUEE", payload.get("type").textValue());
+		assertTrue(payload.get("imageId").isNull());
 		assertEquals(44L, payload.get("marqueeId").longValue());
 
 		JsonNode lockPayload = payload.get("lock");
@@ -155,6 +156,8 @@ class RetainedStateDtoContractTest {
 
 		JsonNode payload = MAPPER.readTree(dto.toJson());
 
+		assertTrue(payload.has("imageId"));
+		assertTrue(payload.get("imageId").isNull());
 		assertTrue(payload.has("lock"));
 		assertTrue(payload.get("lock").isNull());
 		assertTrue(payload.has("marqueeId"));
@@ -183,6 +186,7 @@ class RetainedStateDtoContractTest {
 
 		assertEquals(85L, payload.get("pageId").longValue());
 		assertEquals("MARQUEE", payload.get("type").textValue());
+		assertTrue(payload.get("imageId").isNull());
 	}
 
 	@Test
@@ -242,6 +246,41 @@ class RetainedStateDtoContractTest {
 		}
 	}
 
+	@Test
+	void imageFragmentsPublishBothAliasesAndTombstonesWithOptionalReference() throws Exception {
+		for (Long imageId : new Long[] {91L, null}) {
+			Fragment fragment = new Fragment(FragmentDBDTO.builder().id(34L).version(1L).pageId(22L)
+					.type(FragmentType.IMAGE).imageId(imageId).year(1830).month(3).day(8)
+					.sequence(BigDecimal.ONE).text("Image fragment").build());
+			FragmentPublishDTO dto = new FragmentPublishDTO(fragment, null);
+			var topics = new ConcurrentHashMap<String, String>();
+			dto.publish(topics);
+			assertEquals(Set.of("diaries/fragments/34", "diaries/dates/1830/3/8/34"), topics.keySet());
+			assertSinglePayload(topics);
+			JsonNode payload = onlyPayload(topics);
+			assertFields(payload, "id", "version", "pageId", "type", "year", "month", "day", "sequence",
+					"text", "imageId", "marqueeId", "lock");
+			assertEquals("IMAGE", payload.get("type").textValue());
+			assertTrue(payload.get("marqueeId").isNull());
+			if (imageId == null) assertTrue(payload.get("imageId").isNull());
+			else assertEquals(imageId.longValue(), payload.get("imageId").longValue());
+			assertEquals(payload, MAPPER.readTree(dto.toJsonAsBytes()));
+			RecordingMqttClient client = new RecordingMqttClient();
+			try {
+				dto.publish(client);
+				assertEquals(topics.keySet(), client.messages.keySet());
+				for (byte[] bytes : client.messages.values()) assertEquals(payload, MAPPER.readTree(bytes));
+				dto.remove(client);
+				assertEquals(topics.keySet(), client.messages.keySet());
+				for (byte[] bytes : client.messages.values()) assertEquals(0, bytes.length);
+			} finally {
+				client.close();
+			}
+			dto.remove(topics);
+			assertTrue(topics.isEmpty());
+		}
+	}
+
 	private static JsonNode onlyPayload(ConcurrentHashMap<String, String> topics) throws Exception {
 		return MAPPER.readTree(topics.values().iterator().next());
 	}
@@ -259,6 +298,7 @@ class RetainedStateDtoContractTest {
 
 	private static final class RecordingMqttClient extends MqttAsyncClient {
 
+		private final java.util.Map<String, byte[]> messages = new java.util.HashMap<>();
 		private String topic;
 		private byte[] payload;
 		private int qos;
@@ -270,6 +310,9 @@ class RetainedStateDtoContractTest {
 
 		@Override
 		public IMqttToken publish(String topic, byte[] payload, int qos, boolean retained) {
+			assertEquals(1, qos);
+			assertTrue(retained);
+			messages.put(topic, payload.clone());
 			this.topic = topic;
 			this.payload = payload;
 			this.qos = qos;

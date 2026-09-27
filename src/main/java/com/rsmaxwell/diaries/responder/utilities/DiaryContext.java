@@ -31,6 +31,9 @@ import com.rsmaxwell.diaries.responder.repository.PersonRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
+import jakarta.persistence.LockModeType;
+import com.rsmaxwell.diaries.responder.model.FragmentType;
+import org.slf4j.LoggerFactory;
 import lombok.Data;
 
 @Data
@@ -79,14 +82,8 @@ public class DiaryContext {
 		for (FragmentDBDTO fragmentDTO : fragments) {
 			Fragment fragment = inflateFragment(fragmentDTO);
 
-			Marquee marquee = null;
-			Optional<MarqueeDBDTO> optionalMarqueeDTO = marqueeRepository.findByFragment(fragment);
-			if (optionalMarqueeDTO.isPresent()) {
-				MarqueeDBDTO marqueeDTO = optionalMarqueeDTO.get();
-				marquee = inflateMarquee(marqueeDTO);
-			}
-
-			FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(fragment, marquee);
+			ResolvedFragmentState state = resolveFragmentState(fragment);
+			FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(state.getFragment(), state.getMarquee());
 			fragmentPublishDTO.publish(map);
 		}
 
@@ -98,24 +95,83 @@ public class DiaryContext {
 		return map;
 	}
 
-	public FragmentAndMarquee save(Fragment fragment, Marquee marquee) throws Exception {
+	/** Create a MARQUEE Fragment and its Marquee atomically. */
+	public ResolvedFragmentState saveMarqueeFragment(Fragment fragment, Marquee marquee) throws Exception {
+		requireNewFragment(fragment, FragmentType.MARQUEE);
+		if (marquee == null || marquee.getFragment() != fragment || marquee.getPage() != fragment.getPage())
+			throw new IllegalArgumentException("Marquee must use the candidate Fragment and Page");
+		new ResolvedFragmentState(fragment, marquee).validateForWrite();
+		Fragment candidate = copyFragment(fragment);
+		Marquee candidateMarquee = Marquee.builder().page(candidate.getPage()).fragment(candidate)
+				.x(marquee.getX()).y(marquee.getY()).width(marquee.getWidth()).height(marquee.getHeight())
+				.version(marquee.getVersion()).build();
+		return inOwnedTransaction(() -> {
+			fragmentRepository.save(candidate);
+			marqueeRepository.save(candidateMarquee);
+			return new ResolvedFragmentState(candidate, candidateMarquee);
+		});
+	}
 
-		EntityTransaction tx = entityManager.getTransaction();
-		try {
-			tx.begin();
-			Long fragmentId = this.fragmentRepository.save(fragment);
-			fragment.setId(fragmentId);
+	/** Create an IMAGE Fragment without synthesising a Marquee. */
+	public ResolvedFragmentState saveImageFragment(Fragment fragment) throws Exception {
+        ImageFragmentWritePolicy.requireEnabled(this);
+		requireNewFragment(fragment, FragmentType.IMAGE);
+		Fragment candidate = copyFragment(fragment);
+		return inOwnedTransaction(() -> {
+			candidate.setImage(lockImageForFragmentWrite(candidate.getImageId()));
+			ResolvedFragmentState state = new ResolvedFragmentState(candidate, null);
+			state.validateForWrite();
+			fragmentRepository.save(candidate);
+			return state;
+		});
+	}
 
-			marquee.setFragment(fragment);
-			Long marqueeId = this.marqueeRepository.save(marquee);
-			marquee.setId(marqueeId);
+	private static void requireNewFragment(Fragment fragment, FragmentType type) {
+		if (fragment == null || fragment.getType() != type)
+			throw new IllegalArgumentException("Expected " + type + " Fragment");
+		if (fragment.getId() != null && fragment.getId() != 0)
+			throw new IllegalArgumentException("Creation requires a new Fragment");
+		if (fragment.getPage() == null || fragment.getPageId() == null || fragment.getPageId() <= 0)
+			throw new IllegalArgumentException("Fragment requires an existing Page");
+	}
 
-			tx.commit();
-			return new FragmentAndMarquee(fragment, marquee);
+	private static Fragment copyFragment(Fragment fragment) {
+		Fragment copy = new Fragment(new FragmentPublishDTO(fragment, null));
+		copy.setPage(fragment.getPage());
+		return copy;
+	}
 
-		} catch (Exception e) {
-			tx.rollback();
-			throw e;
+	/** Must be called inside the transaction attaching the reference. */
+	public Image lockImageForFragmentWrite(Long imageId) {
+		if (!entityManager.getTransaction().isActive())
+			throw new IllegalStateException("Image reference lookup requires an active transaction");
+		if (imageId == null) return null;
+		if (imageId <= 0) throw new IllegalArgumentException("Image id must be positive");
+		Image image = entityManager.find(Image.class, imageId, LockModeType.PESSIMISTIC_READ);
+		if (image == null) throw new IllegalArgumentException("Image not found: id: " + imageId);
+		return image;
+	}
+
+	/** Tolerant resolution for readers/replay; writers call validateForWrite explicitly. */
+	public ResolvedFragmentState resolveFragmentState(Fragment fragment) throws Exception {
+		resolveImageForRead(fragment);
+		Optional<MarqueeDBDTO> dto = marqueeRepository.findByFragment(fragment);
+		Marquee marquee = dto.isEmpty() ? null
+				: new Marquee(inflatePage(dto.get().getPageId()), fragment, dto.get());
+		return new ResolvedFragmentState(fragment, marquee);
+	}
+
+	private void resolveImageForRead(Fragment fragment) {
+		if (fragment.getImageId() == null) return;
+		Optional<ImageDBDTO> image = imageRepository.findById(fragment.getImageId());
+		if (image.isPresent()) fragment.setImage(inflateImage(image.get()));
+		else {
+			Long imageId = fragment.getImageId();
+			fragment.setImage(null);
+			fragment.setPersistedImageId(imageId);
+			LoggerFactory.getLogger(DiaryContext.class).warn(
+					"Fragment {} references missing Image {}; preserving unresolved id for repair",
+					fragment.getId(), imageId);
 		}
 	}
 
@@ -133,7 +189,7 @@ public class DiaryContext {
 	/** Returns a committed copy; the caller's candidate is unchanged even on rollback. */
 	public Image saveImage(Image image) throws Exception {
 		Image candidate = new Image(new ImageDBDTO(image));
-		return inImageTransaction(() -> {
+		return inOwnedTransaction(() -> {
 			imageRepository.save(candidate);
 			return candidate;
 		});
@@ -142,19 +198,19 @@ public class DiaryContext {
 	/** Persists the caller-supplied version, following the repository CRUD contract. */
 	public int updateImage(Image image) throws Exception {
 		Image candidate = new Image(new ImageDBDTO(image));
-		return inImageTransaction(() -> imageRepository.update(candidate));
+		return inOwnedTransaction(() -> imageRepository.update(candidate));
 	}
 
 	@FunctionalInterface
-	private interface ImageTransaction<T> {
+	private interface PersistenceTransaction<T> {
 		T execute() throws Exception;
 	}
 
 	/** These helpers own a transaction; callers with a transaction use the repository directly. */
-	private <T> T inImageTransaction(ImageTransaction<T> operation) throws Exception {
+	private <T> T inOwnedTransaction(PersistenceTransaction<T> operation) throws Exception {
 		EntityTransaction tx = entityManager.getTransaction();
 		if (tx.isActive()) {
-			throw new IllegalStateException("Image helper cannot join or commit an existing transaction");
+			throw new IllegalStateException("Persistence helper cannot join or commit an existing transaction");
 		}
 		// Begin outside the catch: a failed begin must not roll back a caller transaction.
 		tx.begin();
@@ -202,6 +258,7 @@ public class DiaryContext {
 		if (fragmentDTO.getPageId() != null) {
 			fragment.setPage(inflatePage(fragmentDTO.getPageId()));
 		}
+		resolveImageForRead(fragment);
 		return fragment;
 	}
 

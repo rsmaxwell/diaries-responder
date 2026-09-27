@@ -16,6 +16,7 @@ import java.util.Optional;
 import com.rsmaxwell.diaries.responder.dto.ImagePublishDTO;
 import com.rsmaxwell.diaries.responder.model.Image;
 import com.rsmaxwell.diaries.responder.repositoryImpl.ImageRepositoryImpl;
+import com.rsmaxwell.diaries.responder.repositoryImpl.FragmentRepositoryImpl;
 import jakarta.persistence.EntityManagerFactory;
 
 /** Same-filesystem staging, conflict checks, durable registration, compensation and post-commit publication. */
@@ -55,7 +56,9 @@ public final class ImageCatalogueService {
         default Optional<Image> find(String canonicalPath) throws Exception {
             throw new IllegalStateException("Catalogue Image lookup is not configured");
         }
-        /** Return only after commit. Implementations must reject a changed/missing row. */
+        /** Advisory only: delete must repeat the check while holding the Image row lock. */
+        default void checkUnreferenced(Image expected) throws Exception { }
+        /** Return only after commit. Implementations must reject a changed/missing or referenced row. */
         default void delete(Image expected) throws DeleteFailedException {
             throw new DeleteFailedException(false, new IllegalStateException("Catalogue Image deletion is not configured"));
         }
@@ -63,13 +66,18 @@ public final class ImageCatalogueService {
     @FunctionalInterface public interface Publication { void publish(ImagePublishDTO image) throws Exception; }
     @FunctionalInterface public interface TombstonePublication { void publish(DeletedImage image) throws Exception; }
     public record DeletedImage(long id, String relativePath) { }
-    public static final class DeleteFailedException extends Exception {
+    public static class DeleteFailedException extends Exception {
         private final boolean outcomeUnknown;
         public DeleteFailedException(boolean outcomeUnknown, Throwable cause) {
             super(outcomeUnknown ? "Image deletion commit outcome is unknown" : "Image deletion rolled back", cause);
             this.outcomeUnknown = outcomeUnknown;
         }
         public boolean outcomeUnknown() { return outcomeUnknown; }
+    }
+    /** A deliberate conflict with a known rollback outcome, never inferred from SQL error text. */
+    public static final class ImageReferencedException extends DeleteFailedException {
+        public ImageReferencedException() { super(false, null); }
+        @Override public String getMessage() { return "Image is referenced by a Fragment"; }
     }
     public static final class ImageNotFoundException extends Exception {
         ImageNotFoundException() { super("Image not found"); }
@@ -163,6 +171,12 @@ public final class ImageCatalogueService {
                     return new ImageRepositoryImpl(em).findByRelativePath(path).map(Image::new);
                 }
             }
+            @Override public void checkUnreferenced(Image expected) throws ImageReferencedException {
+                try (var em = factory.createEntityManager()) {
+                    if (new FragmentRepositoryImpl(em).existsByImageId(expected.getId()))
+                        throw new ImageReferencedException();
+                }
+            }
             @Override public void delete(Image expected) throws DeleteFailedException {
                 boolean commitStarted = false;
                 try (var em = factory.createEntityManager()) {
@@ -172,6 +186,9 @@ public final class ImageCatalogueService {
                         var current = em.find(Image.class, expected.getId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
                         if (current == null || !new ImagePublishDTO(current).equals(new ImagePublishDTO(expected)))
                             throw new IllegalStateException("Image changed before deletion");
+                        // Attachment takes PESSIMISTIC_READ on this same row until its commit.
+                        if (new FragmentRepositoryImpl(em).existsByImageId(expected.getId()))
+                            throw new ImageReferencedException();
                         if (new ImageRepositoryImpl(em).deleteById(expected.getId()) != 1)
                             throw new IllegalStateException("Expected one deleted Image row");
                         commitStarted = true;
@@ -181,7 +198,10 @@ public final class ImageCatalogueService {
                         catch (Exception rollback) { failure.addSuppressed(rollback); commitStarted = true; }
                         throw failure;
                     }
-                } catch (Exception failure) { throw new DeleteFailedException(commitStarted, failure); }
+                } catch (Exception failure) {
+                    if (!commitStarted && failure instanceof ImageReferencedException referenced) throw referenced;
+                    throw new DeleteFailedException(commitStarted, failure);
+                }
             }
             @Override public boolean owns(String path) {
                 try (var em = factory.createEntityManager()) { return new ImageRepositoryImpl(em).findByRelativePath(path).isPresent(); }
@@ -417,6 +437,7 @@ public final class ImageCatalogueService {
             Image stored = catalogue.find(canonical).orElseThrow(ImageNotFoundException::new);
             Image expected = new Image(new ImagePublishDTO(stored));
             if (expected.getId() == null || expected.getId() <= 0) throw new IllegalStateException("Invalid catalogue identity");
+            catalogue.checkUnreferenced(expected);
             DeletedImage deleted = new DeletedImage(expected.getId(), expected.getRelativePath());
             // Resolve the stored spelling after the database has resolved path identity.
             Path target;

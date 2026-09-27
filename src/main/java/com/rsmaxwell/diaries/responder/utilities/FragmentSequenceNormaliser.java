@@ -4,15 +4,11 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.dto.FragmentPublishDTO;
-import com.rsmaxwell.diaries.responder.dto.MarqueeDBDTO;
 import com.rsmaxwell.diaries.responder.model.Fragment;
-import com.rsmaxwell.diaries.responder.model.Marquee;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
-import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 
 public final class FragmentSequenceNormaliser {
@@ -120,16 +116,9 @@ public final class FragmentSequenceNormaliser {
 
 	/** Publish committed sequence changes to both canonical and date topics. */
 	public static void publish(DiaryContext context, Iterable<Fragment> fragments) throws Exception {
-		MarqueeRepository marqueeRepository = context.getMarqueeRepository();
-
 		for (Fragment fragment : fragments) {
-			Marquee marquee = null;
-			Optional<MarqueeDBDTO> optionalMarquee = marqueeRepository.findByFragmentId(fragment.getId());
-			if (optionalMarquee.isPresent()) {
-				marquee = context.inflateMarquee(optionalMarquee.get());
-			}
-
-			new FragmentPublishDTO(fragment, marquee).publish(context.getPublisherClient());
+			ResolvedFragmentState state = context.resolveFragmentState(fragment);
+			new FragmentPublishDTO(state.getFragment(), state.getMarquee()).publish(context.getPublisherClient());
 		}
 	}
 }

@@ -15,7 +15,7 @@ class DeleteImageTest {
     @TempDir Path root;
     DiaryContext context;
     Image row;
-    boolean rollback, publicationFailure;
+    boolean rollback, publicationFailure, referenced;
     final Map<String,String> retained = new HashMap<>();
     @BeforeEach void setup() throws Exception {
         context = new DiaryContext();
@@ -42,6 +42,7 @@ class DeleteImageTest {
                     public Optional<Image> find(String path) { return owns(path) ? Optional.of(row) : Optional.empty(); }
                     public Image insert(Image image) { throw new AssertionError(); }
                     public void delete(Image image) throws ImageCatalogueService.DeleteFailedException {
+                        if (referenced) throw new ImageCatalogueService.ImageReferencedException();
                         if (rollback) throw new ImageCatalogueService.DeleteFailedException(false, new Exception(root + "/private"));
                         row = null;
                     }
@@ -98,6 +99,11 @@ class DeleteImageTest {
         var path=root.resolve("files/diary/images/image.png"); Files.delete(path);
         status(409,args(),token("EDITOR","ACTIVE",5)); Files.createDirectory(path);
         status(409,args(),token("EDITOR","ACTIVE",5)); assertNotNull(row);
+    }
+    @Test void referenceConflictIs409WithRestoredFileAndRetainedMetadata() throws Exception {
+        referenced = true; status(409, args(), token("EDITOR", "ACTIVE", 5));
+        assertEquals("original", Files.readString(root.resolve("files/diary/images/image.png")));
+        assertNotNull(row); assertEquals("metadata", retained.get("diaries/images/85"));
     }
     @Test void rollbackAndPostCommitFailureAreSafe500Responses() throws Exception {
         rollback=true; status(500,args(),token("EDITOR","ACTIVE",5));

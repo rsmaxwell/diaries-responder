@@ -14,7 +14,7 @@ import com.rsmaxwell.diaries.responder.model.Fragment;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
-import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.ResolvedFragmentState;
 import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
@@ -46,10 +46,13 @@ public class UnlockFragment extends RequestHandler {
 		EntityTransaction tx = em.getTransaction();
 
 		Long id = Utilities.getLong(args, "id");
-		FragmentAndMarquee fragmentAndMarquee;
+		ResolvedFragmentState resolvedState;
 
 		tx.begin();
 		try {
+			// Serialize with Image selection updates before loading a full Fragment row.
+			em.createNativeQuery("select id from fragment where id = :id for update", Long.class)
+					.setParameter("id", id).getResultList();
 			Optional<FragmentDBDTO> optionalFragmentDTO = context.getFragmentRepository().findById(id);
 			if (optionalFragmentDTO.isEmpty()) {
 				/*
@@ -69,7 +72,7 @@ public class UnlockFragment extends RequestHandler {
 
 			FragmentLocking.requireUnlockAllowed(fragment, claims);
 
-			fragmentAndMarquee = FragmentLocking.clearLockInCurrentTransaction(context, fragment);
+			resolvedState = FragmentLocking.clearLockInCurrentTransaction(context, fragment);
 
 			tx.commit();
 
@@ -89,8 +92,8 @@ public class UnlockFragment extends RequestHandler {
 
 		// (6) publish the unlocked Fragment to the topic tree
 		log.info("UnlockFragment.handleRequest: publishing the unlocked fragment to the TopicTree");
-		FragmentLocking.publish(context, fragmentAndMarquee);
+		FragmentLocking.publish(context, resolvedState);
 
-		return Response.success(fragmentAndMarquee.getFragment().getId());
+		return Response.success(resolvedState.getFragment().getId());
 	}
 }

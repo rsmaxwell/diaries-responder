@@ -22,6 +22,7 @@ public class Config {
 	private String refreshExpiration;
 	private String secret;
 	private Boolean normaliseOnStartup;
+	private Boolean imageFragmentWritesEnabled;
 	private Integer fragmentLockTtlSeconds;
 
 	public static Config read(String filename) throws StreamReadException, DatabindException, IOException {
@@ -40,6 +41,9 @@ public class Config {
 	public boolean isNormaliseOnStartup() {
 		return normaliseOnStartup;
 	}
+
+	/** Absent/null configuration must never enable production Image authoring. */
+	public boolean isImageFragmentWritesEnabled() { return Boolean.TRUE.equals(imageFragmentWritesEnabled); }
 
 	public Duration getFragmentLockTtl() {
 		Integer seconds = fragmentLockTtlSeconds;

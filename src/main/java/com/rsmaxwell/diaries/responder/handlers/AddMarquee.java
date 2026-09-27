@@ -22,6 +22,7 @@ import com.rsmaxwell.diaries.responder.repository.MarqueeRepository;
 import com.rsmaxwell.diaries.responder.repository.FragmentRepository;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -76,9 +77,7 @@ public class AddMarquee extends RequestHandler {
 			if (existingMarqueeDTO.isPresent()) {
 				throw RpcStatusException.badRequest("Fragment already has a marquee");
 			}
-			if (fragment.getType() == FragmentType.IMAGE) {
-				throw RpcStatusException.badRequest("An IMAGE fragment cannot have a marquee");
-			}
+			FragmentLocking.requireMarqueeCompatible(fragment);
 			if (fragment.getPageId() != null && !fragment.getPageId().equals(pageId)) {
 				throw RpcStatusException.badRequest("Fragment belongs to a different page");
 			}

@@ -52,6 +52,8 @@ public class DeleteImage extends RequestHandler {
             throw RpcStatusException.badRequest("Invalid or inaccessible image path.");
         } catch (ImageCatalogueService.DeletionRecoveryRequiredException failure) {
             throw RpcStatusException.internalError("Image deletion requires administrator recovery; completion could not be confirmed.");
+        } catch (ImageCatalogueService.ImageReferencedException failure) {
+            throw RpcStatusException.conflict("Image is referenced by a Fragment. Remove its references before deleting it.");
         } catch (ImageCatalogueService.DeleteFailedException failure) {
             throw RpcStatusException.internalError("Image deletion failed; file changes rolled back.");
         } catch (Exception failure) {

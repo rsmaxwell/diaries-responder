@@ -69,7 +69,7 @@ import com.rsmaxwell.diaries.responder.repositoryImpl.PageRepositoryImpl;
 import com.rsmaxwell.diaries.responder.repositoryImpl.PersonRepositoryImpl;
 import com.rsmaxwell.diaries.responder.sync.Synchronise;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
-import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.ResolvedFragmentState;
 import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.diaries.responder.utilities.GetEntityManager;
 import com.rsmaxwell.diaries.responder.utilities.MyMessageHandler;
@@ -89,7 +89,7 @@ public class Responder {
 	static final String clientID_publisher = "responder";
 	static final String clientID_listener = "listener";
 	static final int qos = 0;
-	static MessageHandler messageHandler = new MessageHandler();
+	static MessageHandler messageHandler = new com.rsmaxwell.diaries.responder.utilities.ImageFragmentMessageHandler();
 	static MyMessageHandler myMessageHandler = new MyMessageHandler(messageHandler);
 
 	static {
@@ -103,6 +103,7 @@ public class Responder {
 		messageHandler.putHandler("normaliseFragments", new NormaliseFragments());
 		messageHandler.putHandler("updatePage", new UpdatePage());
 		messageHandler.putHandler("updateDiary", new UpdateDiary());
+		messageHandler.putHandler("addImageFragment", new com.rsmaxwell.diaries.responder.handlers.AddImageFragment());
 		messageHandler.putHandler("addFragment", new AddFragment());
 		messageHandler.putHandler("addMarquee", new AddMarquee());
 		messageHandler.putHandler("updateMarquee", new UpdateMarquee());
@@ -367,7 +368,7 @@ public class Responder {
 
 		Instant olderThan = Instant.now().minus(context.getConfig().getFragmentLockTtl());
 
-		List<FragmentAndMarquee> releasedFragments = new ArrayList<>();
+		List<ResolvedFragmentState> releasedFragments = new ArrayList<>();
 
 		try {
 			tx.begin();
@@ -382,9 +383,9 @@ public class Responder {
 						fragment.getLock() == null ? null : fragment.getLock().lockUserId(), fragment.getLock() == null ? null : fragment.getLock().lockSessionId(),
 						fragment.getLock() == null ? null : fragment.getLock().lockTimeStamp());
 
-				FragmentAndMarquee fragmentAndMarquee = FragmentLocking.clearLockInCurrentTransaction(context, fragment);
+				ResolvedFragmentState resolvedState = FragmentLocking.clearLockInCurrentTransaction(context, fragment);
 
-				releasedFragments.add(fragmentAndMarquee);
+				releasedFragments.add(resolvedState);
 			}
 
 			tx.commit();
@@ -399,8 +400,8 @@ public class Responder {
 		/*
 		 * Publish only after the DB transaction has committed. Otherwise clients could see an unlocked fragment that was not actually committed to the database.
 		 */
-		for (FragmentAndMarquee fragmentAndMarquee : releasedFragments) {
-			FragmentLocking.publish(context, fragmentAndMarquee);
+		for (ResolvedFragmentState resolvedState : releasedFragments) {
+			FragmentLocking.publish(context, resolvedState);
 		}
 	}
 }

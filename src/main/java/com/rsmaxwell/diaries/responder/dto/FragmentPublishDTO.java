@@ -43,6 +43,8 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	private String text;
 	private Long pageId;
 	private FragmentType type;
+	/** Optional reusable Image reference, published explicitly even when null. */
+	private Long imageId;
 	private Long marqueeId;
 
 	/**
@@ -63,6 +65,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 		this.text = fragment.getText();
 		this.pageId = fragment.getPageId();
 		this.type = fragment.getType();
+		this.imageId = fragment.getImageId();
 
 		// Include lock state in MQTT payloads (if present)
 		this.lock = fragment.getLock();

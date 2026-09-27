@@ -82,6 +82,72 @@ class DiaryContextTest {
 		assertEquals(Map.of(), context.loadFromDatabase());
 	}
 
+	@Test
+	void replayPreservesAnImageFragmentWhoseOptionalImageIsMissing() throws Exception {
+		var dto = FragmentDBDTO.builder().id(41L).version(0L).type(FragmentType.IMAGE)
+				.imageId(91L).year(1830).month(3).day(8).sequence(BigDecimal.ONE).text("Repair me").build();
+		DiaryContext context = new DiaryContext();
+		context.setDiaryRepository(proxy(DiaryRepository.class, Map.of("findAll", List.of())));
+		context.setFragmentRepository(proxy(FragmentRepository.class, Map.of("findAll", List.of(dto))));
+		context.setImageRepository(proxy(ImageRepository.class, Map.of("findById", Optional.empty(), "findAll", List.of())));
+		context.setMarqueeRepository(proxy(MarqueeRepository.class, Map.of("findByFragment", Optional.empty())));
+		var state = context.resolveFragmentState(context.inflateFragment(dto));
+		assertEquals(91L, state.getFragment().getImageId());
+		org.junit.jupiter.api.Assertions.assertNull(state.getImage());
+		org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, state::validateForWrite);
+		assertTrue(context.loadFromDatabase().containsKey("diaries/fragments/41"));
+	}
+
+	@Test
+	void replayPublishesImageFragmentsWithAndWithoutImageOnBothAliases() throws Exception {
+		var image = ImageDBDTO.builder().id(91L).relativePath("image.png").mimeType("image/png")
+				.originalFilename("image.png").width(20).height(30).checksum("ab".repeat(32)).build();
+		for (Long imageId : new Long[] {91L, null}) {
+			var dto = FragmentDBDTO.builder().id(42L).version(0L).type(FragmentType.IMAGE).imageId(imageId)
+					.year(1830).month(3).day(8).sequence(BigDecimal.ONE).text("Image").build();
+			DiaryContext context = new DiaryContext();
+			context.setDiaryRepository(proxy(DiaryRepository.class, Map.of("findAll", List.of())));
+			context.setFragmentRepository(proxy(FragmentRepository.class, Map.of("findAll", List.of(dto))));
+			context.setImageRepository(proxy(ImageRepository.class, Map.of("findById", Optional.of(image), "findAll", List.of(image))));
+			context.setMarqueeRepository(proxy(MarqueeRepository.class, Map.of("findByFragment", Optional.empty())));
+			var retained = context.loadFromDatabase();
+			String json = retained.get("diaries/fragments/42");
+			assertEquals(json, retained.get("diaries/dates/1830/3/8/42"));
+			var payload = MAPPER.readTree(json);
+			assertTrue(payload.has("imageId"));
+			if (imageId == null) assertTrue(payload.get("imageId").isNull());
+			else assertEquals(91L, payload.get("imageId").longValue());
+			assertTrue(payload.get("marqueeId").isNull());
+			assertEquals("IMAGE", payload.get("type").textValue());
+		}
+	}
+
+	@Test
+	void writerRejectsCrossTypeAndMismatchedRelationships() {
+		var page = new com.rsmaxwell.diaries.responder.model.Page();
+		page.setId(10L);
+		var fragment = com.rsmaxwell.diaries.responder.model.Fragment.builder().page(page).type(FragmentType.IMAGE)
+				.year(1830).month(3).day(8).sequence(BigDecimal.ONE).text("Image").build();
+		var marquee = com.rsmaxwell.diaries.responder.model.Marquee.builder().fragment(fragment).page(page)
+				.x(0d).y(0d).width(40d).height(40d).build();
+		var state = new ResolvedFragmentState(fragment, marquee);
+		org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, state::validateForWrite);
+		fragment.setType(FragmentType.MARQUEE);
+		state.validateForWrite();
+		fragment.setPersistedImageId(91L);
+		org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, state::validateForWrite);
+		fragment.setImage(null);
+		var otherPage = new com.rsmaxwell.diaries.responder.model.Page();
+		otherPage.setId(11L);
+		marquee.setPage(otherPage);
+		org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, state::validateForWrite);
+		marquee.setPage(page);
+		marquee.setFragment(new com.rsmaxwell.diaries.responder.model.Fragment());
+		org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, state::validateForWrite);
+		fragment.setType(null);
+		org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, state::validateForWrite);
+	}
+
 	@SuppressWarnings("unchecked")
 	private static <T> T proxy(Class<T> type, Map<String, Object> results) {
 		return (T) Proxy.newProxyInstance(

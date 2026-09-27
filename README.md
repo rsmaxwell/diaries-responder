@@ -147,6 +147,7 @@ refreshExpiration
 secret
 normaliseOnStartup
 fragmentLockTtlSeconds
+imageFragmentWritesEnabled
 ```
 
 ### MQTT configuration
@@ -686,3 +687,196 @@ acknowledgement. Rejection, timeout or publication failure preserves the recover
 backup and returns 500. The generic DTO removal method remains unchanged for
 existing callers. Client wrapper and UI integration are subsequent 0030 steps.
 Validation and disposable database/broker runner: parent feature `evidence/Step 5`.
+
+## 0025 Fragment Image persistence prerequisite
+
+The Fragment repository now reads/writes nullable `fragment.image_id`. Before running
+this responder against an existing database, apply the reviewed
+[0025 Step 2 migration](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/migration/README.md)
+using its backup/preflight procedure. Restoring a pre-0025 backup also requires this
+migration before startup; do not rely on Hibernate schema update to install the FK,
+index and type constraint. The Step 3 integration runner restores the frozen backup
+and applies both the 0024 Image schema and the 0025 migration to a disposable database.
+
+Step 5 publishes `FragmentPublishDTO.imageId` on both `diaries/fragments/{id}` and
+`diaries/dates/{year}/{month}/{day}/{id}`. It is always present: a numeric Image ID
+when referenced, otherwise explicit JSON null. `marqueeId` remains for compatibility;
+IMAGE fragments without a Marquee publish `marqueeId: null`. Database replay
+reconstructs the same payload on both aliases. Retained QoS 1 and empty-payload
+tombstones are unchanged.
+Step 4 provides `ResolvedFragmentState`, `saveMarqueeFragment` and `saveImageFragment`.
+Creation helpers own their transaction and return committed copies; Image attachment
+uses a transaction-scoped `PESSIMISTIC_READ` lookup. Read-side resolution preserves
+unresolved Image IDs for repair, while writer validation rejects invalid shapes.
+The addImageFragment creation RPC is registered in Step 6. Image-aware update
+semantics are implemented in Step 7; reference-aware Image deletion is implemented in Step 9. This intermediate implementation is not a production
+ImageFragment authoring release.
+
+### addImageFragment (0025 Step 6)
+
+Requires an active EDITOR or stronger access token. Arguments: positive `pageId`,
+`year`, `month`, `day`, `sequence`, string `text`, and optional positive `imageId`.
+Omitting `imageId` or passing null creates an IMAGE Fragment with no Image reference.
+Caller-supplied type/id/marquee fields cannot override the operation's IMAGE identity.
+Dates must be calendar-valid, text is limited to 4096 characters, and sequence uses
+the existing NUMERIC(10,4) format with no rounding or immediate renumbering.
+This shares the existing Fragment chronology, not a separate Image sequence space.
+
+Success returns the committed Fragment payload (200) and publishes both existing
+retained Fragment aliases with `imageId` and `marqueeId: null`. No Marquee is created.
+Authentication failures return 401; invalid arguments or unresolved Page/Image
+references return 400; persistence/publication failures return 500. Image lookup and
+PESSIMISTIC_READ locking occur inside the creation transaction. A synchronous
+publication failure reports the committed Fragment ID: do not blindly retry creation,
+as it is not idempotent. QoS 1 publication follows the existing asynchronous publisher
+convention; the RPC does not wait for a broker acknowledgement.
+
+This is intermediate 0025 source capability, not production authoring approval.
+Complete the remaining 0025/0026 verification and deployment safeguards before
+production IMAGE creation is enabled. This step changes no deployment configuration.
+
+### updateFragment Image selection (0025 Step 7)
+
+The existing edit RPC accepts optional `imageId`. For IMAGE fragments, omission
+preserves the current reference, explicit null clears it, and a positive integer
+attaches/replaces it with an existing Image. Missing Images or invalid IDs return 400.
+MARQUEE (and legacy null-type) fragments accept absent/null imageId only. Supplied
+`pageId` and `type` must match stored ownership; different values return 400.
+Existing clients may continue omitting these fields.
+
+The handler locks the Fragment row before reading/checking its version and editing
+lock. Attachment/replacement uses the transaction-scoped Image lock. The caller must
+own the Fragment lock and submit its current version (existing stale-version 400 and
+wrong-owner 409 conventions remain). Success clears the edit lock. A text/Image-only
+edit increments the version once without renumbering; date/sequence changes retain
+the existing normaliser and its version bumps for renumbered rows. All changes commit
+or roll back together. After commit, reloaded state is published; a date move removes
+the previous alias. The response remains the Fragment ID, not a new edit protocol.
+
+Full requests still include the existing date/sequence/text fields; this is not a
+partial-update RPC for those fields. Client image-selection UI remains later work.
+
+### Mixed Fragment lifecycle (0025 Step 8)
+
+Lock/unlock operate on either Fragment type and publish the optional Image/Marquee
+state. They lock only the Fragment row for editing; they do not acquire an edit lock
+on the reusable Image. Sequence normalisation sorts all types together by date,
+sequence and ID, preserving Image references and using the common state resolver
+for publication.
+
+`deleteFragment` resolves associations inside its transaction. A MARQUEE Fragment
+loses its optional Marquee plus Fragment, with both sets of retained aliases removed.
+An IMAGE Fragment loses only its Fragment and aliases: the Image row, file and topic
+remain even after its last reference is removed. An invalid IMAGE+Marquee pair
+returns conflict; remove its Marquee with `deleteMarquee` first.
+
+`addMarquee` and `updateMarquee` require a MARQUEE-compatible Fragment without an
+Image reference. Legacy null type remains compatible; AddMarquee retains its
+existing migration behaviour of assigning MARQUEE ownership. `deleteMarquee` is an
+explicit repair path: with the existing caller-owned Fragment lock, it can remove
+an invalid Marquee, clear the edit lock and publish the remaining Fragment without
+changing its type, Page or Image reference. Existing DeleteFragment authorization
+is unchanged; this step does not add a new version/edit-lock request requirement.
+
+
+### Reference-aware deleteImage (0025 Step 9)
+
+The existing `deleteImage({subdir?, name})` request and success reply are unchanged.
+Any Fragment reference now produces 409 with a deliberate `ImageReferencedException`;
+the handler does not parse foreign-key error messages. The existing client handles
+this as an image-in-use conflict and leaves its Files list intact.
+
+Under the existing catalogue/filesystem lock, an advisory reference check avoids
+staging a file already known to be referenced. The authoritative check repeats inside
+the database deletion transaction after `PESSIMISTIC_WRITE` locks the Image row.
+Fragment attachment uses `PESSIMISTIC_READ` on the same row until commit. An attachment
+that commits first makes deletion conflict; deletion winning first makes the waiting
+attachment fail its Image lookup. The schema's non-cascading FK remains final protection.
+
+0030 recovery is preserved: a reference arriving after the advisory check causes
+rollback, restoration of the staged file and backup cleanup, then 409 without a
+tombstone. Failed restoration/cleanup still reports administrator recovery. Unknown
+database outcomes preserve the backup and report 500. Successful deletion commits
+before the acknowledged retained tombstone and final backup cleanup. Removing the
+last Fragment reference does not itself delete the Image. Generic DeleteFile guards
+remain unchanged. No additional migration or deployment configuration is needed.
+
+
+### Cross-type regression coverage (0025 Step 10)
+
+The normal Gradle test task includes `ResolvedFragmentStateTest` (complete writer
+invariant matrix), `AddFragmentContractTest` (legacy Marquee creation contract), and
+`FragmentLifecycleContractTest` (mixed-type locks, reference-preserving deletion and
+cross-type handler rejection). They require no database or broker connection and
+complement the existing Image creation/update, retained DTO, repository and recovery
+tests. Database concurrency and constraints remain separately verified integration
+concerns. See [Step 10 evidence](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/evidence/Step%2010/README.md)
+for the coverage matrix and recorded results.
+
+
+### Database integration fixture (0025 Step 11)
+
+`ImageWiringIntegrationTest.imageFragmentDatabaseLifecycleWithRealRetainedTopics`
+creates an isolated Diary/Page, two Images and mixed Fragments, then verifies real
+PostgreSQL constraints and handler lifecycle behavior with actual retained Mosquitto
+messages. The Step 11 runner also executes both attach/delete race orderings, uses
+Hibernate schema validation, and checks restored database row hashes after cleanup.
+Use the [Step 11 runner and evidence](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/evidence/Step%2011/README.md)
+for disposable setup; ordinary test runs skip these environment-gated tests. Live RPC
+request dispatch and restart replay verification remain Step 12.
+
+
+### Live ImageFragment RPC verification (0025 Step 12)
+
+The disposable Step 12 fixture verifies create/edit/delete through real MQTT requests
+and replies, then recreates persistence/connection state and runs production startup
+reconciliation. See [Step 12 evidence](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/evidence/Step%2012/README.md).
+
+mqtt-rpc 0.0.8 rejects null values in Request.args. The responder's scoped
+ImageFragmentMessageHandler adapter preserves explicit `imageId:null` for
+addImageFragment/updateFragment so clearing works over the wire. Authentication and
+handler validation remain authoritative; other requests use the existing dispatcher.
+Remove this adapter after upgrading to a verified null-preserving dependency.
+Step 13's production authoring gate defaults to disabled; enable only after the reader/client rollout prerequisites below.
+
+
+### ImageFragment authoring gate (0025 Step 13)
+
+Add the following top-level property to the responder JSON used by `--config`:
+
+```json
+"imageFragmentWritesEnabled": false
+```
+
+Missing or null is also disabled. An active editor receives **403 Forbidden** when
+calling `addImageFragment` while disabled, with or without an initial Image selection.
+`updateFragment` rejects changes to an IMAGE Fragment's `imageId`, including attachment,
+replacement and explicit-null clearing. Rejection rolls back the request and preserves
+its lock, version, text, database relationship and retained topics. Authentication and
+existing type/Page/version checks still apply.
+
+Omitted imageId preserves the reference. An explicit value equal to the current ID
+(including null-to-null) is not a mutation and remains allowed. Text/date/sequence
+edits, reading, replay, lock/unlock, normalisation and Fragment deletion remain available.
+The Image catalogue/upload/delete operations retain their existing reference safeguards.
+The creation service also enforces the gate; it is not solely a UI restriction.
+
+Only enable `"imageFragmentWritesEnabled": true` deliberately in disposable development
+or integration configuration. Keep production false until the 0025 responder is
+validated, the 0026-capable web reader is deployed/verified and 0027 authoring rollout
+is explicitly approved. Changing the JSON requires responder restart; this is not a
+hot-reloaded flag. Disabling it does not remove existing IMAGE data.
+
+Configuration location by mode:
+
+- development-infrastructure: the JSON passed to the directly launched responder's
+  `--config` argument.
+- local-docker-build and local-published-smoke: the external JSON selected by
+  `DIARIES_RESPONDER_DOCKER_CONFIG_FILE`, mounted read-only at `/config/responder.json`.
+- production: the responder JSON generated/mounted by the external Ansible deployment.
+  Its template should emit `"imageFragmentWritesEnabled": false` (or omit the property).
+  This source change does not edit that separate repository or any private runtime file.
+
+There is no new environment-variable override: all modes use the same responder JSON
+property. The disposable integration fixture explicitly enables it; its gate test then
+exercises missing/false values over live MQTT. See [Step 13 evidence](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/evidence/Step%2013/README.md).

@@ -20,7 +20,7 @@ import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
-import com.rsmaxwell.diaries.responder.utilities.FragmentAndMarquee;
+import com.rsmaxwell.diaries.responder.utilities.ResolvedFragmentState;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -112,7 +112,7 @@ public class AddFragment extends RequestHandler {
 		Marquee savedMarquee;
 
 		try {
-			FragmentAndMarquee result = context.save(fragment, marquee);
+			ResolvedFragmentState result = context.saveMarqueeFragment(fragment, marquee);
 			savedFragment = result.getFragment();
 			savedMarquee = result.getMarquee();
 		} catch (Exception e) {

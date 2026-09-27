@@ -14,7 +14,7 @@ class ImageCatalogueDeletionTest {
     @TempDir Path root;
     Image row;
     final List<String> events = new ArrayList<>();
-    boolean rollback, unknown, replacement;
+    boolean rollback, unknown, replacement, referenced, referencedAfterStaging;
     Catalogue store = new Catalogue() {
         public boolean owns(String path) { return row != null && row.getRelativePath().equalsIgnoreCase(path); }
         public Image insert(Image image) { throw new UnsupportedOperationException(); }
@@ -22,9 +22,13 @@ class ImageCatalogueDeletionTest {
             events.add("lookup");
             return owns(path) ? Optional.of(row) : Optional.empty();
         }
+        public void checkUnreferenced(Image expected) throws ImageReferencedException {
+            if (referenced) throw new ImageReferencedException();
+        }
         public void delete(Image expected) throws DeleteFailedException {
             assertFalse(Files.exists(root.resolve(expected.getRelativePath())));
             events.add("delete");
+            if (referencedAfterStaging) throw new ImageReferencedException();
             if (replacement) {
                 try { Files.writeString(root.resolve(expected.getRelativePath()), "external"); }
                 catch (IOException e) { throw new DeleteFailedException(false, e); }
@@ -84,6 +88,19 @@ class ImageCatalogueDeletionTest {
         assertThrows(ImageFileConflictException.class, () -> service().delete(row.getRelativePath(), d -> fail()));
         assertNotNull(row);
         assertFalse(events.contains("delete"));
+    }
+    @Test void knownReferenceAvoidsStagingAndPublication() throws Exception {
+        Path target = seed(); referenced = true;
+        assertThrows(ImageReferencedException.class, () -> service().delete(row.getRelativePath(), d -> fail()));
+        assertEquals("original", Files.readString(target));
+        assertEquals(List.of("lookup"), events);
+        assertNotNull(row); cleanStaging();
+    }
+    @Test void referenceAttachedAfterPrecheckRestoresBytesAsCleanConflict() throws Exception {
+        Path target = seed(); referencedAfterStaging = true;
+        assertThrows(ImageReferencedException.class, () -> service().delete(row.getRelativePath(), d -> fail()));
+        assertEquals("original", Files.readString(target));
+        assertNotNull(row); cleanStaging();
     }
     @Test void rollbackRestoresBytesWithoutPublication() throws Exception {
         Path target = seed(); rollback = true;

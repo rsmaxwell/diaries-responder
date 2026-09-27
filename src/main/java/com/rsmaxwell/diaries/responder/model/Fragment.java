@@ -52,6 +52,14 @@ public class Fragment extends Base {
 	@Column(name = "type", length = 16)
 	private FragmentType type;
 
+	@ManyToOne(optional = true)
+	@JoinColumn(name = "image_id")
+	private Image image;
+
+	/** Retains the Image id for native repository DTOs without loading the Image. */
+	@Transient
+	private Long persistedImageId;
+
 	@NonNull
 	private Integer year;
 
@@ -78,6 +86,7 @@ public class Fragment extends Base {
 	public Fragment(FragmentDBDTO dto) {
 		copyCommonFieldsFrom(dto);
 		this.persistedPageId = dto.getPageId();
+		this.persistedImageId = dto.getImageId();
 		copyLockFrom(dto.getLock());
 	}
 
@@ -91,6 +100,7 @@ public class Fragment extends Base {
 	public Fragment(FragmentPublishDTO dto) {
 		copyCommonFieldsFrom(dto);
 		this.persistedPageId = dto.getPageId();
+		this.persistedImageId = dto.getImageId();
 		copyLockFrom(dto.getLock());
 	}
 
@@ -117,6 +127,15 @@ public class Fragment extends Base {
 		} else {
 			throw new IllegalArgumentException("Unsupported DTO type: " + dto.getClass());
 		}
+	}
+
+	public Long getImageId() {
+		return image == null ? persistedImageId : image.getId();
+	}
+
+	public void setImage(Image image) {
+		this.image = image;
+		this.persistedImageId = image == null ? null : image.getId();
 	}
 
 	public Long getPageId() {

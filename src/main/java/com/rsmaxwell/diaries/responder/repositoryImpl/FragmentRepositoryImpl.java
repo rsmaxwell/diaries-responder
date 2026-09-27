@@ -58,6 +58,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		list.add("text");
 		list.add("page_id");
 		list.add("type");
+		list.add("image_id");
 
 		list.add("lock_user_id");
 		list.add("lock_username");
@@ -79,6 +80,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		list.add(entity.getText());
 		list.add(entity.getPageId());
 		list.add(entity.getType());
+		list.add(entity.getImageId());
 
 		LockInfo lock = entity.getLock();
 		if (lock == null) {
@@ -110,11 +112,13 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 		Long pageId = getLongFromSqlResult(result, 7, null);
 		FragmentType type = FragmentType.fromDatabaseValue(getStringFromSqlResult(result, 8, null));
 
-		Long lockUserId = getLongFromSqlResult(result, 9, null);
-		String lockUserName = getStringFromSqlResult(result, 10, null);
-		String lockKnownAs = getStringFromSqlResult(result, 11, null);
-		Long lockTimeStamp = getLongFromSqlResult(result, 12, null);
-		String lockSessionId = getStringFromSqlResult(result, 13, null);
+		Long imageId = getLongFromSqlResult(result, 9, null);
+
+		Long lockUserId = getLongFromSqlResult(result, 10, null);
+		String lockUserName = getStringFromSqlResult(result, 11, null);
+		String lockKnownAs = getStringFromSqlResult(result, 12, null);
+		Long lockTimeStamp = getLongFromSqlResult(result, 13, null);
+		String lockSessionId = getStringFromSqlResult(result, 14, null);
 
 		LockInfo lock = null;
 
@@ -137,10 +141,21 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 				.text(text)
 				.pageId(pageId)
 				.type(type)
+				.imageId(imageId)
 				.version(version)
 				.lock(lock)
 		        .build();
 		//@formatter:on
+	}
+
+	@Override
+	public boolean existsByImageId(Long imageId) {
+		if (imageId == null) {
+			return false;
+		}
+		return getSession().createNativeQuery(
+				"select exists (select 1 from fragment where image_id = :imageId)", Boolean.class)
+				.setParameter("imageId", imageId).getSingleResult();
 	}
 
 	@Override
@@ -215,7 +230,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 
 		// @formatter:off
 	    String sql = SqlBuilder.create()
-	        .select("f.id, f.version, f.sequence, f.year, f.month, f.day, f.text, f.page_id, f.type, " +
+	        .select("f.id, f.version, f.sequence, f.year, f.month, f.day, f.text, f.page_id, f.type, f.image_id, " +
 	                "f.lock_user_id, f.lock_username, f.lock_known_as, f.lock_timestamp, f.lock_session_id")
 	        .from("fragment f")
 	        .leftJoin("marquee m").on("f.id = m.fragment_id")
@@ -237,7 +252,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 
 		// @formatter:off
 	    String sql = SqlBuilder.create()
-	        .select("f.id, f.version, f.sequence, f.year, f.month, f.day, f.text, f.page_id, f.type, " +
+	        .select("f.id, f.version, f.sequence, f.year, f.month, f.day, f.text, f.page_id, f.type, f.image_id, " +
 	                "f.lock_user_id, f.lock_username, f.lock_known_as, f.lock_timestamp, f.lock_session_id")
 	        .from("fragment f")
 	        .innerJoin("marquee m").on("m.fragment_id = f.id")
@@ -262,7 +277,7 @@ public class FragmentRepositoryImpl extends AbstractCrudRepository<Fragment, Fra
 
 		// @formatter:off
 	    String sql = SqlBuilder.create()
-	        .select("id, version, sequence, year, month, day, text, page_id, type, " +
+	        .select("id, version, sequence, year, month, day, text, page_id, type, image_id, " +
 	                "lock_user_id, lock_username, lock_known_as, lock_timestamp, lock_session_id")
 	        .from("fragment")
 	        .where("lock_user_id is not null")

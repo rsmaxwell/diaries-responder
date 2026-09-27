@@ -77,6 +77,7 @@ public class UpdateMarquee extends RequestHandler {
 
 			// (2) get the fragment associated with the original marquee
 			originalFragment = originalMarquee.getFragment();
+			FragmentLocking.requireMarqueeCompatible(originalFragment);
 
 			// (3) enforce: the fragment must be locked by this user/session
 			FragmentLocking.requireLockedByCaller(originalFragment, claims);

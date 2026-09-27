@@ -143,6 +143,38 @@ class FragmentSequenceNormaliserTest {
 				() -> FragmentSequenceNormaliser.normaliseDate(repository, 1830, 2, 1));
 	}
 
+	@Test
+	void mixedTypesShareOneSequenceAndKeepImageReferences() throws Exception {
+		for(int multiplier:new int[]{1,10}) {
+			var rows=new ArrayList<FragmentDBDTO>();
+			int[] order={4,2,1,3};
+			for(int i=0;i<4;i++) {
+				var row=dto(i+1,1830,2,1,Integer.toString(order[i]*multiplier));
+				row.setType(i%2==0?FragmentType.MARQUEE:FragmentType.IMAGE);
+				row.setImageId(i%2==0?null:91L);rows.add(row);
+			}
+			var repository=new RecordingFragmentRepository(rows);
+			var updates=FragmentSequenceNormaliser.normaliseDate(repository,1830,2,1);
+			assertEquals(List.of(3L,2L,4L,1L),java.util.stream.StreamSupport.stream(repository.findAllByDate(1830,2,1).spliterator(),false).map(FragmentDBDTO::getId).toList());
+			for(int i=0;i<4;i++) {
+				assertEquals(0,BigDecimal.valueOf(order[i]).compareTo(repository.get(i+1).getSequence()));
+				assertEquals(i%2==0?null:91L,repository.get(i+1).getImageId());
+			}
+			for(var update:updates)assertEquals(repository.get(update.getId()).getImageId(),update.getImageId());
+		}
+	}
+
+	@Test
+	void marqueeGuardRejectsImagesAndPreservesLegacyCompatibility() throws Exception {
+		var fragment=new Fragment(dto(1,1830,2,1,"1"));
+		FragmentLocking.requireMarqueeCompatible(fragment);
+		fragment.setType(FragmentType.MARQUEE);FragmentLocking.requireMarqueeCompatible(fragment);
+		fragment.setPersistedImageId(91L);
+		assertThrows(RpcStatusException.class,()->FragmentLocking.requireMarqueeCompatible(fragment));
+		fragment.setImage(null);fragment.setType(FragmentType.IMAGE);
+		assertThrows(RpcStatusException.class,()->FragmentLocking.requireMarqueeCompatible(fragment));
+	}
+
 	private static FragmentDBDTO dto(long id, int year, int month, int day, String sequence) {
 		return FragmentDBDTO.builder()
 				.id(id)
@@ -159,6 +191,7 @@ class FragmentSequenceNormaliserTest {
 	}
 
 	private static final class RecordingFragmentRepository implements FragmentRepository {
+		@Override public boolean existsByImageId(Long imageId) { throw new UnsupportedOperationException(); }
 		private final Map<Long, FragmentDBDTO> fragments = new LinkedHashMap<>();
 		private final List<DateKey> requestedDates = new ArrayList<>();
 		private final List<Long> conflictingIds = new ArrayList<>();
@@ -210,6 +243,7 @@ class FragmentSequenceNormaliserTest {
 					.text(original.getText())
 					.pageId(original.getPageId())
 					.type(original.getType())
+					.imageId(original.getImageId())
 					.lock(original.getLock())
 					.build());
 			return 1;
