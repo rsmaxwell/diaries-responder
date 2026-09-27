@@ -500,10 +500,16 @@ class ImageWiringIntegrationTest {
                 new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
         try {
             publisher.publish("fixture/flush",new byte[]{1},1,false).waitForCompletion(10000);
-            observer.setCallback(callback);observer.connect().waitForCompletion(10000);
-            observer.subscribe("diaries/diaries/_sync/#",0).waitForCompletion(10000);
-            for(String filter:filters.length==0?new String[]{"diaries/#"}:filters) {
-                observer.subscribe(filter,0).waitForCompletion(10000);callback.awaitDrained(publisher);
+            observer.setCallback(callback);
+            var options=new org.eclipse.paho.mqttv5.client.MqttConnectionOptions();
+            options.setCleanStart(true);
+            options.setReceiveMaximum(20);
+            observer.connect(options).waitForCompletion(10000);
+            String[] requested=filters.length==0?new String[]{"diaries/#"}:filters;
+            observer.subscribe(callback.barrierFilter(),1).waitForCompletion(10000);
+            for(String filter:requested) {
+                observer.subscribe(filter,1).waitForCompletion(10000);
+                callback.awaitDrained(publisher);
             }
             return new HashMap<>(snapshot);
         } finally { if(observer.isConnected())observer.disconnect().waitForCompletion(10000); observer.close(); }

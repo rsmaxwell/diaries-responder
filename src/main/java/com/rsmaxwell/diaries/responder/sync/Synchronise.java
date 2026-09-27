@@ -59,21 +59,30 @@ public class Synchronise {
         MqttAsyncClient publisher=new MqttAsyncClient(server,clientID_sync_pub+"-"+suffix,new MemoryPersistence());
         MqttAsyncClient subscriber=new MqttAsyncClient(server,clientID_sync_sub+"-"+suffix,new MemoryPersistence());
         try {
-            MqttConnectionOptions options=new MqttConnectionOptions();
-            options.setUserName(user.getUsername());
-            options.setPassword(user.getPassword().getBytes(StandardCharsets.UTF_8));
-            options.setCleanStart(true);
-            // A broken snapshot must fail rather than silently reconnect with incomplete state.
-            options.setAutomaticReconnect(false);
-            publisher.connect(options).waitForCompletion(10000);
+            MqttConnectionOptions publisherOptions=connectionOptions(user);
+            publisher.connect(publisherOptions).waitForCompletion(10000);
+
             ConcurrentHashMap<String,String> topicTreeMap=new ConcurrentHashMap<>();
             SynchroniseCallback sync=new SynchroniseCallback(topicTreeMap);
             subscriber.setCallback(sync);
-            subscriber.connect(options).waitForCompletion(10000);
-            // This temporary snapshot reader uses QoS 0 to avoid Mosquitto's finite QoS 1/2
-            // replay queue. A non-retained marker confirms the stream drained. Publications
-            // and ordinary subscribers retain their QoS 1 contract.
-            for(String topic:topicFilters)subscriber.subscribe(new MqttSubscription(topic,0)).waitForCompletion(10000);
+            MqttConnectionOptions snapshotOptions=connectionOptions(user);
+            // MQTT 5 flow control: at most twenty QoS-1/2 publications may be
+            // unacknowledged on the snapshot connection at once. Mosquitto therefore
+            // feeds the retained tree in bounded batches without application sleeps.
+            snapshotOptions.setReceiveMaximum(SynchroniseCallback.SNAPSHOT_RECEIVE_MAXIMUM);
+            subscriber.connect(snapshotOptions).waitForCompletion(10000);
+
+            // Keep the barrier outside diaries/# so the subscriptions never overlap.
+            // Both streams are QoS 1. The broker configuration reserves enough queued
+            // messages for the complete retained tree, while Receive Maximum supplies
+            // back-pressure as the responder processes each batch.
+            //
+            // Subscribe to the barrier first and diaries/# second. Once the diaries/#
+            // SUBACK has completed, Mosquitto has already queued its retained replay for
+            // this subscriber. A QoS-1 barrier subsequently published by the separate
+            // reconciliation connection is therefore queued behind that replay.
+            subscriber.subscribe(new MqttSubscription(sync.barrierFilter(),SynchroniseCallback.BARRIER_QOS)).waitForCompletion(10000);
+            for(String topic:topicFilters)subscriber.subscribe(new MqttSubscription(topic,SynchroniseCallback.SNAPSHOT_QOS)).waitForCompletion(10000);
             sync.awaitDrained(publisher);
             Map<String,String> databaseMap=context.loadFromDatabase();
             log.info("sizeof(topicTreeMap) = {}",topicTreeMap.size());
@@ -89,15 +98,49 @@ public class Synchronise {
             sync.awaitDrained(publisher);
             validateMapKeys(topicTreeMap,databaseMap);
         } finally {
-            closeSyncClient(subscriber);
+            closeSnapshotClient(subscriber);
             closeSyncClient(publisher);
         }
     }
 
+    private static MqttConnectionOptions connectionOptions(User user) {
+        MqttConnectionOptions options=new MqttConnectionOptions();
+        options.setUserName(user.getUsername());
+        options.setPassword(user.getPassword().getBytes(StandardCharsets.UTF_8));
+        options.setCleanStart(true);
+        // A broken snapshot must fail rather than silently reconnect with incomplete state.
+        options.setAutomaticReconnect(false);
+        return options;
+    }
+
+    /**
+     * The snapshot client is disposable (unique client id, Clean Start) and receive-only.
+     * Once the barrier has been observed, the retained replay has drained and no snapshot
+     * work remains. Use a forced disconnect so cleanup cannot become another readiness
+     * dependency if the MQTT library is still unwinding a large inbound replay.
+     */
+    private static void closeSnapshotClient(MqttAsyncClient client) {
+        try {
+            if(client.isConnected())client.disconnectForcibly(0,1000,false);
+        } catch(Exception failure) {
+            log.warn("Could not forcibly disconnect synchronization snapshot client",failure);
+        } finally {
+            try {client.close();}
+            catch(Exception failure){log.warn("Could not close synchronization snapshot client",failure);}
+        }
+    }
+
     private static void closeSyncClient(MqttAsyncClient client) {
-        try { if(client.isConnected())client.disconnect().waitForCompletion(5000); }
-        catch(Exception failure){log.warn("Could not disconnect synchronization client",failure);}
-        finally {
+        try {
+            if(client.isConnected())client.disconnect().waitForCompletion(5000);
+        } catch(Exception failure) {
+            log.warn("Could not disconnect synchronization client cleanly; forcing close",failure);
+            try {
+                if(client.isConnected())client.disconnectForcibly(0,1000,false);
+            } catch(Exception forcedFailure) {
+                log.warn("Could not forcibly disconnect synchronization client",forcedFailure);
+            }
+        } finally {
             try {client.close();}
             catch(Exception failure){log.warn("Could not close synchronization client",failure);}
         }

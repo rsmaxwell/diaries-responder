@@ -24,6 +24,31 @@ class SynchroniseCallbackTest {
         },100);
         assertTrue(map.isEmpty());
     }
+
+    @Test void helperBarrierFilterIsStableSpecificAndAllMarkersRemainExcluded() throws Exception {
+        var map=new ConcurrentHashMap<String,String>();
+        var callback=new SynchroniseCallback(map);
+        String filter=callback.barrierFilter();
+        assertTrue(filter.startsWith("diaries-sync/"));
+        assertTrue(filter.endsWith("/#"));
+        assertFalse(filter.startsWith("diaries/"));
+        assertEquals(1,SynchroniseCallback.SNAPSHOT_QOS);
+        assertEquals(20,SynchroniseCallback.SNAPSHOT_RECEIVE_MAXIMUM);
+        assertEquals(1,SynchroniseCallback.BARRIER_QOS);
+        assertEquals(filter,callback.barrierFilter());
+
+        var published=new java.util.concurrent.atomic.AtomicReference<String>();
+        callback.awaitDrained(topic->{
+            published.set(topic);
+            assertTrue(topic.startsWith(filter.substring(0,filter.length()-1)));
+            callback.messageArrived(topic,new MqttMessage(new byte[]{1}));
+        },100);
+        assertNotNull(published.get());
+
+        callback.messageArrived("diaries-sync/another-responder/checkpoint",new MqttMessage(new byte[]{1}));
+        assertTrue(map.isEmpty());
+    }
+
     @Test void disconnectCannotMasqueradeAsCompletedReplay() {
         var callback=new SynchroniseCallback(new ConcurrentHashMap<>());
         assertThrows(IllegalStateException.class,()->callback.awaitDrained(topic->callback.disconnected(null),100));

@@ -335,12 +335,15 @@ altText. It contains no file bytes or resolved URL/absolute storage path.
 The synchroniser waits for retained replay before comparing with database
 state, publishes differences in topic order with QoS 1 and retain, and removes
 stale topics using empty retained payloads. Unchanged topics are not republished.
-Its temporary snapshot subscriber uses one `diaries/#` subscription at QoS 0
-to avoid Mosquitto's finite queue for QoS 1/2 replay. A unique, non-retained
-`diaries/diaries/_sync/{run}/{checkpoint}` marker confirms that the stream has
-drained; missing markers and disconnected snapshots fail startup. These markers
-use the existing responder ACL and are excluded from the snapshot. Canonical
-object publications and ordinary subscribers keep their existing QoS contract.
+Its temporary snapshot subscriber uses `diaries/#` at QoS 0 to avoid
+Mosquitto's finite queue for QoS 1/2 replay, plus a separate non-overlapping
+`diaries-sync/{run}/#` subscription at QoS 1. A unique, non-retained
+`diaries-sync/{run}/{checkpoint}` marker confirms that the stream has drained;
+missing markers and disconnected snapshots fail startup. The responder ACL
+grants read/write access to `diaries-sync/#` only to the responder identity.
+Barrier traffic is outside the retained Diaries business-data tree and is never
+added to the snapshot. Canonical object publications and ordinary subscribers
+keep their existing QoS contract.
 The shared local broker ACL grants only the responder read/write access to
 `diaries/images/+`; reload that ACL before starting the updated responder.
 Production ACL deployment remains part of 0024 Phase 11. Client and web do not
