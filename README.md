@@ -630,3 +630,59 @@ builds plus Angular tests and its production build. It rejects failed or skipped
 tests, checks diffs, stops its own containers, and hashes the resulting evidence.
 No live configuration or Files root is accepted. See the
 [Phase 9 evidence and coverage](../change-control/complete/0024-FEAT%20-%20introduce%20reusable%20persistent%20Image%20catalogue/evidence/phase-09-validation/README.md).
+
+## Image deletion service primitives (0030 Step 3)
+
+`ImageCatalogueService.delete(relativePath, tombstone)` provides internal semantic
+Image deletion. It shares upload/reconciliation locking, stages the existing
+file privately, commits deletion through the existing repository, invokes the
+supplied tombstone callback, and then removes the backup. It returns immutable
+Image identity/path information. The callback must publish the real retained
+Image tombstone and throw on failure; a no-op callback is only suitable for tests.
+
+The JPA adapter locks and verifies the expected row before deletion. Definitive
+rollback restores bytes without replacing an external file; unknown commits or
+failed recovery/publication preserve the backup and expose a typed internal
+recovery exception. These internal filesystem paths must not appear in RPC
+errors. Step 5 registers the authenticated `deleteImage` handler; generic `DeleteFile`
+continues to reject catalogue-owned paths. See the parent 0030 Step 3 evidence
+for the initial validation. Step 4 adds deterministic staging, restoration and
+cleanup failure tests and internal recovery diagnostics; its results are in
+the parent 0030 `evidence/Step 4` directory.
+
+Recovery errors log the Image ID, canonical path, database outcome and phase,
+plus internal target/backup paths. Keep any `.delete-backup` file until an
+administrator has stopped writers and checked the actual database row, file
+identity and retained topic. `UNKNOWN` means the database outcome must be
+established before restoring or deleting anything. `ROLLED_BACK` means the row
+was retained (or no delete was attempted); a staging failure may leave either
+the original target or the backup holding the bytes. `COMMITTED` means the row
+was deleted: a publication failure needs retained-state reconciliation, while
+a cleanup failure may leave redundant bytes after the tombstone was published.
+Never overwrite an unexpected replacement file or blindly retry deletion as
+recovery. Preserve the backup on uncertainty. These diagnostics are for operators,
+not RPC responses; automatic recovery after process/power failure is not supplied.
+## Eclipse and the packaged inspection probe
+
+`src/test/resources/image-inspection/PackagedInspectionProbe.java` is standalone
+source data used to check the packaged responder JAR. It deliberately has no
+package declaration. The Gradle Eclipse model excludes that file from JDT
+compilation while Gradle still copies it as a test resource. After importing or
+changing this configuration, use **Gradle > Refresh Gradle Project**, then
+**Project > Clean** if Eclipse retains an old package-mismatch marker.
+
+### Image deletion RPC (0030 Step 5)
+
+The registered `deleteImage` handler accepts a required basename `name` and an
+optional `subdir` (default root), using the shared Image path policy. It requires
+an active access token with EDITOR or stronger role. Success returns the committed
+Image id, canonical relativePath and deleted=true. Invalid input returns 400,
+authorization failure 401, no catalogue row 404, missing/nonregular bytes 409,
+and deletion/recovery failure 500 without exposing internal recovery paths.
+
+After durable deletion, `ImagePublishDTO.removeAndAwait` publishes an empty QoS 1
+retained payload to `diaries/images/<id>` and waits up to ten seconds for broker
+acknowledgement. Rejection, timeout or publication failure preserves the recovery
+backup and returns 500. The generic DTO removal method remains unchanged for
+existing callers. Client wrapper and UI integration are subsequent 0030 steps.
+Validation and disposable database/broker runner: parent feature `evidence/Step 5`.

@@ -34,6 +34,7 @@ import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
 import com.rsmaxwell.diaries.responder.handlers.AddFragment;
 import com.rsmaxwell.diaries.responder.handlers.AddMarquee;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFile;
+import com.rsmaxwell.diaries.responder.handlers.DeleteImage;
 import com.rsmaxwell.diaries.responder.handlers.DeleteFragment;
 import com.rsmaxwell.diaries.responder.handlers.DeleteMarquee;
 import com.rsmaxwell.diaries.responder.handlers.GetVersion;
@@ -113,6 +114,7 @@ public class Responder {
 		messageHandler.putHandler("uploadFile", new UploadFile());
 		messageHandler.putHandler("listFiles", new ListFiles());
 		messageHandler.putHandler("deleteFile", new DeleteFile());
+		messageHandler.putHandler("deleteImage", new DeleteImage());
 		messageHandler.putHandler("quit", new Quit());
 	}
 

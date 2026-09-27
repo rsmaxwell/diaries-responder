@@ -20,12 +20,29 @@ import jakarta.persistence.EntityManagerFactory;
 
 /** Same-filesystem staging, conflict checks, durable registration, compensation and post-commit publication. */
 public final class ImageCatalogueService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ImageCatalogueService.class);
     /** Deliberately serialises file operations, including Unicode aliases, without approximating PostgreSQL folding. */
     private static final Object PROCESS_LOCK = new Object();
     private final ImagePathPolicy paths;
     private final ImageMetadataInspector inspector;
     private final Catalogue catalogue;
     private final Publication publisher;
+    private DeletionFiles deletionFiles = new DeletionFiles() { };
+
+    /** Narrow package-private seam for deterministic filesystem failure tests. */
+    interface DeletionFiles {
+        default void stage(Path target, Path backup) throws IOException {
+            Files.move(target, backup, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        }
+        default void restore(Path target, Path backup) throws IOException {
+            ImagePathPolicy.verifyEntry(backup);
+            Files.createLink(target, backup); // Never replace a concurrently created target.
+        }
+        default void cleanup(Path backup) throws IOException {
+            ImagePathPolicy.verifyEntry(backup);
+            Files.delete(backup);
+        }
+    }
 
     public interface Catalogue {
         boolean owns(String canonicalPath) throws Exception;
@@ -35,8 +52,52 @@ public final class ImageCatalogueService {
         }
         /** Return only after commit; unknown outcomes must be explicitly distinguished. */
         Image insert(Image image) throws WriteFailedException;
+        default Optional<Image> find(String canonicalPath) throws Exception {
+            throw new IllegalStateException("Catalogue Image lookup is not configured");
+        }
+        /** Return only after commit. Implementations must reject a changed/missing row. */
+        default void delete(Image expected) throws DeleteFailedException {
+            throw new DeleteFailedException(false, new IllegalStateException("Catalogue Image deletion is not configured"));
+        }
     }
     @FunctionalInterface public interface Publication { void publish(ImagePublishDTO image) throws Exception; }
+    @FunctionalInterface public interface TombstonePublication { void publish(DeletedImage image) throws Exception; }
+    public record DeletedImage(long id, String relativePath) { }
+    public static final class DeleteFailedException extends Exception {
+        private final boolean outcomeUnknown;
+        public DeleteFailedException(boolean outcomeUnknown, Throwable cause) {
+            super(outcomeUnknown ? "Image deletion commit outcome is unknown" : "Image deletion rolled back", cause);
+            this.outcomeUnknown = outcomeUnknown;
+        }
+        public boolean outcomeUnknown() { return outcomeUnknown; }
+    }
+    public static final class ImageNotFoundException extends Exception {
+        ImageNotFoundException() { super("Image not found"); }
+    }
+    public static final class ImageFileConflictException extends IOException {
+        ImageFileConflictException() { super("Image file is missing or is not a regular file"); }
+    }
+    public static final class InvalidImagePathException extends IOException {
+        InvalidImagePathException(Throwable cause) { super("Invalid or inaccessible image path", cause); }
+    }
+    public enum DeletionOutcome { ROLLED_BACK, UNKNOWN, COMMITTED }
+    public enum DeletionPhase { STAGING, COMMITTING, RESTORING, PUBLISHING, CLEANUP }
+    /** Internal recovery information; handlers must not expose filesystem paths to clients. */
+    public static final class DeletionRecoveryRequiredException extends IOException {
+        private final DeletedImage image;
+        private final Path target, backup;
+        private final DeletionOutcome outcome;
+        private final DeletionPhase phase;
+        DeletionRecoveryRequiredException(DeletedImage image, Path target, Path backup, DeletionOutcome outcome, DeletionPhase phase, Throwable cause) {
+            super("Image deletion requires recovery; retained backup must be reviewed", cause);
+            this.image = image; this.target = target; this.backup = backup; this.outcome = outcome; this.phase = phase;
+        }
+        public DeletedImage image() { return image; }
+        public Path target() { return target; }
+        public Path backup() { return backup; }
+        public DeletionOutcome outcome() { return outcome; }
+        public DeletionPhase phase() { return phase; }
+    }
 
     public static final class WriteFailedException extends Exception {
         private final boolean outcomeUnknown;
@@ -89,9 +150,39 @@ public final class ImageCatalogueService {
         this.publisher = null;
     }
 
+    ImageCatalogueService(ImagePathPolicy paths, ImageMetadataInspector inspector, Catalogue catalogue, DeletionFiles deletionFiles) {
+        this(paths, inspector, catalogue);
+        this.deletionFiles = java.util.Objects.requireNonNull(deletionFiles);
+    }
+
     /** Each call owns a fresh EntityManager, so concurrent requests never share one. */
     public static Catalogue jpaCatalogue(EntityManagerFactory factory) {
         return new Catalogue() {
+            @Override public Optional<Image> find(String path) {
+                try (var em = factory.createEntityManager()) {
+                    return new ImageRepositoryImpl(em).findByRelativePath(path).map(Image::new);
+                }
+            }
+            @Override public void delete(Image expected) throws DeleteFailedException {
+                boolean commitStarted = false;
+                try (var em = factory.createEntityManager()) {
+                    var tx = em.getTransaction();
+                    try {
+                        tx.begin();
+                        var current = em.find(Image.class, expected.getId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                        if (current == null || !new ImagePublishDTO(current).equals(new ImagePublishDTO(expected)))
+                            throw new IllegalStateException("Image changed before deletion");
+                        if (new ImageRepositoryImpl(em).deleteById(expected.getId()) != 1)
+                            throw new IllegalStateException("Expected one deleted Image row");
+                        commitStarted = true;
+                        tx.commit();
+                    } catch (Exception failure) {
+                        try { if (tx.isActive()) tx.rollback(); }
+                        catch (Exception rollback) { failure.addSuppressed(rollback); commitStarted = true; }
+                        throw failure;
+                    }
+                } catch (Exception failure) { throw new DeleteFailedException(commitStarted, failure); }
+            }
             @Override public boolean owns(String path) {
                 try (var em = factory.createEntityManager()) { return new ImageRepositoryImpl(em).findByRelativePath(path).isPresent(); }
             }
@@ -315,6 +406,66 @@ public final class ImageCatalogueService {
                 return target;
             }
         }
+    }
+
+    /** Semantic deletion; the tombstone callback runs under the catalogue lock after commit. */
+    public DeletedImage delete(String input, TombstonePublication tombstone) throws Exception {
+        if (catalogue == null) throw new IllegalStateException("Catalogue deletion is not configured");
+        java.util.Objects.requireNonNull(tombstone, "tombstone");
+        String canonical = paths.canonicalPath(input);
+        return withCatalogueLock(() -> {
+            Image stored = catalogue.find(canonical).orElseThrow(ImageNotFoundException::new);
+            Image expected = new Image(new ImagePublishDTO(stored));
+            if (expected.getId() == null || expected.getId() <= 0) throw new IllegalStateException("Invalid catalogue identity");
+            DeletedImage deleted = new DeletedImage(expected.getId(), expected.getRelativePath());
+            // Resolve the stored spelling after the database has resolved path identity.
+            Path target;
+            try { target = paths.resolve(expected.getRelativePath()); }
+            catch (IOException | IllegalArgumentException failure) { throw new InvalidImagePathException(failure); }
+            if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) throw new ImageFileConflictException();
+            Path backup = privateFile(workDirectory(), ".delete-backup");
+            try { deletionFiles.stage(target, backup); }
+            catch (IOException failure) {
+                // A provider may throw after moving bytes. Preserve both paths, including empty files.
+                throw deletionRecovery(deleted, target, backup, DeletionOutcome.ROLLED_BACK, DeletionPhase.STAGING, failure);
+            }
+            try { catalogue.delete(expected); }
+            catch (Exception failure) {
+                if (!(failure instanceof DeleteFailedException known) || known.outcomeUnknown())
+                    throw deletionRecovery(deleted, target, backup, DeletionOutcome.UNKNOWN, DeletionPhase.COMMITTING, failure);
+                try {
+                    paths.resolve(expected.getRelativePath());
+                    // No replacement: an external file must never be overwritten during compensation.
+                    deletionFiles.restore(target, backup);
+                } catch (Exception restore) {
+                    failure.addSuppressed(restore);
+                    throw deletionRecovery(deleted, target, backup, DeletionOutcome.ROLLED_BACK, DeletionPhase.RESTORING, failure);
+                }
+                try { deletionFiles.cleanup(backup); }
+                catch (Exception cleanup) {
+                    failure.addSuppressed(cleanup);
+                    throw deletionRecovery(deleted, target, backup, DeletionOutcome.ROLLED_BACK, DeletionPhase.CLEANUP, failure);
+                }
+                throw failure;
+            }
+            try {
+                tombstone.publish(deleted);
+            } catch (Exception failure) {
+                throw deletionRecovery(deleted, target, backup, DeletionOutcome.COMMITTED, DeletionPhase.PUBLISHING, failure);
+            }
+            try { deletionFiles.cleanup(backup); }
+            catch (Exception failure) {
+                throw deletionRecovery(deleted, target, backup, DeletionOutcome.COMMITTED, DeletionPhase.CLEANUP, failure);
+            }
+            return deleted;
+        });
+    }
+
+    private DeletionRecoveryRequiredException deletionRecovery(DeletedImage image, Path target, Path backup,
+            DeletionOutcome outcome, DeletionPhase phase, Throwable failure) {
+        log.error("Image deletion recovery required: id={}, relativePath={}, databaseOutcome={}, phase={}, target={}, backup={}",
+                image.id(), image.relativePath(), outcome, phase, target, backup, failure);
+        return new DeletionRecoveryRequiredException(image, target, backup, outcome, phase, failure);
     }
 
     public void discard(ResolvedUpload upload) throws IOException {

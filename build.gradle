@@ -10,6 +10,16 @@ plugins {
     id 'com.github.ben-manes.versions' version '0.54.0'
 }
 
+// This is source data for the standalone packaged-JAR probe, not a JDT test class.
+// Keep the exclusion in the Gradle Eclipse model so Buildship refresh preserves it.
+eclipse.classpath.file.whenMerged { classpath ->
+    classpath.entries.findAll {
+        it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder && it.path == 'src/test/resources'
+    }.each { entry ->
+        entry.excludes = (entry.excludes + ['image-inspection/PackagedInspectionProbe.java']).unique()
+    }
+}
+
 /*
  * Run a Git command and return its trimmed standard output.
  *

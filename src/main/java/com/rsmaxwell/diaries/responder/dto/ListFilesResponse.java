@@ -21,7 +21,7 @@ public class ListFilesResponse {
 	}
 
 	public ListFilesResponse(Path subDirPath, List<ImageItem> items) {
-		this.subdir = subDirPath.toString();
+		this.subdir = subDirPath.toString().replace('\\', '/');
 		this.items = items;
 	}
 }

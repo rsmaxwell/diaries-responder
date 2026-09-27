@@ -108,6 +108,12 @@ class ImageWiringIntegrationTest {
 				.width(5).height(6).checksum("a".repeat(64)).build();
 	}
 
+    @Test
+    @EnabledIfEnvironmentVariable(named = "DIARIES_BROWSER_TEST_CLIENT", matches = ".+")
+    void filesDialogDeletionEndToEnd(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        ImageDeletionBrowserFixture.run(context, root);
+    }
+
 	@Test
 	void actualFactoryAndResponderWiringRegisterAndExposeImage() {
 		assertEquals(1, factory.getMetamodel().getEntities().stream().filter(e -> e.getJavaType() == Image.class).count());
@@ -354,6 +360,162 @@ class ImageWiringIntegrationTest {
         assertEquals(before,new ImagePublishDTO(context.inflateImage(saved.getId())).toJson());
     }
 
+    @Test
+    void catalogueDeletionCommitsAndRejectsStaleSnapshots(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        var store = com.rsmaxwell.diaries.responder.utilities.ImageCatalogueService.jpaCatalogue(factory);
+        Image saved = context.saveImage(candidate("maps/Caf\u00e9.png"));
+        Image stale = store.find("MAPS/CAF\u00c9.PNG").orElseThrow();
+        assertEquals(saved.getId(), stale.getId());
+        saved.setCaption("changed after lookup");
+        em.getTransaction().begin();
+        context.getImageRepository().update(saved);
+        em.getTransaction().commit();
+        var failure = assertThrows(com.rsmaxwell.diaries.responder.utilities.ImageCatalogueService.DeleteFailedException.class,
+            () -> store.delete(stale));
+        assertFalse(failure.outcomeUnknown());
+        assertEquals("changed after lookup", store.find(saved.getRelativePath()).orElseThrow().getCaption());
+
+        var target = root.resolve(saved.getRelativePath());
+        java.nio.file.Files.createDirectories(target.getParent());
+        java.nio.file.Files.writeString(target, "original");
+        var service = new com.rsmaxwell.diaries.responder.utilities.ImageCatalogueService(
+            new com.rsmaxwell.diaries.responder.utilities.ImagePathPolicy(root),
+            new com.rsmaxwell.diaries.responder.utilities.ImageMetadataInspector(), store);
+        var deleted = service.delete("maps/Caf\u00e9.png", dto -> {
+            assertTrue(store.find(dto.relativePath()).isEmpty(), "tombstone must follow visible commit");
+            assertEquals(saved.getId().longValue(), dto.id());
+            assertFalse(java.nio.file.Files.exists(target));
+        });
+        assertEquals(saved.getId().longValue(), deleted.id());
+        assertEquals(0, context.getImageRepository().count());
+        assertTrue(store.find(saved.getRelativePath()).isEmpty());
+        var missing = assertThrows(com.rsmaxwell.diaries.responder.utilities.ImageCatalogueService.DeleteFailedException.class,
+            () -> store.delete(saved));
+        assertFalse(missing.outcomeUnknown());
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named="DIARIES_IMAGE_MQTT_TEST_URL", matches=".+")
+    void registeredDeleteImageRemovesRowFileAndRetainedTopic(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        String broker = System.getenv("DIARIES_IMAGE_MQTT_TEST_URL");
+        assertTrue(broker.matches("tcp://127\\.0\\.0\\.1:[0-9]+"));
+        Image saved = context.saveImage(candidate("diary/images/test.png"));
+        var target = root.resolve("files/" + saved.getRelativePath());
+        java.nio.file.Files.createDirectories(target.getParent()); java.nio.file.Files.writeString(target,"original");
+        var cfg = new Config(); var files = new com.rsmaxwell.diaries.responder.config.DiariesConfig();
+        files.setRoot(root.toString()); files.setFiles("files"); cfg.setDiaries(files);
+        var ctx = new DiaryContext(); ctx.setConfig(cfg); ctx.setEntityManagerFactory(factory);
+        ctx.setSecret(java.util.Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes()));
+        var token = com.rsmaxwell.diaries.responder.utilities.Authorization.getTokenWithClaims(ctx.getSecret(),"access",5,
+            java.time.temporal.ChronoUnit.MINUTES,Map.of("status","ACTIVE","role","EDITOR"));
+        var messages = new java.util.concurrent.LinkedBlockingQueue<Map.Entry<String,org.eclipse.paho.mqttv5.common.MqttMessage>>();
+        var publisher = new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"delete-pub-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        var observer = new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"delete-sub-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        var late = new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"delete-late-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        String topic = "diaries/images/"+saved.getId();
+        try {
+            publisher.connect().waitForCompletion(10000); ctx.setPublisherClient(publisher);
+            observer.setCallback(new com.rsmaxwell.mqtt.rpc.common.Adapter() {
+                public void messageArrived(String t, org.eclipse.paho.mqttv5.common.MqttMessage m) { messages.add(Map.entry(t,m)); }
+            });
+            observer.connect().waitForCompletion(10000);
+            publisher.publish(topic,new ImagePublishDTO(saved).toJsonAsBytes(),1,true).waitForCompletion(10000);
+            observer.subscribe(topic,1).waitForCompletion(10000);
+            var initial = messages.poll(5,java.util.concurrent.TimeUnit.SECONDS);
+            assertNotNull(initial); assertTrue(initial.getValue().isRetained());
+            observer.subscribe("test/delete/reply",1).waitForCompletion(10000);
+            var request = new org.eclipse.paho.mqttv5.common.MqttMessage("{\"function\":\"deleteImage\",\"args\":{\"subdir\":\"diary/images\",\"name\":\"test.png\"}}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            var props = new org.eclipse.paho.mqttv5.common.packet.MqttProperties();
+            props.setResponseTopic("test/delete/reply"); props.setCorrelationData(new byte[]{1,2,3});
+            props.setUserProperties(List.of(new org.eclipse.paho.mqttv5.common.packet.UserProperty("accessToken",token)));
+            request.setProperties(props);
+            Responder.messageHandler.setContext(ctx); Responder.messageHandler.setPublisherClient(publisher);
+            Responder.messageHandler.messageArrived("diaries/rpc/request",request);
+            var responses = new HashMap<String,org.eclipse.paho.mqttv5.common.MqttMessage>();
+            for (int i=0;i<2;i++) {
+                var msg=messages.poll(5,java.util.concurrent.TimeUnit.SECONDS); assertNotNull(msg); responses.put(msg.getKey(),msg.getValue());
+            }
+            assertEquals(0,responses.get(topic).getPayload().length);
+            assertEquals(1,responses.get(topic).getQos());
+            var reply=responses.get("test/delete/reply"); assertNotNull(reply); assertFalse(reply.isRetained());
+            assertArrayEquals(new byte[]{1,2,3},reply.getProperties().getCorrelationData());
+            var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+            var status=reply.getProperties().getUserProperties().stream().filter(p->p.getKey().equals("status")).findFirst().orElseThrow();
+            assertEquals(200,mapper.readTree(status.getValue()).get("code").asInt());
+            var body=mapper.readTree(reply.getPayload()); assertEquals(saved.getId().longValue(),body.get("id").asLong());
+            assertEquals(saved.getRelativePath(),body.get("relativePath").asText()); assertTrue(body.get("deleted").asBoolean());
+            assertFalse(java.nio.file.Files.exists(target)); assertEquals(0,context.getImageRepository().count());
+            var retained=new java.util.concurrent.LinkedBlockingQueue<String>();
+            late.setCallback(new com.rsmaxwell.mqtt.rpc.common.Adapter() {
+                public void messageArrived(String t,org.eclipse.paho.mqttv5.common.MqttMessage m) { retained.add(t); }
+            });
+            late.connect().waitForCompletion(10000); late.subscribe(topic,1).waitForCompletion(10000);
+            assertNull(retained.poll(1500,java.util.concurrent.TimeUnit.MILLISECONDS),"tombstone must clear retained state");
+        } finally {
+            Responder.messageHandler.setContext(null); Responder.messageHandler.setPublisherClient(null);
+            for (var client : List.of(late,observer,publisher)) { if(client.isConnected())client.disconnect().waitForCompletion(5000);client.close(); }
+        }
+    }
+
+
+    @Test
+    @EnabledIfEnvironmentVariable(named="DIARIES_IMAGE_MQTT_TEST_URL", matches=".+")
+    void completedDeletionStaysAbsentAfterRestart(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        String broker = System.getenv("DIARIES_IMAGE_MQTT_TEST_URL");
+        assertTrue(broker.matches("tcp://127\\.0\\.0\\.1:[0-9]+"));
+        Image deleted = context.saveImage(candidate("deleted.png"));
+        Image survivor = context.saveImage(candidate("survivor.png"));
+        java.nio.file.Files.writeString(root.resolve("deleted.png"), "deleted-original");
+        java.nio.file.Files.writeString(root.resolve("survivor.png"), "survivor-original");
+        var publisher = new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"restart-delete-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        try {
+            publisher.connect().waitForCompletion(10000);
+            publisher.publish("diaries/images/"+deleted.getId(),new ImagePublishDTO(deleted).toJsonAsBytes(),1,true).waitForCompletion(10000);
+            publisher.publish("diaries/images/"+survivor.getId(),new ImagePublishDTO(survivor).toJsonAsBytes(),1,true).waitForCompletion(10000);
+            var service = new com.rsmaxwell.diaries.responder.utilities.ImageCatalogueService(
+                new com.rsmaxwell.diaries.responder.utilities.ImagePathPolicy(root),
+                new com.rsmaxwell.diaries.responder.utilities.ImageMetadataInspector(),
+                com.rsmaxwell.diaries.responder.utilities.ImageCatalogueService.jpaCatalogue(factory));
+            service.delete("deleted.png", image -> ImagePublishDTO.builder().id(image.id()).build().removeAndAwait(publisher));
+        } finally {
+            if (publisher.isConnected()) publisher.disconnect().waitForCompletion(5000);
+            publisher.close();
+        }
+        // Recreate persistence factory/context and run the actual startup synchronisation path.
+        try (var restartedFactory = GetEntityManager.adminFactory(config.getDb()); var fresh = restartedFactory.createEntityManager()) {
+            var restarted = Responder.createContext(config,restartedFactory,fresh);
+            assertNull(fresh.find(Image.class, deleted.getId()));
+            assertEquals(1, restarted.getImageRepository().count());
+            var syncConfig = new Config(); syncConfig.setNormaliseOnStartup(false);
+            var user = new User(); user.setUsername("step10-fixture"); user.setPassword("fixture");
+            new com.rsmaxwell.diaries.responder.sync.Synchronise().perform(syncConfig,restarted,broker,user);
+            assertNull(fresh.find(Image.class, deleted.getId()));
+            assertNotNull(fresh.find(Image.class, survivor.getId()));
+        }
+        var received = new java.util.concurrent.LinkedBlockingQueue<Map.Entry<String,String>>();
+        var observer = new org.eclipse.paho.mqttv5.client.MqttAsyncClient(broker,"restart-proof-"+java.util.UUID.randomUUID(),new org.eclipse.paho.mqttv5.client.persist.MemoryPersistence());
+        try {
+            observer.setCallback(new com.rsmaxwell.mqtt.rpc.common.Adapter() {
+                public void messageArrived(String topic, org.eclipse.paho.mqttv5.common.MqttMessage message) {
+                    received.add(Map.entry(topic,new String(message.getPayload(),java.nio.charset.StandardCharsets.UTF_8)));
+                }
+            });
+            observer.connect().waitForCompletion(10000);
+            observer.subscribe("diaries/images/#",1).waitForCompletion(10000);
+            var retained = new java.util.TreeMap<String,String>();
+            Map.Entry<String,String> message;
+            while ((message=received.poll(1500,java.util.concurrent.TimeUnit.MILLISECONDS)) != null) retained.put(message.getKey(),message.getValue());
+            assertEquals(Map.of("diaries/images/"+survivor.getId(),new ImagePublishDTO(survivor).toJson()),retained);
+            assertFalse(java.nio.file.Files.exists(root.resolve("deleted.png")));
+            assertEquals("survivor-original",java.nio.file.Files.readString(root.resolve("survivor.png")));
+            try (var staging = java.nio.file.Files.list(root.resolve(".image-staging"))) {
+                assertEquals(List.of("catalogue.lock"),staging.map(p->p.getFileName().toString()).toList());
+            }
+        } finally {
+            if(observer.isConnected())observer.disconnect().waitForCompletion(5000);
+            observer.close();
+        }
+    }
 
     @org.junit.jupiter.params.ParameterizedTest(name="startup replay with {0} Images")
     @org.junit.jupiter.params.provider.ValueSource(ints={0,1,3})

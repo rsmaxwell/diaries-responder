@@ -120,4 +120,14 @@ public class ImagePublishDTO extends Base implements Jsonable {
 		publisher.publish(client, topic(), Publisher.emptyPayload);
 	}
 
+    /** Lifecycle deletion must observe broker acknowledgement before discarding its backup. */
+    public void removeAndAwait(MqttAsyncClient client) throws Exception {
+        var delivery = client.publish(topic(), Publisher.emptyPayload, 1, true);
+        delivery.waitForCompletion(10_000);
+        var reasons = delivery.getReasonCodes();
+        if (reasons != null) for (int reason : reasons) {
+            if (reason >= 128) throw new java.io.IOException("Image tombstone rejected by broker");
+        }
+    }
+
 }
