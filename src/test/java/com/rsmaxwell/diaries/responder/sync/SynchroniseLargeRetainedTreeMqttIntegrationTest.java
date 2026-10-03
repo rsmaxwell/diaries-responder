@@ -1,7 +1,6 @@
 package com.rsmaxwell.diaries.responder.sync;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,8 +40,13 @@ import com.rsmaxwell.mqtt.rpc.common.Adapter;
 @EnabledIfEnvironmentVariable(named = "DIARIES_IMAGE_MQTT_TEST_URL", matches = ".+")
 class SynchroniseLargeRetainedTreeMqttIntegrationTest {
 
-    private static final int TOPIC_COUNT = 3_000;
-    private static final int PAYLOAD_PADDING = 2_048;
+    // The aggregate fixture deliberately exceeds the historical 10,000-message
+    // queue threshold that exposed the startup defect. The Step 13 broker fixture now
+    // uses max_queued_messages=0, while the responder still drains non-overlapping
+    // branches sequentially so the large retained snapshot remains bounded and observable.
+    private static final int TOPICS_PER_BRANCH = 1_400;
+    private static final int TOPIC_COUNT = TOPICS_PER_BRANCH * Synchronise.SNAPSHOT_TOPIC_FILTERS.length;
+    private static final int PAYLOAD_PADDING = 128;
 
     @Test
     @Timeout(value = 3, unit = TimeUnit.MINUTES)
@@ -78,12 +82,19 @@ class SynchroniseLargeRetainedTreeMqttIntegrationTest {
     private static Map<String,String> largeDatabaseSnapshot() {
         Map<String,String> result=new HashMap<>();
         String padding="x".repeat(PAYLOAD_PADDING);
-        for(int index=0;index<TOPIC_COUNT;index++) {
-            long id=9_000_000L+index;
-            String topic="diaries/fragments/"+id;
-            String payload="{\"id\":"+id+",\"version\":0,\"text\":\""+padding+index+"\"}";
-            result.put(topic,payload);
+        int ordinal=0;
+        for(String filter:Synchronise.SNAPSHOT_TOPIC_FILTERS) {
+            assertTrue(filter.endsWith("/#"));
+            String root=filter.substring(0,filter.length()-1);
+            for(int index=0;index<TOPICS_PER_BRANCH;index++) {
+                long id=9_000_000L+ordinal++;
+                String topic=root+id;
+                String payload="{\"id\":"+id+",\"version\":0,\"text\":\""+padding+index+"\"}";
+                result.put(topic,payload);
+            }
         }
+        assertEquals(TOPIC_COUNT,result.size());
+        assertTrue(result.size()>10_000,"Fixture must exceed the historical 10,000-message queue threshold");
         return result;
     }
 
@@ -91,16 +102,17 @@ class SynchroniseLargeRetainedTreeMqttIntegrationTest {
         Map<String,String> result=new ConcurrentHashMap<>();
         AtomicInteger duplicates=new AtomicInteger();
         AtomicReference<String> invalidPublication=new AtomicReference<>();
-        CountDownLatch drained=new CountDownLatch(1);
         String barrierRoot="diaries-sync/test-verify/"+UUID.randomUUID()+"/";
         String barrierFilter=barrierRoot+"#";
-        String barrierTopic=barrierRoot+UUID.randomUUID();
+        AtomicReference<String> pendingBarrierTopic=new AtomicReference<>();
+        AtomicReference<CountDownLatch> pendingBarrierLatch=new AtomicReference<>();
 
         try(FixtureClient publisher=connect(url,false); FixtureClient client=connect(url,true)) {
             client.setCallback(new Adapter() {
                 @Override public void messageArrived(String topic,MqttMessage message) {
-                    if(topic.equals(barrierTopic)) {
-                        drained.countDown();
+                    if(topic.startsWith(barrierRoot)) {
+                        CountDownLatch latch=pendingBarrierLatch.get();
+                        if(latch!=null && topic.equals(pendingBarrierTopic.get()))latch.countDown();
                         return;
                     }
                     if(topic.startsWith("diaries-sync/"))return;
@@ -113,21 +125,30 @@ class SynchroniseLargeRetainedTreeMqttIntegrationTest {
                 }
             });
 
-            // Mirror the production drain protocol independently: retained snapshot and
-            // non-overlapping barrier are both QoS 1. The snapshot client advertises a
-            // Receive Maximum of 20, so Mosquitto paces the reliable replay while its
-            // configured queue retains the complete tree. Only after both SUBACKs have
-            // completed does the separate publisher send the barrier.
             client.subscribe(new MqttSubscription(barrierFilter,SynchroniseCallback.BARRIER_QOS)).waitForCompletion(10_000);
-            client.subscribe(new MqttSubscription("diaries/#",SynchroniseCallback.SNAPSHOT_QOS)).waitForCompletion(10_000);
-            publisher.publish(barrierTopic,new byte[]{1},SynchroniseCallback.BARRIER_QOS,false).waitForCompletion(10_000);
 
-            assertTrue(drained.await(SynchroniseCallback.DEFAULT_DRAIN_TIMEOUT_MILLIS,TimeUnit.MILLISECONDS),
-                    "Timed out waiting for independent retained-snapshot drain marker after receiving "+result.size()+" of "+expected+" retained messages");
+            // Verify independently using the same branch-by-branch snapshot structure
+            // as the responder. The broker fixture has no message-count queue ceiling.
+            for(String filter:Synchronise.SNAPSHOT_TOPIC_FILTERS) {
+                CountDownLatch drained=new CountDownLatch(1);
+                String barrierTopic=barrierRoot+UUID.randomUUID();
+                pendingBarrierTopic.set(barrierTopic);
+                pendingBarrierLatch.set(drained);
+
+                client.subscribe(new MqttSubscription(filter,SynchroniseCallback.SNAPSHOT_QOS)).waitForCompletion(10_000);
+                publisher.publish(barrierTopic,new byte[]{1},SynchroniseCallback.BARRIER_QOS,false).waitForCompletion(10_000);
+
+                assertTrue(drained.await(SynchroniseCallback.DEFAULT_DRAIN_TIMEOUT_MILLIS,TimeUnit.MILLISECONDS),
+                        "Timed out waiting for retained-snapshot drain marker for "+filter+
+                        " after receiving "+result.size()+" of "+expected+" retained messages");
+            }
+
+            pendingBarrierLatch.set(null);
+            pendingBarrierTopic.set(null);
             assertNull(invalidPublication.get(),invalidPublication.get());
             assertEquals(0,duplicates.get(),"Duplicate retained Diaries publications");
             assertEquals(expected,result.size(),
-                    "Independent retained snapshot was incomplete after its drain marker");
+                    "Independent retained snapshot was incomplete after its branch drain markers");
             return Map.copyOf(result);
         }
     }

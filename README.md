@@ -221,6 +221,12 @@ The built-in static file server listens on port `8081` and serves:
 /files      uploaded files
 ```
 
+The configured `diaries.files` value is a physical **leaf directory name** beneath `diaries.root`; it is not the browser URL prefix. Local/runtime configuration calls the same selector `DIARIES_FILES_DIR`. Docker and production mount whichever physical directory is selected at `/data/files`, while direct Windows development resolves `<diaries.root>/<DIARIES_FILES_DIR>`. The public contract nevertheless remains `/files/...`. Persisted `Image.relativePath` is also relative to the selected Files root and must not contain environment-specific directory names.
+
+Treat the PostgreSQL dataset and the selected mutable Files root as one durable pair. The shared original scan tree (`diaries.diaries`, normally `diaries`) is separate and read-only in Docker/production. A responder must never be repointed to a different database without the matching Files root, or to a different Files root without the matching database.
+
+For direct Windows development, `scripts/windows/development-infrastructure/prepare-responder-config.bat` loads `development-infrastructure.env` first and `local.env` second, validates the effective database/Files pair, and writes an ignored generated responder configuration. Only `diaries.files` is replaced in the developer-owned base JSON. With the normal common override this resolves `./data/database/common` together with `files-development-common`; removing both overrides returns direct development to the isolated committed defaults.
+
 ## MQTT RPC handlers
 
 The responder registers handlers for operations such as:
@@ -544,10 +550,18 @@ See also:
 
 For development-infrastructure on Windows, use
 `diaries-responder/scripts/windows/migration0024ImageCatalogue.bat` from the
-top-level project. It uses `%USERPROFILE%\.diaries\responder.json`, matching
-`diaries-responder/scripts/windows/run-responder.bat`, and accepts
-`DIARIES_RESPONDER_CONFIG_FILE` as an explicit override. Paths are relative to
-the caller's directory. The only required argument is the mode:
+top-level project. Both it and `diaries-responder/scripts/windows/run-responder.bat`
+use `scripts/windows/development-infrastructure/prepare-responder-config.bat`.
+That helper loads `development-infrastructure.env` and then the ignored
+`local.env`, validates `DIARIES_DB_DATA_DIR` and `DIARIES_FILES_DIR`, and writes
+an ignored generated config under `build/development-infrastructure/`. The
+existing `%USERPROFILE%\.diaries\responder.json` remains the developer-owned
+base; only `diaries.files` is replaced in the generated copy. Credentials and
+all unrelated settings remain the values from the base JSON.
+`DIARIES_RESPONDER_BASE_CONFIG_FILE` may select a different base; the older
+`DIARIES_RESPONDER_CONFIG_FILE` override remains accepted for compatibility.
+Paths are relative to the caller's directory. The only required argument is the
+mode:
 
 ```bat
 diaries-responder\scripts\windows\migration0024ImageCatalogue.bat dry-run
@@ -562,14 +576,16 @@ empty both evidence directories before starting another complete reconciliation.
 An optional 0022 candidate CSV may follow the mode; when supplied for dry-run,
 supply the same unchanged file for apply.
 
-The three local modes use the same database data directory when `local.env`
-sets `DIARIES_DB_DATA_DIR=./data/database/common`, and their responder
-configurations address the same physical NAS Files tree. Run the local
-reconciliation once through development-infrastructure. Do not apply it again in
-local-docker-build or local-published-smoke. When either Docker mode starts, its
-responder reads the shared Image rows and replays the catalogue into that mode's
-own retained MQTT tree. The modes must not run their PostgreSQL containers
-concurrently against the shared data directory.
+The normal local workflow deliberately uses one paired dataset when `local.env`
+sets both `DIARIES_DB_DATA_DIR=./data/database/common` and
+`DIARIES_FILES_DIR=files-development-common`. The direct Windows responder and
+reconciliation helper consume that same effective Files selector, while the two
+Docker modes mount the same selected physical Files root at `/data/files`.
+Therefore run local reconciliation once through development-infrastructure and
+do not apply it again in local-docker-build or local-published-smoke. When either
+Docker mode starts, its responder reads the shared Image rows and replays the
+catalogue into that mode's own retained MQTT tree. The modes must not run their
+PostgreSQL containers concurrently against the shared data directory.
 
 A reconciliation plan is bound to its database identity and Files-root identity.
 The development configuration sees the NAS through a Windows path, while the

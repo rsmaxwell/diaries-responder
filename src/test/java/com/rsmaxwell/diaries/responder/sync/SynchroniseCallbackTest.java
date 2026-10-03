@@ -54,4 +54,28 @@ class SynchroniseCallbackTest {
         assertThrows(IllegalStateException.class,()->callback.awaitDrained(topic->callback.disconnected(null),100));
         assertThrows(IllegalStateException.class,()->callback.awaitDrained(topic->{},100));
     }
+    @Test void retainedSnapshotUsesNonOverlappingTopLevelBranches() {
+        assertArrayEquals(new String[] {
+                "diaries/diaries/#",
+                "diaries/pages/#",
+                "diaries/fragments/#",
+                "diaries/marquees/#",
+                "diaries/images/#",
+                "diaries/dates/#",
+                "diaries/people/#",
+                "diaries/roles/#"
+        },Synchronise.SNAPSHOT_TOPIC_FILTERS);
+
+        for(int left=0;left<Synchronise.SNAPSHOT_TOPIC_FILTERS.length;left++) {
+            String leftRoot=Synchronise.SNAPSHOT_TOPIC_FILTERS[left].substring(0,
+                    Synchronise.SNAPSHOT_TOPIC_FILTERS[left].length()-1);
+            for(int right=left+1;right<Synchronise.SNAPSHOT_TOPIC_FILTERS.length;right++) {
+                String rightRoot=Synchronise.SNAPSHOT_TOPIC_FILTERS[right].substring(0,
+                        Synchronise.SNAPSHOT_TOPIC_FILTERS[right].length()-1);
+                assertFalse(leftRoot.startsWith(rightRoot) || rightRoot.startsWith(leftRoot),
+                        "Snapshot branches must not overlap: "+leftRoot+" and "+rightRoot);
+            }
+        }
+    }
+
 }

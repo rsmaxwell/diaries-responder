@@ -82,6 +82,21 @@ class UploadStagingTest {
         assertEquals("generic bytes", Files.readString(root.resolve("files/data.bin")));
         cleanStaging();
     }
+    @Test void publicUrlAndPersistedPathDoNotExposePhysicalFilesDirectory() throws Exception {
+        String physicalFilesDirectory = "files-development-common";
+        context.getConfig().getDiaries().setFiles(physicalFilesDirectory);
+        Files.createDirectory(root.resolve(physicalFilesDirectory));
+
+        var response = handler().handleRequest(context, args(png()), editor);
+        var payload = (com.rsmaxwell.diaries.responder.dto.UploadFileResponse) response.payload();
+
+        assertEquals("/files/image.txt", payload.url());
+        assertTrue(Files.isRegularFile(root.resolve(physicalFilesDirectory).resolve("image.txt")));
+        assertEquals(1, rows.size());
+        assertEquals("image.txt", rows.values().iterator().next().getRelativePath());
+        assertFalse(rows.values().iterator().next().getRelativePath().contains("development-common"));
+    }
+
     @Test void allRejectedInputsLeaveExistingBytesAndNoParts() throws Exception {
         Files.writeString(root.resolve("files/image.txt"),"original");
         var cases = new ArrayList<Map<String,Object>>();

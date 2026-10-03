@@ -51,8 +51,29 @@ public class Synchronise {
 	static final String clientID_sync_pub = "syncronise-pub";
 	static final String clientID_sync_sub = "syncronise-sub";
 
-	// One wildcard covers every canonical and legacy topic without requesting overlapping replays.
-	private static final String[] topicFilters = { "diaries/#" };
+	/*
+	 * Capture the retained tree one non-overlapping top-level branch at a time.
+	 *
+	 * Mosquitto limits queued QoS 1/2 messages per client. A single diaries/#
+	 * subscription can therefore fill the broker queue before the drain marker is
+	 * enqueued once the retained tree becomes large enough. Mosquitto silently drops
+	 * subsequent queued messages at that limit, so the marker can be lost even though
+	 * all connections remain healthy.
+	 *
+	 * These filters are deliberately non-overlapping. We keep every subscription active
+	 * after its replay drains so the temporary snapshot client continues to observe the
+	 * reconciliation publishes/tombstones before validateMapKeys() runs.
+	 */
+	static final String[] SNAPSHOT_TOPIC_FILTERS = {
+			"diaries/diaries/#",
+			"diaries/pages/#",
+			"diaries/fragments/#",
+			"diaries/marquees/#",
+			"diaries/images/#",
+			"diaries/dates/#",
+			"diaries/people/#",
+			"diaries/roles/#"
+	};
 
     public void perform(Config config, DiaryContext context, String server, User user) throws Exception {
         String suffix=java.util.UUID.randomUUID().toString();
@@ -72,18 +93,19 @@ public class Synchronise {
             snapshotOptions.setReceiveMaximum(SynchroniseCallback.SNAPSHOT_RECEIVE_MAXIMUM);
             subscriber.connect(snapshotOptions).waitForCompletion(10000);
 
-            // Keep the barrier outside diaries/# so the subscriptions never overlap.
-            // Both streams are QoS 1. The broker configuration reserves enough queued
-            // messages for the complete retained tree, while Receive Maximum supplies
-            // back-pressure as the responder processes each batch.
-            //
-            // Subscribe to the barrier first and diaries/# second. Once the diaries/#
-            // SUBACK has completed, Mosquitto has already queued its retained replay for
-            // this subscriber. A QoS-1 barrier subsequently published by the separate
-            // reconciliation connection is therefore queued behind that replay.
+            // Keep the barrier outside diaries/# so it never overlaps a retained-state
+            // subscription. Both replay and barrier use QoS 1. Subscribe to the barrier
+            // first, then add one non-overlapping retained branch at a time and wait for
+            // its marker before adding the next branch. Receive Maximum supplies
+            // protocol-level back-pressure while the per-branch split keeps the queued
+            // replay below the broker's finite per-client queue.
             subscriber.subscribe(new MqttSubscription(sync.barrierFilter(),SynchroniseCallback.BARRIER_QOS)).waitForCompletion(10000);
-            for(String topic:topicFilters)subscriber.subscribe(new MqttSubscription(topic,SynchroniseCallback.SNAPSHOT_QOS)).waitForCompletion(10000);
-            sync.awaitDrained(publisher);
+            for(String topicFilter:SNAPSHOT_TOPIC_FILTERS) {
+                log.info("Capturing retained MQTT snapshot branch: {}",topicFilter);
+                subscriber.subscribe(new MqttSubscription(topicFilter,SynchroniseCallback.SNAPSHOT_QOS)).waitForCompletion(10000);
+                sync.awaitDrained(publisher);
+                log.info("Retained MQTT snapshot branch drained: {} ({} topics captured total)",topicFilter,topicTreeMap.size());
+            }
             Map<String,String> databaseMap=context.loadFromDatabase();
             log.info("sizeof(topicTreeMap) = {}",topicTreeMap.size());
             log.info("sizeof(databaseMap) = {}",databaseMap.size());

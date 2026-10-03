@@ -23,6 +23,7 @@ import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
 
 public class UploadFile extends RequestHandler {
+    private static final String PUBLIC_FILES_CONTEXT = "/files";
     private static final long MAX_BYTES = ImageMetadataInspector.DEFAULT_MAX_BYTES;
     private static final Set<String> TYPES = Set.of("image/jpeg", "image/png", "image/gif", "image/webp", "application/octet-stream");
 
@@ -84,7 +85,7 @@ public class UploadFile extends RequestHandler {
             var image = saved.map(com.rsmaxwell.diaries.responder.dto.ImagePublishDTO::new).orElse(null);
             return Response.success(new com.rsmaxwell.diaries.responder.dto.UploadFileResponse(
                     name, directory, upload.inspection().size(), target.toString(),
-                    "/" + config.getFiles() + "/" + upload.relativePath(), image == null ? null : image.getId(), image));
+                    PUBLIC_FILES_CONTEXT + "/" + upload.relativePath(), image == null ? null : image.getId(), image));
         } catch (java.nio.file.FileAlreadyExistsException failure) {
             throw RpcStatusException.conflict("File already exists.");
         } catch (ImageCatalogueService.PublicationFailedException failure) {
