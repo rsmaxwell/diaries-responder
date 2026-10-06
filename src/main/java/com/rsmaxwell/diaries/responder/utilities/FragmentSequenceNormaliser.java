@@ -2,7 +2,9 @@ package com.rsmaxwell.diaries.responder.utilities;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import com.rsmaxwell.diaries.responder.dto.FragmentDBDTO;
@@ -112,6 +114,23 @@ public final class FragmentSequenceNormaliser {
 		}
 
 		return originalSequence.compareTo(incomingSequence) != 0;
+	}
+
+	/**
+	 * Publish an atomic creation and every chronology row changed by its
+	 * normalisation. The final committed created Fragment wins de-duplication so a
+	 * response never republishes the pre-normalisation sequence/version.
+	 */
+	public static void publishCreation(DiaryContext context, FragmentCreationResult creation) throws Exception {
+		Map<Long, Fragment> survivors = new LinkedHashMap<>();
+		Long createdId = creation.getFragment().getId();
+		for (Fragment fragment : creation.getNormalisedFragments()) {
+			if (!Objects.equals(fragment.getId(), createdId)) {
+				survivors.put(fragment.getId(), fragment);
+			}
+		}
+		publish(context, survivors.values());
+		new FragmentPublishDTO(creation.getFragment(), creation.getMarquee()).publish(context.getPublisherClient());
 	}
 
 	/** Publish committed sequence changes to both canonical and date topics. */

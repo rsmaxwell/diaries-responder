@@ -11,6 +11,8 @@ import com.rsmaxwell.diaries.responder.model.FragmentType;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
+import com.rsmaxwell.diaries.responder.utilities.FragmentCreationResult;
+import com.rsmaxwell.diaries.responder.utilities.FragmentSequenceNormaliser;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
@@ -55,17 +57,20 @@ public class AddImageFragment extends RequestHandler {
         } catch (Exception missingPage) {
             throw RpcStatusException.badRequest("Page could not be resolved: " + pageId);
         }
-        Fragment saved;
+        FragmentCreationResult creation;
         try {
-            saved = context.saveImageFragment(candidate).getFragment();
+            creation = context.saveImageFragmentAndNormalise(candidate);
+        } catch (RpcStatusException status) {
+            throw status;
         } catch (IllegalArgumentException invalidReference) {
             throw RpcStatusException.badRequest("Image reference could not be resolved");
         } catch (Exception failure) {
             throw RpcStatusException.internalError("Unable to save Image Fragment");
         }
+        Fragment saved = creation.getFragment();
         FragmentPublishDTO dto = new FragmentPublishDTO(saved, null);
         try {
-            dto.publish(context.getPublisherClient());
+            FragmentSequenceNormaliser.publishCreation(context, creation);
         } catch (Exception failure) {
             throw RpcStatusException.internalError("Fragment " + saved.getId()
                     + " was saved, but retained publication failed; do not repeat creation blindly");

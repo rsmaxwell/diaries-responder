@@ -30,6 +30,7 @@ import com.drew.metadata.mov.QuickTimeDirectory;
 import com.drew.metadata.mp4.Mp4Directory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.responder.config.DiariesConfig;
+import com.rsmaxwell.diaries.responder.dto.ImagePublishDTO;
 import com.rsmaxwell.diaries.responder.dto.ListFilesResponse;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
@@ -124,7 +125,9 @@ public class ListFiles extends RequestHandler {
 		            String name = p.getFileName().toString();
 		            String url = buildUrlPath(filesContext, subdir, name);
 		            Long dateTaken = readDateTakenMillis(p);
-		            return ImageItem.file(name, url, size, mtime, dateTaken);
+		            String relativePath = paths.canonicalPath(paths.root().relativize(p.toAbsolutePath().normalize()).toString());
+		            ImagePublishDTO image = catalogueImage(context, relativePath);
+		            return ImageItem.file(name, url, size, mtime, dateTaken, image);
 		        })
 		        .collect(Collectors.toList());
 
@@ -137,6 +140,13 @@ public class ListFiles extends RequestHandler {
 		// --- Success payload ---
 		ListFilesResponse response = new ListFilesResponse(paths.root().relativize(targetDir), items);
 		return Response.success(response);
+	}
+
+	/** Additive catalogue lookup used by listFiles; uncatalogued files remain ordinary file entries. */
+	protected ImagePublishDTO catalogueImage(DiaryContext context, String canonicalRelativePath) {
+		if (context.getImageRepository() == null) return null;
+		return context.getImageRepository().findByRelativePath(canonicalRelativePath)
+				.map(ImagePublishDTO::new).orElse(null);
 	}
 
 	private static Long readDateTakenMillis(Path imagePath) {

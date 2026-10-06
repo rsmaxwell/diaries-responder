@@ -20,7 +20,8 @@ import com.rsmaxwell.diaries.responder.model.Page;
 import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
-import com.rsmaxwell.diaries.responder.utilities.ResolvedFragmentState;
+import com.rsmaxwell.diaries.responder.utilities.FragmentCreationResult;
+import com.rsmaxwell.diaries.responder.utilities.FragmentSequenceNormaliser;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -107,22 +108,26 @@ public class AddFragment extends RequestHandler {
 			throw RpcStatusException.badRequest(e.getMessage());
 		}
 
-		// First add the new Fragment to the database
-		Fragment savedFragment;
-		Marquee savedMarquee;
-
+		// Create the Fragment + Marquee and close the affected date chronology in one
+		// transaction. A successful add must never rely on responder startup to repair
+		// sequence gaps or fractional insertion numbers.
+		FragmentCreationResult creation;
 		try {
-			ResolvedFragmentState result = context.saveMarqueeFragment(fragment, marquee);
-			savedFragment = result.getFragment();
-			savedMarquee = result.getMarquee();
+			creation = context.saveMarqueeFragmentAndNormalise(fragment, marquee);
+		} catch (RpcStatusException e) {
+			throw e;
 		} catch (Exception e) {
 			throw RpcStatusException.internalError(e.getMessage());
 		}
 
-		// Now publish the Fragment (and its marquee) to the topic tree
+		Fragment savedFragment = creation.getFragment();
+		Marquee savedMarquee = creation.getMarquee();
+
+		// Publish the final committed created Fragment and every existing Fragment
+		// renumbered by the add. Then publish the new Marquee hierarchy.
 		MqttAsyncClient client = context.getPublisherClient();
+		FragmentSequenceNormaliser.publishCreation(context, creation);
 		FragmentPublishDTO fragmentPublishDTO = new FragmentPublishDTO(savedFragment, savedMarquee);
-		fragmentPublishDTO.publish(client);
 
 		MarqueePublishDTO marqueePublishDTO = new MarqueePublishDTO(savedMarquee);
 		marqueePublishDTO.publish(client, page.getDiary().getId());

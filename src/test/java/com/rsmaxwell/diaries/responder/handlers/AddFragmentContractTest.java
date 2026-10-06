@@ -28,16 +28,17 @@ class AddFragmentContractTest {
         try {
             DiaryContext context = new DiaryContext() {
                 @Override public Page inflatePage(Long id) { assertEquals(22L, id); return page; }
-                @Override public ResolvedFragmentState saveMarqueeFragment(Fragment fragment, Marquee marquee) {
+                @Override public FragmentCreationResult saveMarqueeFragmentAndNormalise(Fragment fragment, Marquee marquee) {
                     assertEquals(FragmentType.MARQUEE, fragment.getType()); assertNull(fragment.getImageId());
                     assertSame(fragment, marquee.getFragment()); assertSame(page, marquee.getPage());
                     assertEquals(4, fragment.getSequence().scale());
                     assertEquals(12d, marquee.getX()); assertEquals(13d, marquee.getY());
                     assertEquals(40d, marquee.getWidth()); assertEquals(50d, marquee.getHeight());
                     var state = new ResolvedFragmentState(fragment, marquee); state.validateForWrite();
-                    fragment.setId(123L); marquee.setId(44L); committed[0] = true; return state;
+                    fragment.setId(123L); marquee.setId(44L); committed[0] = true;
+                    return new FragmentCreationResult(state, List.of());
                 }
-                @Override public ResolvedFragmentState saveImageFragment(Fragment fragment) { throw new AssertionError("Wrong creation path"); }
+                @Override public FragmentCreationResult saveImageFragmentAndNormalise(Fragment fragment) { throw new AssertionError("Wrong creation path"); }
             };
             context.setSecret(Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8)));
             context.setPublisherClient(publisher);

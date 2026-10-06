@@ -95,7 +95,12 @@ public class DiaryContext {
 		return map;
 	}
 
-	/** Create a MARQUEE Fragment and its Marquee atomically. */
+	/**
+	 * Low-level MARQUEE persistence helper retained for integration fixtures and
+	 * controlled seeding. Live RPC creation must use
+	 * {@link #saveMarqueeFragmentAndNormalise(Fragment, Marquee)} so chronology is
+	 * closed in the same operation.
+	 */
 	public ResolvedFragmentState saveMarqueeFragment(Fragment fragment, Marquee marquee) throws Exception {
 		requireNewFragment(fragment, FragmentType.MARQUEE);
 		if (marquee == null || marquee.getFragment() != fragment || marquee.getPage() != fragment.getPage())
@@ -112,7 +117,63 @@ public class DiaryContext {
 		});
 	}
 
-	/** Create an IMAGE Fragment without synthesising a Marquee. */
+	/**
+	 * Create a MARQUEE Fragment and its Marquee, then normalise the affected date
+	 * before committing. This is the handler-facing creation path; the returned
+	 * state is reloaded after commit so its sequence/version are authoritative.
+	 */
+	public FragmentCreationResult saveMarqueeFragmentAndNormalise(Fragment fragment, Marquee marquee) throws Exception {
+		requireNewFragment(fragment, FragmentType.MARQUEE);
+		if (marquee == null || marquee.getFragment() != fragment || marquee.getPage() != fragment.getPage())
+			throw new IllegalArgumentException("Marquee must use the candidate Fragment and Page");
+		new ResolvedFragmentState(fragment, marquee).validateForWrite();
+
+		Fragment candidate = copyFragment(fragment);
+		Marquee candidateMarquee = Marquee.builder().page(candidate.getPage()).fragment(candidate)
+				.x(marquee.getX()).y(marquee.getY()).width(marquee.getWidth()).height(marquee.getHeight())
+				.version(marquee.getVersion()).build();
+
+		FragmentCreationResult persisted = inOwnedTransaction(() -> {
+			fragmentRepository.save(candidate);
+			marqueeRepository.save(candidateMarquee);
+			var normalised = FragmentSequenceNormaliser.normaliseDate(
+					fragmentRepository, candidate.getYear(), candidate.getMonth(), candidate.getDay());
+			return new FragmentCreationResult(new ResolvedFragmentState(candidate, candidateMarquee), normalised);
+		});
+
+		ResolvedFragmentState committed = resolveFragmentState(inflateFragment(persisted.getFragment().getId()));
+		return new FragmentCreationResult(committed, persisted.getNormalisedFragments());
+	}
+
+	/**
+	 * Create an IMAGE Fragment, then normalise the affected date before committing.
+	 * No Marquee is synthesised.
+	 */
+	public FragmentCreationResult saveImageFragmentAndNormalise(Fragment fragment) throws Exception {
+		ImageFragmentWritePolicy.requireEnabled(this);
+		requireNewFragment(fragment, FragmentType.IMAGE);
+		Fragment candidate = copyFragment(fragment);
+
+		FragmentCreationResult persisted = inOwnedTransaction(() -> {
+			candidate.setImage(lockImageForFragmentWrite(candidate.getImageId()));
+			ResolvedFragmentState state = new ResolvedFragmentState(candidate, null);
+			state.validateForWrite();
+			fragmentRepository.save(candidate);
+			var normalised = FragmentSequenceNormaliser.normaliseDate(
+					fragmentRepository, candidate.getYear(), candidate.getMonth(), candidate.getDay());
+			return new FragmentCreationResult(state, normalised);
+		});
+
+		ResolvedFragmentState committed = resolveFragmentState(inflateFragment(persisted.getFragment().getId()));
+		return new FragmentCreationResult(committed, persisted.getNormalisedFragments());
+	}
+
+	/**
+	 * Low-level IMAGE persistence helper retained for integration fixtures and
+	 * controlled seeding. Live RPC creation must use
+	 * {@link #saveImageFragmentAndNormalise(Fragment)} so chronology is closed in
+	 * the same operation.
+	 */
 	public ResolvedFragmentState saveImageFragment(Fragment fragment) throws Exception {
         ImageFragmentWritePolicy.requireEnabled(this);
 		requireNewFragment(fragment, FragmentType.IMAGE);

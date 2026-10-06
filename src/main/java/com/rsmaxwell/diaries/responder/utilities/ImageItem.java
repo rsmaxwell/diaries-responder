@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.rsmaxwell.diaries.responder.dto.ImagePublishDTO;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ImageItem(
@@ -13,7 +14,9 @@ public record ImageItem(
         long size,
         long mtime,
         Long dateTaken,
-        boolean dir) {
+        boolean dir,
+        Long imageId,
+        ImagePublishDTO image) {
 
     private static final ZoneId LOG_ZONE = ZoneId.systemDefault();
 
@@ -31,7 +34,9 @@ public record ImageItem(
                 0L,
                 mtime,
                 null,
-                true);
+                true,
+                null,
+                null);
     }
 
     /**
@@ -43,6 +48,17 @@ public record ImageItem(
             long size,
             long mtime,
             Long dateTaken) {
+        return file(name, url, size, mtime, dateTaken, null);
+    }
+
+    /** File entry with optional reusable Image catalogue metadata. */
+    public static ImageItem file(
+            String name,
+            String url,
+            long size,
+            long mtime,
+            Long dateTaken,
+            ImagePublishDTO image) {
 
         return new ImageItem(
                 name,
@@ -50,7 +66,9 @@ public record ImageItem(
                 size,
                 mtime,
                 dateTaken,
-                false);
+                false,
+                image == null ? null : image.getId(),
+                image);
     }
 
     public String mtimeStr() {

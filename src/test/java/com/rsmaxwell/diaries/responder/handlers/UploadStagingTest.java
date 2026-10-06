@@ -82,6 +82,29 @@ class UploadStagingTest {
         assertEquals("generic bytes", Files.readString(root.resolve("files/data.bin")));
         cleanStaging();
     }
+    @Test void listFilesAddsCatalogueIdentityWithoutChangingUncataloguedFiles() throws Exception {
+        var uploadArgs = args(png()); uploadArgs.put("name", "catalogued.png"); uploadArgs.put("contentType", "image/png");
+        var uploaded = (com.rsmaxwell.diaries.responder.dto.UploadFileResponse) handler().handleRequest(context, uploadArgs, editor).payload();
+        Files.write(root.resolve("files/plain.png"), png());
+
+        var listingHandler = new ListFiles() {
+            @Override protected com.rsmaxwell.diaries.responder.dto.ImagePublishDTO catalogueImage(DiaryContext ignored, String path) {
+                return rows.values().stream().filter(image -> image.getRelativePath().equals(path))
+                        .findFirst().map(com.rsmaxwell.diaries.responder.dto.ImagePublishDTO::new).orElse(null);
+            }
+        };
+        var listing = (ListFilesResponse) listingHandler.handleRequest(context, Map.of(), editor).payload();
+        var catalogued = listing.getItems().stream().filter(item -> item.name().equals("catalogued.png")).findFirst().orElseThrow();
+        var plain = listing.getItems().stream().filter(item -> item.name().equals("plain.png")).findFirst().orElseThrow();
+
+        assertEquals(uploaded.imageId(), catalogued.imageId());
+        assertNotNull(catalogued.image());
+        assertEquals(uploaded.imageId(), catalogued.image().getId());
+        assertEquals("catalogued.png", catalogued.image().getRelativePath());
+        assertNull(plain.imageId());
+        assertNull(plain.image());
+    }
+
     @Test void publicUrlAndPersistedPathDoNotExposePhysicalFilesDirectory() throws Exception {
         String physicalFilesDirectory = "files-development-common";
         context.getConfig().getDiaries().setFiles(physicalFilesDirectory);

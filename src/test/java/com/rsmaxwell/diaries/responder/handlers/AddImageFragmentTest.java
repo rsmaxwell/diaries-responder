@@ -25,11 +25,11 @@ class AddImageFragmentTest {
                 if (missingPage) throw new Exception("missing");
                 Page page = new Page(); page.setId(id); return page;
             }
-            @Override public ResolvedFragmentState saveImageFragment(Fragment fragment) {
+            @Override public FragmentCreationResult saveImageFragmentAndNormalise(Fragment fragment) {
                 if (missingImage) throw new IllegalArgumentException("missing");
                 if (saveFailure) throw new IllegalStateException("private database details");
                 saved = fragment; saved.setId(123L); committed = true;
-                return new ResolvedFragmentState(saved, null);
+                return new FragmentCreationResult(new ResolvedFragmentState(saved, null), List.of());
             }
         };
         context.setSecret(Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes()));

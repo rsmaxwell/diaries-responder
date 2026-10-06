@@ -231,7 +231,10 @@ class ImageWiringIntegrationTest {
                 rpc.call("lockFragment",Map.of("id",target));
                 var reorder=step7Args(context.inflateFragment(target));reorder.put("sequence",40);rpc.call("updateFragment",reorder);
                 rpc.call("normaliseFragments",Map.of("year",2094,"month",3,"day",13));
-                for(int i=0;i<3;i++)assertEquals(0,BigDecimal.valueOf(i+1).compareTo(context.getFragmentRepository().findById(List.of(marquee,survivor,target).get(i)).orElseThrow().getSequence()));
+                // Add/update operations now normalise chronology atomically as they commit.
+                // At this point survivor precedes marquee, while target was explicitly moved
+                // to the end; an explicit normalise call must preserve that committed order.
+                for(int i=0;i<3;i++)assertEquals(0,BigDecimal.valueOf(i+1).compareTo(context.getFragmentRepository().findById(List.of(survivor,marquee,target).get(i)).orElseThrow().getSequence()));
                 step12AssertRetained(broker,rpc.publisher,ids);
                 var before=step11RetainedSnapshot(broker,rpc.publisher);
                 rpc.call("deleteFragment",Map.of("id",target));
@@ -430,7 +433,9 @@ class ImageWiringIntegrationTest {
                 assertEquals(topics,step11RetainedSnapshot(broker,publisher));
             }
             new com.rsmaxwell.diaries.responder.handlers.NormaliseFragments().handleRequest(context,Map.of("year",2093,"month",3,"day",11),auth);
-            var ordered = List.of(empty,b,marquee,a);
+            // Each add now closes chronology immediately, so the committed insertion order
+            // is already a=1, b=2, empty=3, marquee=4. Explicit normalisation is idempotent.
+            var ordered = List.of(a,b,empty,marquee);
             for (int i=0;i<ordered.size();i++) {
                 var row = context.getFragmentRepository().findById(ordered.get(i).getId()).orElseThrow();
                 assertEquals(0,BigDecimal.valueOf(i+1).compareTo(row.getSequence()));
@@ -455,8 +460,13 @@ class ImageWiringIntegrationTest {
                 assertEquals(imageBefore,context.getImageRepository().findById(first.getId()).orElseThrow());
                 assertEquals(originalBytes,java.nio.file.Files.readString(files.resolve(first.getRelativePath())));
                 if(id.equals(a.getId())) {
-                    assertEquals(first.getId(),context.getFragmentRepository().findById(b.getId()).orElseThrow().getImageId());
-                    assertEquals(before.get("diaries/fragments/"+b.getId()),after.get("diaries/fragments/"+b.getId()));
+                    var survivor = context.getFragmentRepository().findById(b.getId()).orElseThrow();
+                    assertEquals(first.getId(),survivor.getImageId());
+                    // Deleting a closes the chronology gap immediately. b therefore moves
+                    // from sequence 2 to 1 and its retained Fragment payload must be republished.
+                    assertEquals(0,BigDecimal.ONE.compareTo(survivor.getSequence()));
+                    assertNotEquals(before.get("diaries/fragments/"+b.getId()),after.get("diaries/fragments/"+b.getId()));
+                    step12AssertRetained(broker,publisher,List.of(b.getId()));
                 }
             }
             assertEquals(200,deleteImage.handleRequest(context,Map.of("name",first.getRelativePath()),auth).status().code());
