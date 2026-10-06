@@ -10,7 +10,9 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -89,6 +91,13 @@ public class ListFiles extends RequestHandler {
 		final Set<String> allowedExt = Set.of(".png", ".jpg", ".jpeg", ".gif", ".webp");
 		final String filesContext = "/files";
 
+		// Load catalogue metadata once for the request. The previous implementation
+		// performed findByRelativePath() for every filesystem entry, producing an N+1
+		// database pattern on top of NAS/EXIF I/O. Keep the existing case-insensitive
+		// path semantics by indexing with a folded canonical path.
+		final long startedNanos = System.nanoTime();
+		final Map<String, ImagePublishDTO> catalogueImages = catalogueImages(context);
+
 		//@formatter:off
 		List<ImageItem> items;
 		try (Stream<Path> listing = Files.list(targetDir)) {
@@ -126,7 +135,7 @@ public class ListFiles extends RequestHandler {
 		            String url = buildUrlPath(filesContext, subdir, name);
 		            Long dateTaken = readDateTakenMillis(p);
 		            String relativePath = paths.canonicalPath(paths.root().relativize(p.toAbsolutePath().normalize()).toString());
-		            ImagePublishDTO image = catalogueImage(context, relativePath);
+		            ImagePublishDTO image = catalogueImage(catalogueImages, relativePath);
 		            return ImageItem.file(name, url, size, mtime, dateTaken, image);
 		        })
 		        .collect(Collectors.toList());
@@ -139,14 +148,30 @@ public class ListFiles extends RequestHandler {
 
 		// --- Success payload ---
 		ListFilesResponse response = new ListFilesResponse(paths.root().relativize(targetDir), items);
+		long elapsedMillis = (System.nanoTime() - startedNanos) / 1_000_000L;
+		log.info("ListFiles.handleRequest: returning {} item(s) for '{}' in {} ms", items.size(), subdir, elapsedMillis);
 		return Response.success(response);
 	}
 
-	/** Additive catalogue lookup used by listFiles; uncatalogued files remain ordinary file entries. */
-	protected ImagePublishDTO catalogueImage(DiaryContext context, String canonicalRelativePath) {
-		if (context.getImageRepository() == null) return null;
-		return context.getImageRepository().findByRelativePath(canonicalRelativePath)
-				.map(ImagePublishDTO::new).orElse(null);
+	/** Snapshot the Image catalogue once per list request to avoid per-file repository lookups. */
+	protected Map<String, ImagePublishDTO> catalogueImages(DiaryContext context) {
+		Map<String, ImagePublishDTO> images = new HashMap<>();
+		if (context.getImageRepository() == null) return images;
+
+		for (var imageDTO : context.getImageRepository().findAllOrderedByRelativePath()) {
+			ImagePublishDTO image = new ImagePublishDTO(imageDTO);
+			images.put(catalogueKey(image.getRelativePath()), image);
+		}
+		return images;
+	}
+
+	/** Additive catalogue match used by listFiles; uncatalogued files remain ordinary file entries. */
+	protected ImagePublishDTO catalogueImage(Map<String, ImagePublishDTO> catalogueImages, String canonicalRelativePath) {
+		return catalogueImages.get(catalogueKey(canonicalRelativePath));
+	}
+
+	private static String catalogueKey(String canonicalRelativePath) {
+		return canonicalRelativePath.toLowerCase(Locale.ROOT);
 	}
 
 	private static Long readDateTakenMillis(Path imagePath) {

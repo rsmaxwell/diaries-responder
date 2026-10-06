@@ -87,13 +87,24 @@ class UploadStagingTest {
         var uploaded = (com.rsmaxwell.diaries.responder.dto.UploadFileResponse) handler().handleRequest(context, uploadArgs, editor).payload();
         Files.write(root.resolve("files/plain.png"), png());
 
-        var listingHandler = new ListFiles() {
-            @Override protected com.rsmaxwell.diaries.responder.dto.ImagePublishDTO catalogueImage(DiaryContext ignored, String path) {
-                return rows.values().stream().filter(image -> image.getRelativePath().equals(path))
-                        .findFirst().map(com.rsmaxwell.diaries.responder.dto.ImagePublishDTO::new).orElse(null);
-            }
-        };
-        var listing = (ListFilesResponse) listingHandler.handleRequest(context, Map.of(), editor).payload();
+        var findAllCalls = new java.util.concurrent.atomic.AtomicInteger();
+        var findByPathCalls = new java.util.concurrent.atomic.AtomicInteger();
+        context.setImageRepository((com.rsmaxwell.diaries.responder.repository.ImageRepository) java.lang.reflect.Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class<?>[] { com.rsmaxwell.diaries.responder.repository.ImageRepository.class },
+                (proxy, method, methodArgs) -> switch (method.getName()) {
+                    case "findAllOrderedByRelativePath" -> {
+                        findAllCalls.incrementAndGet();
+                        yield rows.values().stream().map(com.rsmaxwell.diaries.responder.dto.ImageDBDTO::new).toList();
+                    }
+                    case "findByRelativePath" -> {
+                        findByPathCalls.incrementAndGet();
+                        yield java.util.Optional.empty();
+                    }
+                    default -> throw new UnsupportedOperationException(method.getName());
+                }));
+
+        var listing = (ListFilesResponse) new ListFiles().handleRequest(context, Map.of(), editor).payload();
         var catalogued = listing.getItems().stream().filter(item -> item.name().equals("catalogued.png")).findFirst().orElseThrow();
         var plain = listing.getItems().stream().filter(item -> item.name().equals("plain.png")).findFirst().orElseThrow();
 
@@ -103,6 +114,8 @@ class UploadStagingTest {
         assertEquals("catalogued.png", catalogued.image().getRelativePath());
         assertNull(plain.imageId());
         assertNull(plain.image());
+        assertEquals(1, findAllCalls.get(), "catalogue must be snapshotted once per list request");
+        assertEquals(0, findByPathCalls.get(), "listFiles must not issue one catalogue query per file");
     }
 
     @Test void publicUrlAndPersistedPathDoNotExposePhysicalFilesDirectory() throws Exception {
