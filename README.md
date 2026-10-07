@@ -856,7 +856,7 @@ ImageFragmentMessageHandler adapter preserves explicit `imageId:null` for
 addImageFragment/updateFragment so clearing works over the wire. Authentication and
 handler validation remain authoritative; other requests use the existing dispatcher.
 Remove this adapter after upgrading to a verified null-preserving dependency.
-Step 13's production authoring gate defaults to disabled; enable only after the reader/client rollout prerequisites below.
+Step 13 introduced the production authoring gate in a disabled rollout state. 0027 has now completed the reader/client prerequisites and verified the enabled production state; `false` remains the non-destructive rollback setting.
 
 
 ### ImageFragment authoring gate (0025 Step 13)
@@ -880,22 +880,36 @@ edits, reading, replay, lock/unlock, normalisation and Fragment deletion remain 
 The Image catalogue/upload/delete operations retain their existing reference safeguards.
 The creation service also enforces the gate; it is not solely a UI restriction.
 
-Only enable `"imageFragmentWritesEnabled": true` deliberately in disposable development
-or integration configuration. Keep production false until the 0025 responder is
-validated, the 0026-capable web reader is deployed/verified and 0027 authoring rollout
-is explicitly approved. Changing the JSON requires responder restart; this is not a
-hot-reloaded flag. Disabling it does not remove existing IMAGE data.
+During the staged 0025/0026 rollout, production remained false until the responder was
+validated, the 0026-capable web reader was deployed/verified and 0027 authoring rollout
+was explicitly approved. Those prerequisites are now complete, so normal production
+authoring uses `"imageFragmentWritesEnabled": true`. Changing the JSON requires responder
+restart; this is not a hot-reloaded flag. Setting it to false remains a safe rollback and
+does not remove existing IMAGE data.
 
 Configuration location by mode:
 
-- development-infrastructure: the JSON passed to the directly launched responder's
-  `--config` argument.
+- development-infrastructure: `%USERPROFILE%\.diaries\responder.json` is the developer-owned
+  source JSON; `prepare-responder-config.bat` copies it to the effective development config.
+  Normal post-0027 operation uses `"imageFragmentWritesEnabled": true`.
 - local-docker-build and local-published-smoke: the external JSON selected by
-  `DIARIES_RESPONDER_DOCKER_CONFIG_FILE`, mounted read-only at `/config/responder.json`.
+  `DIARIES_RESPONDER_DOCKER_CONFIG_FILE` (normally
+  `%USERPROFILE%\.diaries\responder.docker.json`) is mounted read-only at
+  `/config/responder.json`. Normal post-0027 operation uses `true`.
 - production: the responder JSON generated/mounted by the external Ansible deployment.
-  Its template should emit `"imageFragmentWritesEnabled": false` (or omit the property).
-  This source change does not edit that separate repository or any private runtime file.
+  Its template normally emits `"imageFragmentWritesEnabled": true` after 0027 close-out.
 
-There is no new environment-variable override: all modes use the same responder JSON
-property. The disposable integration fixture explicitly enables it; its gate test then
+There is no environment-variable override for this gate: all modes use the responder JSON
+property. Missing/null/false is deliberately fail-closed and should now be used only for
+disabled-gate/rollback testing or an emergency authoring stop. The disposable integration
+fixture explicitly enables it; its gate test then
 exercises missing/false values over live MQTT. See [Step 13 evidence](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/evidence/Step%2013/README.md).
+
+### 0027 production authoring handoff
+
+0027 completed the Angular authoring rollout without changing the responder's 0025 wire contract. The production-verified set was client `0.0.9-build-76`, responder `0.0.9-build-84` and reader `0.0.9-build-8` on 2026-10-06.
+
+Keep the responder configuration gate authoritative. After 0027 close-out, the production Ansible role source defaults `diaries_image_fragment_writes_enabled` to `true`, so the completed IMAGE authoring feature is available in normal operation. Setting the variable to false and redeploying/restarting the responder is the supported non-destructive authoring stop. Existing IMAGE data remains readable/editable under the preserve semantics described above.
+
+The production client identity needs `topic read diaries/images/+` in addition to the responder's retained Image publication permission. Without that ACL the Fragment can carry a valid `imageId` while the Angular editor cannot resolve its retained `CatalogueImage` metadata.
+
