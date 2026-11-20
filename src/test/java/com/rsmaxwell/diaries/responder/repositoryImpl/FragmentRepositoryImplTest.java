@@ -21,7 +21,7 @@ class FragmentRepositoryImplTest {
 	void positionalMappingIncludesPageTypeAndImageBeforeLockColumns() {
 		Object[] row = {
 				12L, 3L, new BigDecimal("4.0000"), 1830, 3, 8, "Text",
-				85L, "IMAGE", 91L, 42L, "alice", "Ali", 123456L, "session"
+				85L, "IMAGE", 91L, "https://example.invalid/map?a=1&b=2#p", 42L, "alice", "Ali", 123456L, "session"
 		};
 
 		FragmentDBDTO dto = repository.newDTO(row);
@@ -30,6 +30,8 @@ class FragmentRepositoryImplTest {
 		assertEquals(91L, dto.getImageId());
 		Fragment fragment = new Fragment(dto);
 		assertEquals(91L, fragment.getImageId());
+		assertEquals("https://example.invalid/map?a=1&b=2#p", fragment.getImageLinkUrl());
+		assertEquals(fragment.getImageLinkUrl(), repository.getValues(fragment).get(repository.getFields().indexOf("image_link_url")));
 		assertEquals(repository.getFields().size(), repository.getValues(fragment).size());
 		assertEquals(91L, repository.getValues(fragment).get(repository.getFields().indexOf("image_id")));
 		Fragment copy = new Fragment(new FragmentPublishDTO(fragment, null));
@@ -50,13 +52,14 @@ class FragmentRepositoryImplTest {
 	void migrationNullsRemainNullAndRoundTripThroughRepositoryValues() {
 		Object[] row = {
 				13L, 0L, BigDecimal.ONE, 1830, 3, 9, "Candidate",
-				null, null, null, null, null, null, null, null
+				null, null, null, null, null, null, null, null, null
 		};
 
 		FragmentDBDTO dto = repository.newDTO(row);
 		Fragment fragment = new Fragment(dto);
 
 		assertNull(dto.getImageId());
+		assertNull(dto.getImageLinkUrl());
 		assertNull(fragment.getImageId());
 		assertNull(dto.getPageId());
 		assertNull(dto.getType());

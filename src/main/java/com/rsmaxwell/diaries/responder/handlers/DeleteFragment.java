@@ -66,8 +66,6 @@ public class DeleteFragment extends RequestHandler {
 			var state = context.resolveFragmentState(context.inflateFragment(id));
 			fragment = state.getFragment();
 			marquee = state.getMarquee();
-			if (fragment.getType() == com.rsmaxwell.diaries.responder.model.FragmentType.IMAGE && marquee != null)
-				throw RpcStatusException.conflict("Remove the invalid Marquee with deleteMarquee before deleting this IMAGE Fragment");
 			if (marquee != null && marqueeRepository.delete(marquee) != 1)
 				throw RpcStatusException.conflict("Marquee changed during deletion");
 			if (context.deleteFragment(fragment) != 1)

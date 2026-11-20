@@ -300,6 +300,155 @@ class ImageWiringIntegrationTest {
         }
     }
 
+    /** 0051: actual PostgreSQL, registered MQTT-RPC handler, and retained-topic contract. */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "DIARIES_IMAGE_MQTT_TEST_URL", matches = ".+")
+    void imageLinkAndOptionalMarqueeRoundTripOverRpc() throws Exception {
+        String broker = System.getenv("DIARIES_IMAGE_MQTT_TEST_URL");
+        assertTrue(broker.matches("tcp://127\\.0\\.0\\.1:[0-9]+"));
+        Boolean previousGate = config.getImageFragmentExtensionsWritesEnabled();
+        config.setImageFragmentExtensionsWritesEnabled(false);
+        var page = context.inflatePage(context.getPageRepository().findAll().iterator().next().getId());
+        Image image = context.saveImage(candidate("0051-image-link.png"));
+        Long fragmentId = null;
+        String destination = "https://example.org/maps/Caf%C3%A9%20%231.png?section=1%2F2#map";
+        try (var rpc = new Step12Rpc(broker, factory)) {
+            var create = new HashMap<String,Object>(Map.of(
+                    "pageId", page.getId(), "year", 2092, "month", 8, "day", 17,
+                    "sequence", 1, "text", "0051 integration", "imageId", image.getId(),
+                    "imageLinkUrl", destination));
+            // Default-disabled extensions reject new URL writes without preventing legacy authoring.
+            rpc.call("addImageFragment", create, 403);
+            config.setImageFragmentExtensionsWritesEnabled(true);
+            fragmentId = rpc.call("addImageFragment", create).get("id").longValue();
+            final Long id = fragmentId;
+            var initial = context.getFragmentRepository().findById(id).orElseThrow();
+            assertEquals(FragmentType.IMAGE, initial.getType());
+            assertEquals(image.getId(), initial.getImageId());
+            assertEquals(destination, initial.getImageLinkUrl());
+            assertTrue(context.getMarqueeRepository().findByFragmentId(id).isEmpty());
+            var topics = step11RetainedSnapshot(broker, rpc.publisher);
+            var payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(topics.get("diaries/fragments/"+id));
+            assertEquals(destination, payload.path("imageLinkUrl").asText());
+            assertTrue(payload.path("marqueeId").isNull());
+
+            // Rejected unsafe URL leaves committed row and retained state unchanged.
+            rpc.call("lockFragment", Map.of("id",id));
+            var rejectedEdit = step7Args(context.inflateFragment(id));
+            rejectedEdit.put("imageLinkUrl", "javascript:alert(1)");
+            var retainedBefore = step11RetainedSnapshot(broker, rpc.publisher);
+            rpc.call("updateFragment", rejectedEdit, 400);
+            assertEquals(destination, context.getFragmentRepository().findById(id).orElseThrow().getImageLinkUrl());
+            assertEquals(retainedBefore, step11RetainedSnapshot(broker, rpc.publisher));
+
+            // A normal text edit must preserve the URL even when old clients omit it.
+            var edit = step7Args(context.inflateFragment(id));
+            edit.put("text", "0051 edited text");
+            rpc.call("updateFragment", edit);
+            assertEquals(destination, context.getFragmentRepository().findById(id).orElseThrow().getImageLinkUrl());
+
+            // Attach one Marquee to IMAGE; do not coerce its Fragment type to MARQUEE.
+            rpc.call("lockFragment", Map.of("id",id));
+            var beforeAttach = context.inflateFragment(id);
+            var attach = new HashMap<String,Object>(Map.of(
+                    "fragmentId", id, "pageId", page.getId(),
+                    "fragmentVersion", beforeAttach.getVersion(),
+                    "x", 3d, "y", 4d, "width", 70d, "height", 80d));
+            Long marqueeId = rpc.call("addMarquee", attach).get("id").longValue();
+            var afterAttach = context.getFragmentRepository().findById(id).orElseThrow();
+            assertEquals(FragmentType.IMAGE, afterAttach.getType());
+            assertEquals(image.getId(), afterAttach.getImageId());
+            assertEquals(destination, afterAttach.getImageLinkUrl());
+            assertEquals(marqueeId, context.getMarqueeRepository().findByFragmentId(id).orElseThrow().getId());
+            topics = step11RetainedSnapshot(broker, rpc.publisher);
+            payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(topics.get("diaries/fragments/"+id));
+            assertEquals(marqueeId.longValue(), payload.path("marqueeId").longValue());
+            assertEquals(destination, payload.path("imageLinkUrl").asText());
+            assertTrue(topics.containsKey("diaries/marquees/"+marqueeId));
+            assertEquals(topics.get("diaries/fragments/"+id),
+                    topics.get("diaries/dates/2092/8/17/"+id));
+
+            // Restart-style synchronisation must replay the exact destination
+            // and optional source Marquee from committed PostgreSQL state.
+            var replayConfig = new Config();
+            replayConfig.setNormaliseOnStartup(false);
+            var replayUser = new User();
+            replayUser.setUsername("0051-fixture");
+            replayUser.setPassword("fixture");
+            new com.rsmaxwell.diaries.responder.sync.Synchronise().perform(
+                    replayConfig, context, broker, replayUser);
+            var replayed = step11RetainedSnapshot(broker, rpc.publisher);
+            var replayPayload = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readTree(replayed.get("diaries/fragments/"+id));
+            assertEquals(destination, replayPayload.path("imageLinkUrl").asText());
+            assertEquals(marqueeId.longValue(), replayPayload.path("marqueeId").longValue());
+            assertTrue(replayed.containsKey("diaries/marquees/"+marqueeId));
+            assertEquals(replayed.get("diaries/fragments/"+id),
+                    replayed.get("diaries/dates/2092/8/17/"+id));
+
+            // A duplicate attach must reject, preserving the exact saved relationship.
+            rpc.call("lockFragment", Map.of("id",id));
+            attach.put("fragmentVersion", context.inflateFragment(id).getVersion());
+            var beforeDuplicate = step11RetainedSnapshot(broker, rpc.publisher);
+            rpc.call("addMarquee", attach, 409);
+            assertEquals(beforeDuplicate, step11RetainedSnapshot(broker, rpc.publisher));
+            assertEquals(marqueeId, context.getMarqueeRepository().findByFragmentId(id).orElseThrow().getId());
+
+            // Edit Marquee geometry while retaining link and IMAGE identity.
+            var originalMarquee = context.inflateMarquee(marqueeId);
+            var move = new HashMap<String,Object>(Map.of(
+                    "id", marqueeId, "version", originalMarquee.getVersion(),
+                    "pageId", page.getId(), "fragmentId", id,
+                    "x", 10d, "y", 20d, "width", 90d, "height", 100d));
+            rpc.call("updateMarquee", move);
+            assertEquals(10.0, context.inflateMarquee(marqueeId).getX().doubleValue());
+            assertEquals(destination, context.getFragmentRepository().findById(id).orElseThrow().getImageLinkUrl());
+
+            // Remove Marquee: both retained Marquee topics tombstone, IMAGE remains.
+            rpc.call("lockFragment", Map.of("id",id));
+            var currentMarquee = context.inflateMarquee(marqueeId);
+            rpc.call("deleteMarquee", Map.of("id",marqueeId,"version",currentMarquee.getVersion()));
+            assertTrue(context.getMarqueeRepository().findByFragmentId(id).isEmpty());
+            topics = step11RetainedSnapshot(broker, rpc.publisher);
+            assertFalse(topics.containsKey("diaries/marquees/"+marqueeId));
+            payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(topics.get("diaries/fragments/"+id));
+            assertEquals("IMAGE",payload.path("type").asText());
+            assertTrue(payload.path("marqueeId").isNull());
+            assertEquals(destination,payload.path("imageLinkUrl").asText());
+
+            // Explicit clear is distinct from omission and must retain catalogue Image identity.
+            rpc.call("lockFragment", Map.of("id",id));
+            var clear = step7Args(context.inflateFragment(id));
+            clear.put("clearImageLinkUrl", true);
+            rpc.call("updateFragment", clear);
+            var cleared = context.getFragmentRepository().findById(id).orElseThrow();
+            assertNull(cleared.getImageLinkUrl());
+            assertEquals(image.getId(),cleared.getImageId());
+            topics = step11RetainedSnapshot(broker, rpc.publisher);
+            payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(topics.get("diaries/fragments/"+id));
+            assertTrue(payload.path("imageLinkUrl").isNull());
+
+            // Final deletion tombstones Fragment and date alias but does not delete Image.
+            rpc.call("deleteFragment", Map.of("id",id));
+            assertFalse(context.getFragmentRepository().existsById(id));
+            topics = step11RetainedSnapshot(broker, rpc.publisher);
+            assertFalse(topics.containsKey("diaries/fragments/"+id));
+            assertFalse(topics.containsKey("diaries/dates/2092/8/17/"+id));
+            assertTrue(context.getImageRepository().existsById(image.getId()));
+            fragmentId = null;
+        } finally {
+            config.setImageFragmentExtensionsWritesEnabled(previousGate);
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            if (fragmentId != null) {
+                em.getTransaction().begin();
+                var lingering = context.getMarqueeRepository().findByFragmentId(fragmentId);
+                if (lingering.isPresent()) context.getMarqueeRepository().deleteById(lingering.get().getId());
+                context.getFragmentRepository().deleteById(fragmentId);
+                em.getTransaction().commit();
+            }
+        }
+    }
+
     /** Real broker transport; each serial server callback owns a fresh persistence context. */
     private static final class Step12Rpc implements AutoCloseable {
         final org.eclipse.paho.mqttv5.client.MqttAsyncClient publisher,server,client;

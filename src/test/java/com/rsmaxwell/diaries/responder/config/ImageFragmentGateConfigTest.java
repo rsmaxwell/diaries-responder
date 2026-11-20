@@ -18,4 +18,14 @@ class ImageFragmentGateConfigTest {
         var error=assertThrows(RpcStatusException.class,()->context.saveImageFragment(null));
         assertEquals(403,error.getStatus().code());
     }
+    @Test void extensionGateIsSeparateAndFailsClosed() throws Exception {
+        var mapper = new ObjectMapper();
+        for (String json : new String[]{"{}", "{\"imageFragmentWritesEnabled\":true}",
+                "{\"imageFragmentExtensionsWritesEnabled\":null}",
+                "{\"imageFragmentExtensionsWritesEnabled\":false}"})
+            assertFalse(mapper.readValue(json, Config.class).isImageFragmentExtensionsWritesEnabled());
+        Config extensions = mapper.readValue("{\"imageFragmentExtensionsWritesEnabled\":true}", Config.class);
+        assertTrue(extensions.isImageFragmentExtensionsWritesEnabled());
+        assertFalse(extensions.isImageFragmentWritesEnabled());
+    }
 }

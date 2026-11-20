@@ -51,22 +51,32 @@ public class DeleteMarquee extends RequestHandler {
 
 		Marquee marquee = null;
 		Fragment fragment = null;
-		Fragment lockedFragment = null;
 
 		tx.begin();
 
 		try {
 			Long id = Utilities.getLong(args, "id");
+			Marquee ownerHint = context.inflateMarquee(id);
+			Long fragmentId = ownerHint.getFragment().getId();
+			if (em.createNativeQuery("select id from fragment where id = :id for update", Long.class)
+					.setParameter("id", fragmentId).getResultList().isEmpty())
+				throw RpcStatusException.badRequest("Fragment not found");
 			marquee = context.inflateMarquee(id);
 			fragment = marquee.getFragment();
+			FragmentLocking.requireMarqueeCompatible(fragment);
+			if (fragment.getType() == com.rsmaxwell.diaries.responder.model.FragmentType.IMAGE) {
+				com.rsmaxwell.diaries.responder.utilities.ImageFragmentExtensionsWritePolicy.requireEnabled(context);
+				if (!args.containsKey("version") || !marquee.getVersion().equals(Utilities.getLong(args, "version")))
+					throw RpcStatusException.conflict("IMAGE Marquee version changed before deletion");
+			} else if (args.containsKey("version") && !marquee.getVersion().equals(Utilities.getLong(args, "version")))
+				throw RpcStatusException.conflict("Marquee version changed before deletion");
+			if (fragment.getPageId() == null || marquee.getPage() == null
+					|| !fragment.getPageId().equals(marquee.getPage().getId()))
+				throw RpcStatusException.badRequest("Marquee and Fragment Page mismatch");
 
 			FragmentLocking.requireLockedByCaller(fragment, claims);
-			lockedFragment = fragment;
-
 			int marqueeCount = marqueeRepository.delete(marquee);
-			if (marqueeCount != 1) {
-				log.info("DeleteMarquee.handleRequest: number of marquee records deleted: {}", marqueeCount);
-			}
+			if (marqueeCount != 1) throw RpcStatusException.conflict("Marquee changed during deletion");
 
 			FragmentLocking.clearLockInCurrentTransaction(context, fragment);
 
@@ -79,7 +89,6 @@ public class DeleteMarquee extends RequestHandler {
 				tx.rollback();
 			}
 
-			FragmentLocking.unlockAfterFailedEdit(context, lockedFragment == null ? null : lockedFragment.getId(), log, "DeleteMarquee.handleRequest");
 
 			throw e;
 
@@ -90,7 +99,6 @@ public class DeleteMarquee extends RequestHandler {
 				tx.rollback();
 			}
 
-			FragmentLocking.unlockAfterFailedEdit(context, lockedFragment == null ? null : lockedFragment.getId(), log, "DeleteMarquee.handleRequest");
 
 			throw e;
 		}

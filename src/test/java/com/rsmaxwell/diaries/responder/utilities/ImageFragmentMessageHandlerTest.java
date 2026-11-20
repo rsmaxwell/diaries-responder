@@ -55,6 +55,17 @@ class ImageFragmentMessageHandlerTest {
             assertArrayEquals(new byte[]{1,2,3},reply.getProperties().getCorrelationData());assertEquals(123L,mapper.readTree(reply.getPayload()).longValue());
         }
     }
+    @Test void imageNullAndLinkClearFlagSurviveTheCompatibilityAdapterTogether() throws Exception {
+        var args = new HashMap<String,Object>();
+        args.put("imageId", null);
+        args.put("clearImageLinkUrl", true);
+        args.put("id", 123);
+        dispatcher.messageArrived("diaries/rpc/request",request("updateFragment",args));
+        assertTrue(received.containsKey("imageId"));
+        assertNull(received.get("imageId"));
+        assertEquals(Boolean.TRUE,received.get("clearImageLinkUrl"));
+        assertEquals(200,status());
+    }
     @Test void absentAndNonNullImageIdsStillUseTheExistingContract() throws Exception {
         for(var args:List.of(Map.<String,Object>of(),Map.<String,Object>of("imageId",91))) {
             dispatcher.messageArrived("diaries/rpc/request",request("updateFragment",args));assertEquals(args,received);assertEquals(200,status());

@@ -119,7 +119,7 @@ class RetainedStateDtoContractTest {
 		JsonNode payload = onlyPayload(topics);
 		assertFields(payload,
 				"id", "version", "pageId", "type", "year", "month", "day", "sequence",
-				"text", "imageId", "marqueeId", "lock");
+				"text", "imageId", "imageLinkUrl", "marqueeId", "lock");
 		assertEquals(22L, payload.get("pageId").longValue());
 		assertEquals("MARQUEE", payload.get("type").textValue());
 		assertTrue(payload.get("imageId").isNull());
@@ -141,6 +141,23 @@ class RetainedStateDtoContractTest {
 	}
 
 	@Test
+	void imageLinkAndMarqueeTogetherPublishIdenticalCanonicalAndDatePayloads() throws Exception {
+		String url = "http://example.invalid/maps?a=1&b=%C3%A9#point";
+		FragmentPublishDTO dto = FragmentPublishDTO.builder().id(50L).version(3L)
+				.type(FragmentType.IMAGE).imageId(91L).imageLinkUrl(url).marqueeId(44L)
+				.pageId(22L).year(2026).month(11).day(20)
+				.sequence(BigDecimal.ONE).text("Synthetic").build();
+		var topics = new ConcurrentHashMap<String,String>();
+		dto.publish(topics);
+		assertEquals(Set.of("diaries/fragments/50", "diaries/dates/2026/11/20/50"), topics.keySet());
+		assertSinglePayload(topics);
+		JsonNode payload = onlyPayload(topics);
+		assertEquals(url,payload.get("imageLinkUrl").textValue());
+		assertEquals(44L,payload.get("marqueeId").longValue());
+		assertEquals(91L,payload.get("imageId").longValue());
+	}
+
+	@Test
 	void unlockedFragmentSerialisesAnExplicitNullLockAndMarquee() throws Exception {
 		FragmentPublishDTO dto = FragmentPublishDTO.builder()
 				.id(34L)
@@ -158,6 +175,8 @@ class RetainedStateDtoContractTest {
 
 		assertTrue(payload.has("imageId"));
 		assertTrue(payload.get("imageId").isNull());
+		assertTrue(payload.has("imageLinkUrl"));
+		assertTrue(payload.get("imageLinkUrl").isNull());
 		assertTrue(payload.has("lock"));
 		assertTrue(payload.get("lock").isNull());
 		assertTrue(payload.has("marqueeId"));
@@ -259,7 +278,7 @@ class RetainedStateDtoContractTest {
 			assertSinglePayload(topics);
 			JsonNode payload = onlyPayload(topics);
 			assertFields(payload, "id", "version", "pageId", "type", "year", "month", "day", "sequence",
-					"text", "imageId", "marqueeId", "lock");
+					"text", "imageId", "imageLinkUrl", "marqueeId", "lock");
 			assertEquals("IMAGE", payload.get("type").textValue());
 			assertTrue(payload.get("marqueeId").isNull());
 			if (imageId == null) assertTrue(payload.get("imageId").isNull());

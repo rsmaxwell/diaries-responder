@@ -24,6 +24,7 @@ import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.diaries.responder.utilities.ResolvedFragmentState;
 import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
 import com.rsmaxwell.diaries.responder.utilities.FragmentSequenceNormaliser;
+import com.rsmaxwell.diaries.responder.utilities.ImageLinkWritePolicy;
 import com.rsmaxwell.diaries.responder.utilities.SequenceNumber;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
@@ -42,7 +43,7 @@ public class UpdateFragment extends RequestHandler {
 	@Override
 	public Response handleRequest(Object ctx, Map<String, Object> args, List<UserProperty> userProperties) throws Exception {
 
-		log.info("UpdateFragment.handleRequest: args: " + mapper.writeValueAsString(args));
+		log.info("UpdateFragment.handleRequest (request contents redacted)");
 
 		String accessToken = Authorization.getAccessToken(userProperties);
 		DiaryContext context = (DiaryContext) ctx;
@@ -97,6 +98,7 @@ public class UpdateFragment extends RequestHandler {
 		        .pageId(originalFragment.getPageId())
 		        .type(originalFragment.getType())
 		        .imageId(originalFragment.getImageId())
+		        .imageLinkUrl(originalFragment.getImageLinkUrl())
 		        .lock(originalLock) // carry lock forward so we can clear it after version bump
 		        .build();
 			// @formatter:on			
@@ -104,10 +106,12 @@ public class UpdateFragment extends RequestHandler {
 			// (4) check and bump the version
 			incomingFragment = new Fragment(originalFragment.getPage(), fragmentDBDTO);
 			incomingFragment.checkAndIncrementVersion(originalFragment);
+			// Preserve the loaded Image reference when imageId was omitted.
+			if (originalFragment.getImage() != null) incomingFragment.setImage(originalFragment.getImage());
 			applyImageSelection(context, args, incomingFragment);
-			if (incomingFragment.getType() == FragmentType.IMAGE
-					&& context.getMarqueeRepository().findByFragment(incomingFragment).isPresent())
-				throw RpcStatusException.badRequest("IMAGE Fragment cannot have a Marquee");
+			ImageLinkWritePolicy.apply(context, args, incomingFragment);
+			if (incomingFragment.getType() == FragmentType.IMAGE)
+				context.resolveFragmentState(incomingFragment).validateForWrite();
 
 			// (5) release the lock after successful update
 			incomingFragment.setLock(null); // simplest: DB columns become NULL
@@ -176,6 +180,8 @@ public class UpdateFragment extends RequestHandler {
 			if (!Objects.equals(pageId, original.getPageId()))
 				throw RpcStatusException.badRequest("Fragment Page cannot be changed");
 		}
+		if (args.containsKey("marqueeId"))
+			throw RpcStatusException.badRequest("Fragment Marquee identity cannot be changed via updateFragment");
 		if (args.containsKey("type") && !Objects.equals(args.get("type"),
 				original.getType() == null ? null : original.getType().name()))
 			throw RpcStatusException.badRequest("Fragment type cannot be changed");

@@ -22,9 +22,10 @@ public final class FragmentLocking {
 
 	/** Null type remains compatible with legacy MARQUEE candidates. */
 	public static void requireMarqueeCompatible(Fragment fragment) throws RpcStatusException {
-		if ((fragment.getType() != null && fragment.getType() != FragmentType.MARQUEE)
-				|| fragment.getImageId() != null)
-			throw RpcStatusException.badRequest("Marquee requires a MARQUEE-compatible Fragment without an Image reference");
+		if ((fragment.getType() != null && fragment.getType() != FragmentType.MARQUEE
+				&& fragment.getType() != FragmentType.IMAGE)
+				|| (fragment.getType() != FragmentType.IMAGE && fragment.getImageId() != null))
+			throw RpcStatusException.badRequest("Marquee requires an IMAGE or MARQUEE-compatible Fragment");
 	}
 
 	public static void requireLockedByCaller(Fragment fragment, Claims claims) throws Exception {

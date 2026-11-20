@@ -45,6 +45,8 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	private FragmentType type;
 	/** Optional reusable Image reference, published explicitly even when null. */
 	private Long imageId;
+	/** Explicit null is retained so consumers clear stale navigation links. */
+	private String imageLinkUrl;
 	private Long marqueeId;
 
 	/**
@@ -66,6 +68,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 		this.pageId = fragment.getPageId();
 		this.type = fragment.getType();
 		this.imageId = fragment.getImageId();
+		this.imageLinkUrl = fragment.getImageLinkUrl();
 
 		// Include lock state in MQTT payloads (if present)
 		this.lock = fragment.getLock();
@@ -98,7 +101,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	public void publish(ConcurrentHashMap<String, String> map) throws Exception {
 		for (String topic : getTopics()) {
 
-			log.debug(String.format("publishing to Map: %s --> %s", topic, toJson()));
+			log.debug("Publishing Fragment {} to map topic {}", this.getId(), topic);
 			log.debug("Adding fragmentId {} to databaseMap key {}, version: {}", this.getId(), topic, this.getVersion());
 
 			publisher.publish(map, topic, toJson().getBytes());
@@ -108,7 +111,7 @@ public class FragmentPublishDTO extends Base implements Jsonable {
 	public void publish(MqttAsyncClient client) throws Exception {
 		for (String topic : getTopics()) {
 
-			log.info(String.format("publishing to topic: %s --> %s", topic, toJson()));
+			log.info("Publishing Fragment {} to topic {}", this.getId(), topic);
 			log.info("Publishing fragmentId: {} to topic: {}, version: {}", this.getId(), topic, this.getVersion());
 
 			publisher.publish(client, topic, toJson().getBytes());

@@ -58,7 +58,6 @@ public class UpdateMarquee extends RequestHandler {
 		EntityManager em = context.getEntityManager();
 		EntityTransaction tx = em.getTransaction();
 
-		Fragment lockedFragment = null;
 
 		tx.begin();
 		try {
@@ -71,24 +70,33 @@ public class UpdateMarquee extends RequestHandler {
 			Double y = Utilities.getDouble(args, "y");
 			Double width = Utilities.getDouble(args, "width");
 			Double height = Utilities.getDouble(args, "height");
+			if (!Double.isFinite(x) || !Double.isFinite(y) ||
+					!Double.isFinite(width) || !Double.isFinite(height))
+				throw RpcStatusException.badRequest("Invalid Marquee geometry");
 
-			// (1) get the original Marquee
+			// Resolve owner, lock the authoritative Fragment row, then re-read it.
+			Marquee ownerHint = context.inflateMarquee(id);
+			Long owningFragmentId = ownerHint.getFragment().getId();
+			if (em.createNativeQuery("select id from fragment where id = :id for update", Long.class)
+					.setParameter("id", owningFragmentId).getResultList().isEmpty())
+				throw RpcStatusException.badRequest("Fragment not found");
 			originalMarquee = context.inflateMarquee(id);
 
 			// (2) get the fragment associated with the original marquee
 			originalFragment = originalMarquee.getFragment();
 			FragmentLocking.requireMarqueeCompatible(originalFragment);
+			if (originalFragment.getType() == com.rsmaxwell.diaries.responder.model.FragmentType.IMAGE)
+				com.rsmaxwell.diaries.responder.utilities.ImageFragmentExtensionsWritePolicy.requireEnabled(context);
 
 			// (3) enforce: the fragment must be locked by this user/session
 			FragmentLocking.requireLockedByCaller(originalFragment, claims);
-
-			lockedFragment = originalFragment;
 
 			// Do not allow this request to silently move the marquee to another fragment.
 			if (!originalFragment.getId().equals(fragmentId)) {
 				throw RpcStatusException.badRequest("Marquee does not belong to the supplied fragment");
 			}
-			if (originalFragment.getPageId() == null || !originalFragment.getPageId().equals(pageId)) {
+			if (originalMarquee.getPage() == null || !pageId.equals(originalMarquee.getPage().getId())
+					|| originalFragment.getPageId() == null || !originalFragment.getPageId().equals(pageId)) {
 				throw RpcStatusException.badRequest("Marquee page must match the Fragment's authoritative page");
 			}
 
@@ -115,9 +123,8 @@ public class UpdateMarquee extends RequestHandler {
 
 			// (6) save the marquee to database
 			int marqueeCount = marqueeRepository.update(incomingMarquee);
-			if (marqueeCount != 1) {
-				log.info("UpdateMarquee.handleRequest: number of marquee records updated: {}", marqueeCount);
-			}
+			if (marqueeCount != 1)
+				throw RpcStatusException.conflict("Marquee changed during update");
 
 			// (7) release the fragment lock after successful marquee update
 			FragmentLocking.clearLockInCurrentTransaction(context, originalFragment);
@@ -130,7 +137,6 @@ public class UpdateMarquee extends RequestHandler {
 				tx.rollback();
 			}
 
-			FragmentLocking.unlockAfterFailedEdit(context, lockedFragment == null ? null : lockedFragment.getId(), log, "UpdateMarquee.handleRequest");
 
 			throw e;
 		} catch (Exception e) {
@@ -139,7 +145,6 @@ public class UpdateMarquee extends RequestHandler {
 				tx.rollback();
 			}
 
-			FragmentLocking.unlockAfterFailedEdit(context, lockedFragment == null ? null : lockedFragment.getId(), log, "UpdateMarquee.handleRequest");
 
 			throw e;
 		}

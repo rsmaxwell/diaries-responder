@@ -55,7 +55,7 @@ class AddFragmentContractTest {
                 var payload = (FragmentPublishDTO) response.payload();
                 var json = new ObjectMapper().readTree(payload.toJson());
                 Set<String> fields = new HashSet<>(); json.fieldNames().forEachRemaining(fields::add);
-                assertEquals(Set.of("id", "version", "pageId", "type", "imageId", "year", "month", "day", "sequence", "text", "marqueeId", "lock"),
+                assertEquals(Set.of("id", "version", "pageId", "type", "imageId", "imageLinkUrl", "year", "month", "day", "sequence", "text", "marqueeId", "lock"),
                         fields);
                 assertEquals(123L, json.get("id").longValue()); assertEquals(44L, json.get("marqueeId").longValue());
                 assertEquals(22L, json.get("pageId").longValue()); assertEquals("MARQUEE", json.get("type").textValue());

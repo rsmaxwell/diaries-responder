@@ -39,6 +39,7 @@ public class FragmentDBDTO extends Base implements Jsonable {
 	private Long pageId;
 	private FragmentType type;
 	private Long imageId;
+	private String imageLinkUrl;
 
 	/**
 	 * Lock state for this fragment (may be null / empty => unlocked).

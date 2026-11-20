@@ -22,8 +22,8 @@ class ResolvedFragmentStateTest {
             new Case(FragmentType.IMAGE, false, "none", true),
             new Case(FragmentType.IMAGE, false, "existing", true),
             new Case(FragmentType.IMAGE, false, "missing", false),
-            new Case(FragmentType.IMAGE, true, "none", false),
-            new Case(FragmentType.IMAGE, true, "existing", false),
+            new Case(FragmentType.IMAGE, true, "none", true),
+            new Case(FragmentType.IMAGE, true, "existing", true),
             new Case(FragmentType.IMAGE, true, "missing", false),
             new Case(null, false, "none", false)
         ).map(c -> DynamicTest.dynamicTest(c.toString(), () -> {

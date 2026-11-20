@@ -13,6 +13,7 @@ import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.diaries.responder.utilities.FragmentCreationResult;
 import com.rsmaxwell.diaries.responder.utilities.FragmentSequenceNormaliser;
+import com.rsmaxwell.diaries.responder.utilities.ImageLinkWritePolicy;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
 import com.rsmaxwell.mqtt.rpc.responder.RequestHandler;
@@ -52,6 +53,9 @@ public class AddImageFragment extends RequestHandler {
         } catch (Exception invalid) {
             throw RpcStatusException.badRequest("Invalid pageId, date, sequence, text or imageId");
         }
+        if (args.containsKey("clearImageLinkUrl"))
+            throw RpcStatusException.badRequest("Cannot clear imageLinkUrl during creation");
+        ImageLinkWritePolicy.apply(context, args, candidate);
         try {
             candidate.setPage(context.inflatePage(pageId));
         } catch (Exception missingPage) {

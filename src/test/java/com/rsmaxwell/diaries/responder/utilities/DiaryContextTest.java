@@ -123,7 +123,7 @@ class DiaryContextTest {
 	}
 
 	@Test
-	void writerRejectsCrossTypeAndMismatchedRelationships() {
+	void writerAllowsImageMarqueeButRejectsCrossTypeAndMismatchedRelationships() {
 		var page = new com.rsmaxwell.diaries.responder.model.Page();
 		page.setId(10L);
 		var fragment = com.rsmaxwell.diaries.responder.model.Fragment.builder().page(page).type(FragmentType.IMAGE)
@@ -131,7 +131,10 @@ class DiaryContextTest {
 		var marquee = com.rsmaxwell.diaries.responder.model.Marquee.builder().fragment(fragment).page(page)
 				.x(0d).y(0d).width(40d).height(40d).build();
 		var state = new ResolvedFragmentState(fragment, marquee);
-		org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, state::validateForWrite);
+		// 0051: an IMAGE Fragment may own a Marquee on the same Page.
+		org.junit.jupiter.api.Assertions.assertDoesNotThrow(state::validateForWrite);
+		assertEquals(FragmentType.IMAGE, fragment.getType());
+		// A MARQUEE Fragment must still reject an Image reference.
 		fragment.setType(FragmentType.MARQUEE);
 		state.validateForWrite();
 		fragment.setPersistedImageId(91L);

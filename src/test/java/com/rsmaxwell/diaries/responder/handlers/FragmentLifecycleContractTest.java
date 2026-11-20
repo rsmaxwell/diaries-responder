@@ -91,14 +91,21 @@ class FragmentLifecycleContractTest {
                 marquees.put(mq.getFragment().getId(), mq); writes++; yield mq.getId();
             }
             case "delete" -> { assertTrue(active); writes++; yield marquees.remove(((Marquee) a[0]).getFragment().getId()) == null ? 0 : 1; }
+            case "update" -> { assertTrue(active); Marquee mq = (Marquee) a[0]; marquees.put(mq.getFragment().getId(), mq); writes++; yield 1; }
             default -> throw new AssertionError("Unexpected Marquee operation: " + m.getName());
         });
         context = new DiaryContext() {
             @Override public Fragment inflateFragment(Long id) { return copy(rows.get(id)); }
             @Override public Fragment inflateFragment(FragmentDBDTO dto) { return copy(rows.get(dto.getId())); }
             @Override public Page inflatePage(Long id) { assertEquals(page.getId(), id); return page; }
-            @Override public Marquee inflateMarquee(Long id) { return marquees.values().stream().filter(m -> m.getId().equals(id)).findFirst().orElseThrow(); }
-            @Override public ResolvedFragmentState resolveFragmentState(Fragment f) { return new ResolvedFragmentState(f, marquees.get(f.getId())); }
+            @Override public Marquee inflateMarquee(Long id) {
+                Marquee original = marquees.values().stream().filter(m -> m.getId().equals(id)).findFirst().orElseThrow();
+                return marqueeCopy(original, copy(rows.get(original.getFragment().getId())));
+            }
+            @Override public ResolvedFragmentState resolveFragmentState(Fragment f) {
+                Marquee original = marquees.get(f.getId());
+                return new ResolvedFragmentState(f, original == null ? null : marqueeCopy(original, f));
+            }
             @Override public Integer deleteFragment(Fragment f) { assertTrue(active); writes++; return rows.remove(f.getId()) == null ? 0 : 1; }
             @Override public Image lockImageForFragmentWrite(Long id) {
                 assertTrue(active);
@@ -126,9 +133,14 @@ class FragmentLifecycleContractTest {
         Fragment result = new Fragment(new FragmentPublishDTO(f, null)); result.setPage(page);
         if (f.getImage() != null) result.setImage(f.getImage()); return result;
     }
+    Marquee marqueeCopy(Marquee original, Fragment fragment) {
+        return Marquee.builder().id(original.getId()).version(original.getVersion())
+                .page(original.getPage()).fragment(fragment).x(original.getX()).y(original.getY())
+                .width(original.getWidth()).height(original.getHeight()).build();
+    }
     FragmentDBDTO dbDto(Fragment f) {
         return FragmentDBDTO.builder().id(f.getId()).version(f.getVersion()).pageId(f.getPageId()).type(f.getType())
-                .imageId(f.getImageId()).lock(f.getLock()).year(f.getYear()).month(f.getMonth()).day(f.getDay()).sequence(f.getSequence()).text(f.getText()).build();
+                .imageId(f.getImageId()).imageLinkUrl(f.getImageLinkUrl()).lock(f.getLock()).year(f.getYear()).month(f.getMonth()).day(f.getDay()).sequence(f.getSequence()).text(f.getText()).build();
     }
     Fragment seed(long id, FragmentType type, boolean marquee) throws Exception {
         return seed(id, type, marquee, BigDecimal.ONE);
@@ -332,28 +344,79 @@ class FragmentLifecycleContractTest {
             }
         }
     }
-    @Test void imageWithMarqueeCannotBeUpdatedOrDeletedThroughOrdinaryHandlers() throws Exception {
-        Fragment row = seed(123L, FragmentType.IMAGE, true); row.setLock(LockInfo.lockedNow(42L,"editor","Editor","mine"));
-        var args = Map.<String,Object>of("id",123L,"version",0L,"year",1830,"month",3,"day",8,"sequence",1,"text","Edited");
-        assertEquals(400, assertThrows(RpcStatusException.class, () -> new UpdateFragment().handleRequest(context,args,auth(42L,"mine"))).getStatus().code());
-        assertEquals(409, assertThrows(RpcStatusException.class, () -> new DeleteFragment().handleRequest(context,Map.of("id",123L),auth(42L,"mine"))).getStatus().code());
-        assertEquals(0,writes); assertTrue(publications.isEmpty()); assertEquals(2,rollbacks); assertSame(row,rows.get(123L));
+    @Test void imageWithExistingMarqueeSupportsOrdinaryEditAndDependentDeletion() throws Exception {
+        Fragment row = seed(123L, FragmentType.IMAGE, true);
+        row.setImageLinkUrl("https://example.invalid/map?z=1#point");
+        row.setLock(LockInfo.lockedNow(42L,"editor","Editor","mine"));
+        var args = Map.<String,Object>of("id",123L,"version",0L,"year",1830,"month",3,"day",8,
+                "sequence",1,"text","Edited");
+        var changed = new UpdateFragment().handleRequest(context,args,auth(42L,"mine"));
+        assertEquals(200, changed.status().code());
+        assertEquals(FragmentType.IMAGE, rows.get(123L).getType());
+        assertEquals(91L, rows.get(123L).getImageId());
+        assertEquals("https://example.invalid/map?z=1#point",rows.get(123L).getImageLinkUrl());
+        assertEquals(223L, marquees.get(123L).getId());
+        assertTrue(retained.get("diaries/fragments/123").contains("https://example.invalid/map?z=1#point"));
+        var deleted = new DeleteFragment().handleRequest(context,Map.of("id",123L),auth(42L,"mine"));
+        assertEquals(200, deleted.status().code());
+        assertFalse(rows.containsKey(123L));
+        assertFalse(marquees.containsKey(123L));
+        assertFalse(retained.containsKey("diaries/fragments/123"));
+        assertEquals(2,commits); assertEquals(0,rollbacks);
     }
-    @Test void marqueeHandlersRejectImageShapeWithoutUnlockingOrPublishing() throws Exception {
+    @Test void marqueeHandlersRejectImageShapeWhenExtensionsAreDisabledWithoutSideEffects() throws Exception {
         for (Long reference : new Long[] {null, 91L}) {
             Fragment row = seed(123L, FragmentType.IMAGE, false);
             if (reference == null) row.setImage(null);
             row.setLock(LockInfo.lockedNow(42L, "editor", "Editor", "mine"));
-            var args = new HashMap<String,Object>(Map.of("pageId",22L,"fragmentId",123L,"x",0d,"y",0d,"width",40d,"height",40d));
-            assertEquals(400, assertThrows(RpcStatusException.class, () -> new AddMarquee().handleRequest(context,args,auth(42L,"mine"))).getStatus().code());
-            // An already-invalid legacy pair must not become editable or silently unlock the Fragment.
-            marquees.put(123L, Marquee.builder().id(223L).page(page).fragment(row).x(0d).y(0d).width(40d).height(40d).build());
+            var args = new HashMap<String,Object>(Map.of("pageId",22L,"fragmentId",123L,
+                    "fragmentVersion",0L,"x",0d,"y",0d,"width",40d,"height",40d));
+            assertEquals(403, assertThrows(RpcStatusException.class, () ->
+                    new AddMarquee().handleRequest(context,args,auth(42L,"mine"))).getStatus().code());
+            marquees.put(123L, Marquee.builder().id(223L).version(0L).page(page).fragment(row)
+                    .x(0d).y(0d).width(40d).height(40d).build());
             args.put("id",223L); args.put("version",0L);
-            assertEquals(400, assertThrows(RpcStatusException.class, () -> new UpdateMarquee().handleRequest(context,args,auth(42L,"mine"))).getStatus().code());
-            assertEquals(0,writes); assertTrue(publications.isEmpty()); assertTrue(row.getLock().isLockedBy(42L,"mine"));
+            assertEquals(403, assertThrows(RpcStatusException.class, () ->
+                    new UpdateMarquee().handleRequest(context,args,auth(42L,"mine"))).getStatus().code());
+            assertEquals(403, assertThrows(RpcStatusException.class, () ->
+                    new DeleteMarquee().handleRequest(context,Map.of("id",223L,"version",0L),auth(42L,"mine"))).getStatus().code());
+            assertEquals(0,writes); assertTrue(publications.isEmpty());
+            assertTrue(row.getLock().isLockedBy(42L,"mine"));
             assertEquals(reference,row.getImageId()); assertEquals(FragmentType.IMAGE,row.getType());
             marquees.clear();
         }
+    }
+    @Test void imageMarqueeAttachEditRemoveKeepsImageAndLinkIndependent() throws Exception {
+        context.getConfig().setImageFragmentExtensionsWritesEnabled(true);
+        Fragment row = seed(123L, FragmentType.IMAGE, false);
+        row.setImageLinkUrl("https://example.invalid/maps?a=2#location");
+        row.setLock(LockInfo.lockedNow(42L,"editor","Editor","mine"));
+        var added = new AddMarquee().handleRequest(context,Map.of("pageId",22L,"fragmentId",123L,
+                "fragmentVersion",0L,"x",10d,"y",11d,"width",40d,"height",50d),auth(42L,"mine"));
+        assertEquals(200,added.status().code());
+        Marquee mq = marquees.get(123L);
+        assertNotNull(mq); assertEquals(FragmentType.IMAGE,rows.get(123L).getType());
+        assertEquals(91L,rows.get(123L).getImageId());
+        assertEquals("https://example.invalid/maps?a=2#location",rows.get(123L).getImageLinkUrl());
+        assertEquals(1L,rows.get(123L).getVersion());
+        assertNull(rows.get(123L).getLock());
+        assertEquals(mq.getId(),new ObjectMapper().readTree(retained.get("diaries/fragments/123")).get("marqueeId").longValue());
+        rows.get(123L).setLock(LockInfo.lockedNow(42L,"editor","Editor","mine"));
+        var updated = new UpdateMarquee().handleRequest(context,Map.of("id",mq.getId(),"version",0L,
+                "pageId",22L,"fragmentId",123L,"x",12d,"y",13d,"width",42d,"height",52d),auth(42L,"mine"));
+        assertEquals(200,updated.status().code());
+        assertEquals(12d,marquees.get(123L).getX());
+        assertEquals(1L,marquees.get(123L).getVersion());
+        rows.get(123L).setLock(LockInfo.lockedNow(42L,"editor","Editor","mine"));
+        var deleted = new DeleteMarquee().handleRequest(context,
+                Map.of("id",mq.getId(),"version",1L),auth(42L,"mine"));
+        assertEquals(200,deleted.status().code());
+        assertFalse(marquees.containsKey(123L));
+        assertTrue(new ObjectMapper().readTree(retained.get("diaries/fragments/123")).get("marqueeId").isNull());
+        assertEquals(FragmentType.IMAGE,rows.get(123L).getType());
+        assertEquals(91L,rows.get(123L).getImageId());
+        assertEquals("https://example.invalid/maps?a=2#location",rows.get(123L).getImageLinkUrl());
+        assertEquals(3,commits); assertEquals(0,rollbacks);
     }
 
     @SuppressWarnings("unchecked") static <T> T proxy(Class<T> type, InvocationHandler handler) {

@@ -60,6 +60,10 @@ public class Fragment extends Base {
 	@Transient
 	private Long persistedImageId;
 
+	/** Optional external destination for this IMAGE occurrence (not catalogue metadata). */
+	@Column(name = "image_link_url", length = 4096)
+	private String imageLinkUrl;
+
 	@NonNull
 	private Integer year;
 
@@ -117,6 +121,7 @@ public class Fragment extends Base {
 			this.day = f.getDay();
 			this.text = f.getText();
 			this.type = f.getType();
+			this.imageLinkUrl = f.getImageLinkUrl();
 		} else if (dto instanceof FragmentPublishDTO f) {
 			this.sequence = f.getSequence();
 			this.year = f.getYear();
@@ -124,6 +129,7 @@ public class Fragment extends Base {
 			this.day = f.getDay();
 			this.text = f.getText();
 			this.type = f.getType();
+			this.imageLinkUrl = f.getImageLinkUrl();
 		} else {
 			throw new IllegalArgumentException("Unsupported DTO type: " + dto.getClass());
 		}

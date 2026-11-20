@@ -1,6 +1,7 @@
 package com.rsmaxwell.diaries.responder.utilities;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -165,14 +166,14 @@ class FragmentSequenceNormaliserTest {
 	}
 
 	@Test
-	void marqueeGuardRejectsImagesAndPreservesLegacyCompatibility() throws Exception {
+	void marqueeGuardAllowsImageButRejectsIllegalMarqueeImageReference() throws Exception {
 		var fragment=new Fragment(dto(1,1830,2,1,"1"));
 		FragmentLocking.requireMarqueeCompatible(fragment);
 		fragment.setType(FragmentType.MARQUEE);FragmentLocking.requireMarqueeCompatible(fragment);
 		fragment.setPersistedImageId(91L);
 		assertThrows(RpcStatusException.class,()->FragmentLocking.requireMarqueeCompatible(fragment));
 		fragment.setImage(null);fragment.setType(FragmentType.IMAGE);
-		assertThrows(RpcStatusException.class,()->FragmentLocking.requireMarqueeCompatible(fragment));
+		assertDoesNotThrow(()->FragmentLocking.requireMarqueeCompatible(fragment));
 	}
 
 	private static FragmentDBDTO dto(long id, int year, int month, int day, String sequence) {

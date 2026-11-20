@@ -20,13 +20,19 @@ public class ResolvedFragmentState {
 	/** Writer validation; readers may expose incomplete legacy state for repair. */
 	public void validateForWrite() {
 		if (fragment.getType() == FragmentType.IMAGE) {
-			if (marquee != null) throw new IllegalArgumentException("IMAGE fragment cannot have a Marquee");
 			if (fragment.getImageId() != null && getImage() == null)
 				throw new IllegalArgumentException("Fragment Image reference is unresolved");
 		} else if (fragment.getType() == FragmentType.MARQUEE) {
+			if (fragment.getImageLinkUrl() != null) throw new IllegalArgumentException("MARQUEE fragment cannot have a link");
 			if (fragment.getImageId() != null) throw new IllegalArgumentException("MARQUEE fragment cannot reference an Image");
 		} else {
 			throw new IllegalArgumentException("Fragment type is required for writes");
+		}
+		if (fragment.getImageLinkUrl() != null) {
+			try { ImageLinkWritePolicy.validate(fragment.getImageLinkUrl()); }
+			catch (com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException invalid) {
+				throw new IllegalArgumentException("Invalid image link URL", invalid);
+			}
 		}
 		if (marquee != null && (marquee.getFragment() != fragment
 				|| marquee.getPage() == null || fragment.getPageId() == null
