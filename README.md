@@ -905,6 +905,17 @@ disabled-gate/rollback testing or an emergency authoring stop. The disposable in
 fixture explicitly enables it; its gate test then
 exercises missing/false values over live MQTT. See [Step 13 evidence](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/evidence/Step%2013/README.md).
 
+
+## 0051 current IMAGE link / optional-Marquee responder contract
+
+**Supersedes the older IMAGE/no-Marquee limitation in historical 0025 notes; the original 0025 implementation chronology below remains historical evidence.** The current production-compatible responder is `0.0.9-build-85` (21 November 2026, with client build-79 and web-reader build-9).
+
+A Fragment with `type=IMAGE` may reference zero or one catalogue `Image`, zero or one same-Page `Marquee` and an optional validated per-Fragment `imageLinkUrl`; a MARQUEE Fragment may not acquire a catalogue Image or IMAGE link. PostgreSQL stores `imageLinkUrl` in nullable `fragment.image_link_url` (`VARCHAR(4096)`). A link can include HTTP/HTTPS path, query and fragment; unsafe/malformed destinations are rejected. Link SET and CLEAR are explicit operations, while omission in ordinary edits means **preserve**. Ordinary Image reference and text/date/sequence mutations must not silently erase links.
+
+The same-Page Marquee association uses the established authorisation, lock, optimistic-version and retained-publication rules. Attach/edit/remove must preserve other Fragment attributes, and removing a Marquee must not delete its owning IMAGE or shared catalogue Image. The existing deleteImage reference protections remain authoritative; deleting an IMAGE Fragment never deletes its reusable Image or physical media. After committed mutations, MQTT retained Fragment/Marquee aliases and tombstones must reconcile with PostgreSQL, including reconnect/startup replay.
+
+`imageFragmentWritesEnabled` continues to gate ordinary new IMAGE creation and deliberate Image-reference writes. **`imageFragmentExtensionsWritesEnabled`** independently gates the new link and IMAGE-Marquee mutations. Production renders them from `diaries_image_fragment_writes_enabled` and `diaries_image_fragment_extensions_writes_enabled` in Ansible. On 21 November 2026 the extension gate was enabled with all five production services healthy and owner-reported functional acceptance. Disabling it may stop further new extension writes but **does not undo existing new-format records**; older pre-0051 binaries are not approved for rollback after the first such write. The 0028 migration and 0029 destructive cleanup remain separately gated.
+
 ### 0027 production authoring handoff
 
 0027 completed the Angular authoring rollout without changing the responder's 0025 wire contract. The production-verified set was client `0.0.9-build-76`, responder `0.0.9-build-84` and reader `0.0.9-build-8` on 2026-10-06.
