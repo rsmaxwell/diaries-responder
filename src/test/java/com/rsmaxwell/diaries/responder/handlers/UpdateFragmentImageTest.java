@@ -20,23 +20,16 @@ class UpdateFragmentImageTest {
             return Image.builder().id(id).build();
         }
     };
-    @org.junit.jupiter.api.BeforeEach void enableAuthoring() {
-        var config = new com.rsmaxwell.diaries.responder.config.Config(); config.setImageFragmentWritesEnabled(true); context.setConfig(config);
-    }
-    @Test void disabledGateAllowsPreservationButRejectsAttachReplaceAndClear() throws Exception {
-        context.getConfig().setImageFragmentWritesEnabled(false);
+    @Test void imageSelectionWorksWithoutDeploymentGates() throws Exception {
+        context.setConfig(null);
         var selected=fragment(FragmentType.IMAGE,91L);
         UpdateFragment.applyImageSelection(context,Map.of(),selected);
-        UpdateFragment.applyImageSelection(context,Map.of("imageId",91),selected);
+        assertEquals(91L,selected.getImageId());
+        UpdateFragment.applyImageSelection(context,Map.of("imageId",92),selected);
+        assertEquals(92L,selected.getImageId());
         Map<String,Object> clear=new HashMap<>();clear.put("imageId",null);
-        for(var args:List.of(clear,Map.<String,Object>of("imageId",92))) {
-            assertEquals(403,assertThrows(RpcStatusException.class,()->UpdateFragment.applyImageSelection(context,args,selected)).getStatus().code());
-            assertEquals(91L,selected.getImageId());
-        }
-        var empty=fragment(FragmentType.IMAGE,null);
-        UpdateFragment.applyImageSelection(context,clear,empty);
-        assertEquals(403,assertThrows(RpcStatusException.class,()->UpdateFragment.applyImageSelection(context,Map.of("imageId",91),empty)).getStatus().code());
-        assertNull(empty.getImageId());
+        UpdateFragment.applyImageSelection(context,clear,selected);
+        assertNull(selected.getImageId());
     }
     @Test void absentPreservesNullClearsAndValueReplaces() throws Exception {
         var f=fragment(FragmentType.IMAGE,91L);

@@ -85,8 +85,6 @@ public class UpdateMarquee extends RequestHandler {
 			// (2) get the fragment associated with the original marquee
 			originalFragment = originalMarquee.getFragment();
 			FragmentLocking.requireMarqueeCompatible(originalFragment);
-			if (originalFragment.getType() == com.rsmaxwell.diaries.responder.model.FragmentType.IMAGE)
-				com.rsmaxwell.diaries.responder.utilities.ImageFragmentExtensionsWritePolicy.requireEnabled(context);
 
 			// (3) enforce: the fragment must be locked by this user/session
 			FragmentLocking.requireLockedByCaller(originalFragment, claims);

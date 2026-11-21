@@ -65,7 +65,6 @@ public class DeleteMarquee extends RequestHandler {
 			fragment = marquee.getFragment();
 			FragmentLocking.requireMarqueeCompatible(fragment);
 			if (fragment.getType() == com.rsmaxwell.diaries.responder.model.FragmentType.IMAGE) {
-				com.rsmaxwell.diaries.responder.utilities.ImageFragmentExtensionsWritePolicy.requireEnabled(context);
 				if (!args.containsKey("version") || !marquee.getVersion().equals(Utilities.getLong(args, "version")))
 					throw RpcStatusException.conflict("IMAGE Marquee version changed before deletion");
 			} else if (args.containsKey("version") && !marquee.getVersion().equals(Utilities.getLong(args, "version")))

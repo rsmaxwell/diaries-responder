@@ -31,8 +31,6 @@ public class AddImageFragment extends RequestHandler {
             throw RpcStatusException.unauthorized("Active editor authorization required");
         }
 
-        com.rsmaxwell.diaries.responder.utilities.ImageFragmentWritePolicy.requireEnabled(context);
-
         Fragment candidate;
         long pageId;
         try {
@@ -55,7 +53,7 @@ public class AddImageFragment extends RequestHandler {
         }
         if (args.containsKey("clearImageLinkUrl"))
             throw RpcStatusException.badRequest("Cannot clear imageLinkUrl during creation");
-        ImageLinkWritePolicy.apply(context, args, candidate);
+        ImageLinkWritePolicy.apply(args, candidate);
         try {
             candidate.setPage(context.inflatePage(pageId));
         } catch (Exception missingPage) {

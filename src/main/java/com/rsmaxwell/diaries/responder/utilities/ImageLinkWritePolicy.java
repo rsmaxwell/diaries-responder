@@ -34,7 +34,7 @@ public final class ImageLinkWritePolicy {
         }
     }
 
-    public static void apply(DiaryContext context, Map<String, Object> args, Fragment fragment)
+    public static void apply(Map<String, Object> args, Fragment fragment)
             throws RpcStatusException {
         boolean supplied = args.containsKey("imageLinkUrl");
         boolean clear = args.containsKey("clearImageLinkUrl");
@@ -51,7 +51,6 @@ public final class ImageLinkWritePolicy {
                 throw RpcStatusException.badRequest("imageLinkUrl must be a URL string");
             value = validate((String) args.get("imageLinkUrl"));
         }
-        ImageFragmentExtensionsWritePolicy.requireEnabled(context);
         fragment.setImageLinkUrl(value);
     }
 }

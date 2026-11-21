@@ -150,7 +150,6 @@ public class DiaryContext {
 	 * No Marquee is synthesised.
 	 */
 	public FragmentCreationResult saveImageFragmentAndNormalise(Fragment fragment) throws Exception {
-		ImageFragmentWritePolicy.requireEnabled(this);
 		requireNewFragment(fragment, FragmentType.IMAGE);
 		Fragment candidate = copyFragment(fragment);
 
@@ -175,7 +174,6 @@ public class DiaryContext {
 	 * the same operation.
 	 */
 	public ResolvedFragmentState saveImageFragment(Fragment fragment) throws Exception {
-        ImageFragmentWritePolicy.requireEnabled(this);
 		requireNewFragment(fragment, FragmentType.IMAGE);
 		Fragment candidate = copyFragment(fragment);
 		return inOwnedTransaction(() -> {

@@ -34,7 +34,6 @@ class AddImageFragmentTest {
         };
         context.setSecret(Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes()));
         context.setPublisherClient(client);
-        var config = new com.rsmaxwell.diaries.responder.config.Config(); config.setImageFragmentWritesEnabled(true); context.setConfig(config);
     }
     @AfterEach void close() throws Exception { client.close(); }
     List<UserProperty> auth(String role, String status, int minutes) {
@@ -46,14 +45,14 @@ class AddImageFragmentTest {
         var error = assertThrows(RpcStatusException.class, () -> new AddImageFragment().handleRequest(context,args,auth));
         assertEquals(expected,error.getStatus().code());
     }
-    @Test void disabledGateRejectsBeforePageLookupPersistenceOrPublication() {
-        context.getConfig().setImageFragmentWritesEnabled(null);
-        missingPage = true;
-        status(403,args(),auth("EDITOR","ACTIVE",5));
-        status(401,args(),auth("VIEWER","ACTIVE",5));
+    @Test void authoringRequiresEditorAndValidPageEvenWithoutConfig() throws Exception {
         context.setConfig(null);
-        status(403,args(),auth("EDITOR","ACTIVE",5));
-        assertFalse(committed); assertTrue(retained.isEmpty());
+        status(401,args(),auth("VIEWER","ACTIVE",5));
+        missingPage = true;
+        status(400,args(),auth("EDITOR","ACTIVE",5));
+        missingPage = false;
+        assertEquals(200,new AddImageFragment().handleRequest(context,args(),auth("EDITOR","ACTIVE",5)).status().code());
+        assertTrue(committed);
     }
     @Test void authorizationPrecedesPersistence() {
         for(var credentials : List.of(List.<UserProperty>of(),List.of(new UserProperty("accessToken","bad")),

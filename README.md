@@ -147,7 +147,6 @@ refreshExpiration
 secret
 normaliseOnStartup
 fragmentLockTtlSeconds
-imageFragmentWritesEnabled
 ```
 
 ### MQTT configuration
@@ -859,52 +858,26 @@ Remove this adapter after upgrading to a verified null-preserving dependency.
 Step 13 introduced the production authoring gate in a disabled rollout state. 0027 has now completed the reader/client prerequisites and verified the enabled production state; `false` remains the non-destructive rollback setting.
 
 
-### ImageFragment authoring gate (0025 Step 13)
+### Permanent IMAGE authoring (0051 Step 5 cleanup)
 
-Add the following top-level property to the responder JSON used by `--config`:
+IMAGE creation, catalogue-image reference changes, validated external links and
+same-Page optional Marquees are ordinary authorised Editor operations. The
+rollout-only responder JSON properties `imageFragmentWritesEnabled` and
+`imageFragmentExtensionsWritesEnabled` and their corresponding Ansible variables
+are removed from the permanent application configuration. The responder retains
+active-Editor authentication/authorisation, Fragment locks, optimistic version
+checks, valid Image references, link validation and Marquee Page ownership.
 
-```json
-"imageFragmentWritesEnabled": false
-```
+The JSON parser is strict: remove both retired keys from local development
+`%USERPROFILE%\.diaries\responder.json` and Docker
+`%USERPROFILE%\.diaries\responder.docker.json` before starting the updated
+responder. Production must deploy the new image with the matching Ansible
+responder JSON template in the same rollout. Do not deploy the key-free template
+with an older responder expecting the legacy gates.
 
-Missing or null is also disabled. An active editor receives **403 Forbidden** when
-calling `addImageFragment` while disabled, with or without an initial Image selection.
-`updateFragment` rejects changes to an IMAGE Fragment's `imageId`, including attachment,
-replacement and explicit-null clearing. Rejection rolls back the request and preserves
-its lock, version, text, database relationship and retained topics. Authentication and
-existing type/Page/version checks still apply.
-
-Omitted imageId preserves the reference. An explicit value equal to the current ID
-(including null-to-null) is not a mutation and remains allowed. Text/date/sequence
-edits, reading, replay, lock/unlock, normalisation and Fragment deletion remain available.
-The Image catalogue/upload/delete operations retain their existing reference safeguards.
-The creation service also enforces the gate; it is not solely a UI restriction.
-
-During the staged 0025/0026 rollout, production remained false until the responder was
-validated, the 0026-capable web reader was deployed/verified and 0027 authoring rollout
-was explicitly approved. Those prerequisites are now complete, so normal production
-authoring uses `"imageFragmentWritesEnabled": true`. Changing the JSON requires responder
-restart; this is not a hot-reloaded flag. Setting it to false remains a safe rollback and
-does not remove existing IMAGE data.
-
-Configuration location by mode:
-
-- development-infrastructure: `%USERPROFILE%\.diaries\responder.json` is the developer-owned
-  source JSON; `prepare-responder-config.bat` copies it to the effective development config.
-  Normal post-0027 operation uses `"imageFragmentWritesEnabled": true`.
-- local-docker-build and local-published-smoke: the external JSON selected by
-  `DIARIES_RESPONDER_DOCKER_CONFIG_FILE` (normally
-  `%USERPROFILE%\.diaries\responder.docker.json`) is mounted read-only at
-  `/config/responder.json`. Normal post-0027 operation uses `true`.
-- production: the responder JSON generated/mounted by the external Ansible deployment.
-  Its template normally emits `"imageFragmentWritesEnabled": true` after 0027 close-out.
-
-There is no environment-variable override for this gate: all modes use the responder JSON
-property. Missing/null/false is deliberately fail-closed and should now be used only for
-disabled-gate/rollback testing or an emergency authoring stop. The disposable integration
-fixture explicitly enables it; its gate test then
-exercises missing/false values over live MQTT. See [Step 13 evidence](../change-control/in-progress/0025-FEAT%20-%20add%20responder%20ImageFragment%20persistence%20and%20RPC/evidence/Step%2013/README.md).
-
+After new-format IMAGE links/Marquees exist, pre-0051 binaries are no longer
+approved rollback targets. The retired write switches cannot be used as emergency
+stops; use compatible versions and normal database/Files recovery procedures.
 
 ## 0051 current IMAGE link / optional-Marquee responder contract
 
@@ -914,13 +887,25 @@ A Fragment with `type=IMAGE` may reference zero or one catalogue `Image`, zero o
 
 The same-Page Marquee association uses the established authorisation, lock, optimistic-version and retained-publication rules. Attach/edit/remove must preserve other Fragment attributes, and removing a Marquee must not delete its owning IMAGE or shared catalogue Image. The existing deleteImage reference protections remain authoritative; deleting an IMAGE Fragment never deletes its reusable Image or physical media. After committed mutations, MQTT retained Fragment/Marquee aliases and tombstones must reconcile with PostgreSQL, including reconnect/startup replay.
 
-`imageFragmentWritesEnabled` continues to gate ordinary new IMAGE creation and deliberate Image-reference writes. **`imageFragmentExtensionsWritesEnabled`** independently gates the new link and IMAGE-Marquee mutations. Production renders them from `diaries_image_fragment_writes_enabled` and `diaries_image_fragment_extensions_writes_enabled` in Ansible. On 21 November 2026 the extension gate was enabled with all five production services healthy and owner-reported functional acceptance. Disabling it may stop further new extension writes but **does not undo existing new-format records**; older pre-0051 binaries are not approved for rollback after the first such write. The 0028 migration and 0029 destructive cleanup remain separately gated.
+Both 0027 and 0051 temporary authoring gates have been removed in the 0051
+Step 5 cleanup. IMAGE creation, reference mutation, links and optional Marquees
+are always available subject to existing Editor authorisation, locking, versions,
+input validation and data integrity checks. The extension-format rollback boundary
+is unchanged: do not run pre-0051 binaries against modified production data.
+The 0028 migration and 0029 destructive cleanup remain separately controlled.
 
-### 0027 production authoring handoff
+### 0027 production authoring history
+
+0027 completed the Angular authoring rollout. The 2026-10-06 production-verified
+set was client `0.0.9-build-76`, responder `0.0.9-build-84` and reader
+`0.0.9-build-8`. Its original deployment gate was used during staged activation;
+it is retired after 0051 completion. Historical 0027 evidence remains unchanged.
+
+## 0027 production authoring handoff
 
 0027 completed the Angular authoring rollout without changing the responder's 0025 wire contract. The production-verified set was client `0.0.9-build-76`, responder `0.0.9-build-84` and reader `0.0.9-build-8` on 2026-10-06.
 
-Keep the responder configuration gate authoritative. After 0027 close-out, the production Ansible role source defaults `diaries_image_fragment_writes_enabled` to `true`, so the completed IMAGE authoring feature is available in normal operation. Setting the variable to false and redeploying/restarting the responder is the supported non-destructive authoring stop. Existing IMAGE data remains readable/editable under the preserve semantics described above.
+The original 0027 deployment gate was used for controlled rollout and is retired by the 0051 Step 5 cleanup; normal IMAGE authoring is permanent and remains subject to standard Editor permissions and validation.
 
 The production client identity needs `topic read diaries/images/+` in addition to the responder's retained Image publication permission. Without that ACL the Fragment can carry a valid `imageId` while the Angular editor cannot resolve its retained `CatalogueImage` metadata.
 

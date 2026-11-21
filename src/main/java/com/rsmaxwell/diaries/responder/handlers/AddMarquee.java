@@ -16,7 +16,6 @@ import com.rsmaxwell.diaries.responder.model.Role;
 import com.rsmaxwell.diaries.responder.utilities.Authorization;
 import com.rsmaxwell.diaries.responder.utilities.DiaryContext;
 import com.rsmaxwell.diaries.responder.utilities.FragmentLocking;
-import com.rsmaxwell.diaries.responder.utilities.ImageFragmentExtensionsWritePolicy;
 import com.rsmaxwell.mqtt.rpc.common.Response;
 import com.rsmaxwell.mqtt.rpc.common.Utilities;
 import com.rsmaxwell.mqtt.rpc.exceptions.RpcStatusException;
@@ -67,7 +66,6 @@ public class AddMarquee extends RequestHandler {
                 throw RpcStatusException.badRequest("Marquee and Fragment must belong to the same Page");
 
             if (fragment.getType() == FragmentType.IMAGE) {
-                ImageFragmentExtensionsWritePolicy.requireEnabled(context);
                 FragmentLocking.requireLockedByCaller(fragment, claims);
                 if (!args.containsKey("fragmentVersion") ||
                         !fragment.getVersion().equals(Utilities.getLong(args, "fragmentVersion")))

@@ -65,7 +65,6 @@ class ImageWiringIntegrationTest {
 		db.setUsers(List.of(user));
 		db.setAdditionalConnectionProperties(Map.of("hibernate.hbm2ddl.auto", "validate"));
 		config = new Config();
-        config.setImageFragmentWritesEnabled(true);
 		config.setDb(db);
 		config.setRefreshPeriod("10s");
 		config.setRefreshExpiration("60s");
@@ -118,7 +117,7 @@ class ImageWiringIntegrationTest {
 
     @Test
     @EnabledIfEnvironmentVariable(named = "DIARIES_IMAGE_MQTT_TEST_URL", matches = ".+")
-    void authoringGateRejectsMutationsButPreservesLifecycle(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+    void imageAuthoringAndDeletionKeepCatalogueIndependent(@org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
         String broker=System.getenv("DIARIES_IMAGE_MQTT_TEST_URL");
         assertTrue(broker.matches("tcp://127\\.0\\.0\\.1:[0-9]+"));
         var page=context.inflatePage(context.getPageRepository().findAll().iterator().next().getId());
@@ -129,30 +128,18 @@ class ImageWiringIntegrationTest {
         long originalCount=context.getFragmentRepository().count();
         try(var rpc=new Step12Rpc(broker,factory)) {
             var create=new HashMap<String,Object>(Map.of("pageId",page.getId(),"year",2095,"month",3,"day",13,"sequence",1,"text","Gate"));
-            // Missing configuration value is the production default, including explicit-null wire requests.
-            config.setImageFragmentWritesEnabled(null);
-            rpc.call("addImageFragment",create,403);create.put("imageId",null);rpc.call("addImageFragment",create,403);
-            create.put("imageId",first.getId());rpc.call("addImageFragment",create,403);
-            assertEquals(originalCount,context.getFragmentRepository().count());
-            assertTrue(step11RetainedSnapshot(broker,rpc.publisher,"diaries/images/"+first.getId(),"diaries/images/"+second.getId()).isEmpty());
-            config.setImageFragmentWritesEnabled(true);
+            create.put("imageId",first.getId());
             Long selected=rpc.call("addImageFragment",create).get("id").longValue();ids.add(selected);
             create.put("imageId",null);create.put("sequence",2);
             Long empty=rpc.call("addImageFragment",create).get("id").longValue();ids.add(empty);
             new ImagePublishDTO(first).publish(rpc.publisher);
             String[] gateTopics={"diaries/fragments/"+selected,"diaries/fragments/"+empty,
                     "diaries/dates/2095/3/13/"+selected,"diaries/dates/2095/3/13/"+empty,"diaries/images/"+first.getId()};
-            config.setImageFragmentWritesEnabled(false);
             for(Long id:ids) {
                 rpc.call("lockFragment",Map.of("id",id));
                 var before=context.getFragmentRepository().findById(id).orElseThrow();
                 var topics=step11RetainedSnapshot(broker,rpc.publisher,gateTopics);
-                for(Long reference:id.equals(selected)?new Long[]{second.getId(),null}:new Long[]{first.getId()}) {
-                    var edit=step7Args(context.inflateFragment(id));edit.put("imageId",reference);edit.put("text","Must not change");
-                    rpc.call("updateFragment",edit,403);
-                    assertEquals(before,context.getFragmentRepository().findById(id).orElseThrow());
-                    assertEquals(topics,step11RetainedSnapshot(broker,rpc.publisher,gateTopics));
-                }
+                assertTrue(topics.containsKey("diaries/fragments/"+id));
                 var edit=step7Args(context.inflateFragment(id));edit.put("text","Allowed text edit");
                 rpc.call("updateFragment",edit);
                 assertEquals(before.getImageId(),context.getFragmentRepository().findById(id).orElseThrow().getImageId());
@@ -161,7 +148,7 @@ class ImageWiringIntegrationTest {
             rpc.call("normaliseFragments",Map.of("year",2095,"month",3,"day",13));step12AssertRetained(broker,rpc.publisher,ids);
             rpc.call("deleteImage",Map.of("name","gate-first.png"),409);
             try(var reader=factory.createEntityManager()) {
-                var restarted=Responder.createContext(config,factory,reader);assertFalse(restarted.getConfig().isImageFragmentWritesEnabled());
+                var restarted=Responder.createContext(config,factory,reader);assertNotNull(restarted.getConfig());
                 var replay=restarted.loadFromDatabase();
                 var payload=new com.fasterxml.jackson.databind.ObjectMapper().readTree(replay.get("diaries/fragments/"+selected));
                 assertEquals(first.getId().longValue(),payload.get("imageId").longValue());assertTrue(payload.get("marqueeId").isNull());
@@ -172,7 +159,6 @@ class ImageWiringIntegrationTest {
             rpc.call("deleteImage",Map.of("name","gate-first.png"));
             assertFalse(context.getImageRepository().existsById(first.getId()));assertFalse(java.nio.file.Files.exists(root.resolve("files/gate-first.png")));
         } finally {
-            config.setImageFragmentWritesEnabled(true);
             if(em.getTransaction().isActive())em.getTransaction().rollback();
             em.getTransaction().begin();for(Long id:ids)context.getFragmentRepository().deleteById(id);em.getTransaction().commit();
         }
@@ -306,8 +292,6 @@ class ImageWiringIntegrationTest {
     void imageLinkAndOptionalMarqueeRoundTripOverRpc() throws Exception {
         String broker = System.getenv("DIARIES_IMAGE_MQTT_TEST_URL");
         assertTrue(broker.matches("tcp://127\\.0\\.0\\.1:[0-9]+"));
-        Boolean previousGate = config.getImageFragmentExtensionsWritesEnabled();
-        config.setImageFragmentExtensionsWritesEnabled(false);
         var page = context.inflatePage(context.getPageRepository().findAll().iterator().next().getId());
         Image image = context.saveImage(candidate("0051-image-link.png"));
         Long fragmentId = null;
@@ -317,9 +301,6 @@ class ImageWiringIntegrationTest {
                     "pageId", page.getId(), "year", 2092, "month", 8, "day", 17,
                     "sequence", 1, "text", "0051 integration", "imageId", image.getId(),
                     "imageLinkUrl", destination));
-            // Default-disabled extensions reject new URL writes without preventing legacy authoring.
-            rpc.call("addImageFragment", create, 403);
-            config.setImageFragmentExtensionsWritesEnabled(true);
             fragmentId = rpc.call("addImageFragment", create).get("id").longValue();
             final Long id = fragmentId;
             var initial = context.getFragmentRepository().findById(id).orElseThrow();
@@ -437,7 +418,6 @@ class ImageWiringIntegrationTest {
             assertTrue(context.getImageRepository().existsById(image.getId()));
             fragmentId = null;
         } finally {
-            config.setImageFragmentExtensionsWritesEnabled(previousGate);
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             if (fragmentId != null) {
                 em.getTransaction().begin();

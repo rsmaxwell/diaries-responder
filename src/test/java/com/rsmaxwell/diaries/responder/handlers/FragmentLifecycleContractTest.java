@@ -113,7 +113,7 @@ class FragmentLifecycleContractTest {
                 return shared;
             }
         };
-        context.setConfig(new Config()); context.getConfig().setImageFragmentWritesEnabled(true); context.setEntityManager(em);
+        context.setConfig(new Config()); context.setEntityManager(em);
         context.setFragmentRepository(fragments); context.setMarqueeRepository(marqueeRepository);
         context.setImageRepository(proxy(ImageRepository.class, (p, m, a) -> { throw new AssertionError("Fragment lifecycle must not write/delete Image: " + m.getName()); }));
         context.setSecret(Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8)));
@@ -364,30 +364,22 @@ class FragmentLifecycleContractTest {
         assertFalse(retained.containsKey("diaries/fragments/123"));
         assertEquals(2,commits); assertEquals(0,rollbacks);
     }
-    @Test void marqueeHandlersRejectImageShapeWhenExtensionsAreDisabledWithoutSideEffects() throws Exception {
+    @Test void imageMarqueeRejectsStaleFragmentVersionWithoutSideEffects() throws Exception {
         for (Long reference : new Long[] {null, 91L}) {
             Fragment row = seed(123L, FragmentType.IMAGE, false);
             if (reference == null) row.setImage(null);
             row.setLock(LockInfo.lockedNow(42L, "editor", "Editor", "mine"));
-            var args = new HashMap<String,Object>(Map.of("pageId",22L,"fragmentId",123L,
-                    "fragmentVersion",0L,"x",0d,"y",0d,"width",40d,"height",40d));
-            assertEquals(403, assertThrows(RpcStatusException.class, () ->
+            var args = Map.<String,Object>of("pageId",22L,"fragmentId",123L,
+                    "fragmentVersion",999L,"x",0d,"y",0d,"width",40d,"height",40d);
+            assertEquals(409, assertThrows(RpcStatusException.class, () ->
                     new AddMarquee().handleRequest(context,args,auth(42L,"mine"))).getStatus().code());
-            marquees.put(123L, Marquee.builder().id(223L).version(0L).page(page).fragment(row)
-                    .x(0d).y(0d).width(40d).height(40d).build());
-            args.put("id",223L); args.put("version",0L);
-            assertEquals(403, assertThrows(RpcStatusException.class, () ->
-                    new UpdateMarquee().handleRequest(context,args,auth(42L,"mine"))).getStatus().code());
-            assertEquals(403, assertThrows(RpcStatusException.class, () ->
-                    new DeleteMarquee().handleRequest(context,Map.of("id",223L,"version",0L),auth(42L,"mine"))).getStatus().code());
             assertEquals(0,writes); assertTrue(publications.isEmpty());
+            assertTrue(marquees.isEmpty());
             assertTrue(row.getLock().isLockedBy(42L,"mine"));
             assertEquals(reference,row.getImageId()); assertEquals(FragmentType.IMAGE,row.getType());
-            marquees.clear();
         }
     }
     @Test void imageMarqueeAttachEditRemoveKeepsImageAndLinkIndependent() throws Exception {
-        context.getConfig().setImageFragmentExtensionsWritesEnabled(true);
         Fragment row = seed(123L, FragmentType.IMAGE, false);
         row.setImageLinkUrl("https://example.invalid/maps?a=2#location");
         row.setLock(LockInfo.lockedNow(42L,"editor","Editor","mine"));

@@ -109,7 +109,7 @@ public class UpdateFragment extends RequestHandler {
 			// Preserve the loaded Image reference when imageId was omitted.
 			if (originalFragment.getImage() != null) incomingFragment.setImage(originalFragment.getImage());
 			applyImageSelection(context, args, incomingFragment);
-			ImageLinkWritePolicy.apply(context, args, incomingFragment);
+			ImageLinkWritePolicy.apply(args, incomingFragment);
 			if (incomingFragment.getType() == FragmentType.IMAGE)
 				context.resolveFragmentState(incomingFragment).validateForWrite();
 
@@ -195,11 +195,6 @@ public class UpdateFragment extends RequestHandler {
 		}
 		if (!args.containsKey("imageId")) return; // Preserve the persisted id, including during text-only edits.
 		Long imageId = args.get("imageId") == null ? null : positiveImageOrPageId(args.get("imageId"));
-        if (!com.rsmaxwell.diaries.responder.utilities.ImageFragmentWritePolicy.enabled(context)) {
-            if (!Objects.equals(imageId, fragment.getImageId()))
-                com.rsmaxwell.diaries.responder.utilities.ImageFragmentWritePolicy.requireEnabled(context);
-            return; // An unchanged explicit reference is not an authoring mutation.
-        }
 		try {
 			fragment.setImage(context.lockImageForFragmentWrite(imageId));
 		} catch (IllegalArgumentException missing) {
